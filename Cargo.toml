@@ -1,0 +1,15 @@
+[workspace]
+members = ["example"]
+
+[package]
+name = "leptos_fluid"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+leptos = { version = "0.7.2", features = ["csr"] }
+leptos_meta = { version = "0.7.2" }
+leptos_router = { version = "0.7.2" }
+console_error_panic_hook = { version = "0.1" }
+web-sys = { version = "0.3.69", features = ["DomRect", "Element", "Storage"] }
+gloo-events = "0.2.0"
