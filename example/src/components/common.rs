@@ -8,7 +8,8 @@ pub fn PageShell(#[prop(optional)] class: &'static str, children: Children) -> i
     Effect::new(move || request_animation_frame(move || delayed_class.set(class)));
     view! {
         <section class=move || {
-            "flex flex-1 flex-col w-full items-center scroll-bar ".to_string() + delayed_class.get()
+            "flex flex-1 flex-col h-full w-full items-center scroll-bar ".to_string()
+                + delayed_class.get()
         }>{children()}</section>
     }
 }
