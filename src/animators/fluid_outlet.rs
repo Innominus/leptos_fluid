@@ -23,7 +23,7 @@ pub struct FluidManager {
     // TODO: Use this for backwards navigation
     recent_navigations: RwSignal<Vec<String>>,
     outlet_route_cache: RwSignal<Vec<String>>,
-    navigate_backwards: StoredValue<bool>,
+    navigate_backwards: RwSignal<bool>,
     initialized: StoredValue<bool>,
     current_location: StoredValue<String>,
 }
@@ -40,7 +40,7 @@ impl FluidManager {
             location: StoredValue::new(Memo::new(|_| String::from("/"))),
             recent_navigations: RwSignal::new(Vec::new()),
             outlet_route_cache: RwSignal::new(Vec::new()),
-            navigate_backwards: StoredValue::new(false),
+            navigate_backwards: RwSignal::new(false),
             initialized: StoredValue::new(false),
             current_location: StoredValue::new(String::new()),
         };
@@ -200,7 +200,7 @@ impl FluidManager {
         let inner_manager = self.clone();
         let closure = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
             // TODO: Use this to reverse animations
-            inner_manager.navigate_backwards.set_value(true);
+            inner_manager.navigate_backwards.set(true);
             // TODO: Figure out transitioning route
             // inner_manager.transition();
             log!("PopState event triggered");
@@ -224,7 +224,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
     let outro_node_ref = NodeRef::<Div>::new();
 
     let is_transitioning = RwSignal::new(false);
-    let animation_class = RwSignal::new(intro_class);
     let navigate_backwards = manager.navigate_backwards;
 
     let matched_route = use_matched();
@@ -278,11 +277,7 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             // Cloning this twice isn't fantastic to be honest
             // Refactor maybe behind a pointer
             let inner_manager = inner_manager.clone();
-            animation_class.set("");
             inner_manager.transition();
-            request_animation_frame(move || {
-                animation_class.set(intro_class);
-            });
         });
 
         manager.initialized.set_value(true);
@@ -296,18 +291,17 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         is_transitioning,
     );
 
-    // Effect::new(move || request_animation_frame(move || animation_class.set(intro_class)));
-
     // TODO: Test while navigating fast
-    let outro = move || {
+    let animation_classes = move || {
         if is_transitioning.get() {
-            if navigate_backwards.get_value() {
-                intro_class
+            if navigate_backwards.get() {
+                log!("Getting transition classes");
+                (intro_class, outro_class)
             } else {
-                outro_class
+                (outro_class, intro_class)
             }
         } else {
-            ""
+            ("", "")
         }
     };
 
@@ -318,7 +312,16 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             .expect("Node ref should be mounted in outro end")
             .replace_children_with_node_0();
         is_transitioning.set(false);
+        navigate_backwards.set(false);
         log!("Outro ended");
+    };
+
+    let animation_direction = move || {
+        if navigate_backwards.get() {
+            " animation-direction: reverse;"
+        } else {
+            ""
+        }
     };
 
     on_cleanup(move || {
@@ -334,12 +337,17 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             <div
                 node_ref=outro_node_ref
                 on:animationend=outro_ends
-                class=outro
-                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
+                class=move || animation_classes().0
+                style=move || {
+                    "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
+                        .to_string() + animation_direction()
+                }
             ></div>
-
-            <div style="width: 100%; height: 100%" class=move || animation_class.get()>
-                <div node_ref=intro_node_ref style="width: 100%; height: 100%">
+            <div
+                style=move || { "width: 100%; height: 100%;".to_string() + animation_direction() }
+                class=move || animation_classes().1
+            >
+                <div node_ref=intro_node_ref style="width: 100%; height: 100%;">
                     <Outlet />
                 </div>
             </div>

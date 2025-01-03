@@ -9,12 +9,12 @@
 
     :root:has(
             :is(
-                    .modal-open,
-                    .modal:target,
-                    .modal-toggle:checked + .modal,
-                    .modal[open],
-                    scroll-auto-gutter
-                )
+                .modal-open,
+                .modal:target,
+                .modal-toggle:checked + .modal,
+                .modal[open],
+                scroll-auto-gutter
+            )
         ) {
         scrollbar-gutter: auto;
     }
