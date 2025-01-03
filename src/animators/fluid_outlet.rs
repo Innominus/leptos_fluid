@@ -25,7 +25,7 @@ pub struct FluidManager {
     outlet_route_cache: RwSignal<Vec<String>>,
     navigate_backwards: StoredValue<bool>,
     initialized: StoredValue<bool>,
-    current_outlet_route: StoredValue<String>,
+    current_location: StoredValue<String>,
 }
 
 impl FluidManager {
@@ -42,7 +42,7 @@ impl FluidManager {
             outlet_route_cache: RwSignal::new(Vec::new()),
             navigate_backwards: StoredValue::new(false),
             initialized: StoredValue::new(false),
-            current_outlet_route: StoredValue::new(String::new()),
+            current_location: StoredValue::new(String::new()),
         };
 
         manager.listen();
@@ -50,23 +50,45 @@ impl FluidManager {
         manager
     }
 
-    #[inline(always)]
     pub fn get_manager() -> FluidManager {
         use_context::<FluidManager>()
             .expect("Fluid Manager needs to be initialized at the root level")
     }
 
     fn transition(&self) {
+        let candidates = &*self.outlet_route_cache.read_untracked();
+        let matched_outlet = match Self::match_location_to_outlet(
+            self.location.get_value().get_untracked(),
+            candidates,
+        ) {
+            Some(matched_val) => matched_val,
+            // Unwrapping because we know that current_location will exist in the cached outlets vec
+            None => Self::match_location_to_outlet(self.current_location.get_value(), candidates)
+                .unwrap(),
+        };
         log!(
-            "TRANSITIONING! Current route: {}, New route: {}",
-            self.current_outlet_route.get_value(),
-            self.location.get_value().get_untracked()
+            "TRANSITIONING! Current route: {}, New route: {}, Matched outlet: {}",
+            self.current_location.get_value(),
+            self.location.get_value().get_untracked(),
+            matched_outlet
+        );
+        log!(
+            "Cached routes: {:?}",
+            self.outlet_route_cache.get_untracked(),
+        );
+        log!(
+            "Total Outlet Node Routes: {:?}",
+            self.outlet_nodes
+                .get_untracked()
+                .iter()
+                .map(|nodes| nodes.0.clone())
+                .collect::<Vec<String>>(),
         );
         // TODO: Possibly need to check the option on the hashmap, might be valid to be None
         let cloned_intro_node = self
             .outlet_nodes
             .read_untracked()
-            .get(&self.current_outlet_route.get_value())
+            .get(matched_outlet)
             .expect("Intro route should exist in hashmap")
             .intro_node
             .get_untracked()
@@ -76,7 +98,7 @@ impl FluidManager {
 
         let matched_outlet_nodes = self.outlet_nodes.with_untracked(|outlet_routes| {
             outlet_routes
-                .get(&self.current_outlet_route.get_value())
+                .get(matched_outlet)
                 .expect("Intro route should exist")
                 .clone()
         });
@@ -89,7 +111,7 @@ impl FluidManager {
             .unwrap();
 
         matched_outlet_nodes.is_transitioning.set(true);
-        self.current_outlet_route
+        self.current_location
             .set_value(self.location.get_value().get_untracked());
     }
 
@@ -117,17 +139,29 @@ impl FluidManager {
     }
 
     fn remove_disposed_outlet_route(&mut self, route: String) {
-        self.outlet_route_cache.update(|cache| cache.);
+        log!("Disposing of route: {}", route);
+        self.outlet_route_cache
+            .update(|cache| cache.retain_mut(|val| *val != route));
+        self.outlet_nodes.update(|nodes| {
+            nodes
+                .remove(&route)
+                .expect("Removal of nodes by old route should yield the old nodes");
+        });
     }
 
     // don't have to add a whole new outlet node because the previous node refs and values should be valid
-    fn add_remove_outlet_route_nodes(&mut self, previous_route: String, new_route: String) {
+    fn update_outlet_nodes_route(&mut self, previous_route: String, new_route: String) {
+        self.outlet_route_cache.update(|cache| {
+            cache.retain_mut(|val| val != &previous_route);
+            cache.push(new_route.clone());
+        });
+
         self.outlet_nodes.update(|nodes| {
-            let old_node = nodes
+            let outlet_node = nodes
                 .remove(&previous_route)
                 .expect("Removal of nodes by old route should yield the old nodes");
 
-            nodes.insert(new_route, old_node);
+            nodes.insert(new_route, outlet_node);
         })
     }
 
@@ -135,15 +169,13 @@ impl FluidManager {
     // ADD NEW OUTLETS TO A VEC OF STRINGS TO MATCH AGAINST THE CURRENT LOCATION!
     // USE THIS FUNCTION TO RETRIEVE THE STRING AND GRAB THE TARGET OUTLET FOR TRANSITION
     fn match_location_to_outlet<'a>(
-        target: &'a String,
+        target: String,
         candidates: &'a [String],
     ) -> Option<&'a String> {
-        // Tokenize a path into components by splitting on "/"
         fn tokenize(path: &str) -> Vec<&str> {
             path.split('/').filter(|&s| !s.is_empty()).collect()
         }
 
-        // Calculate similarity between two paths
         fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> usize {
             target_tokens
                 .iter()
@@ -152,13 +184,13 @@ impl FluidManager {
                 .count()
         }
 
-        // Tokenize the target path
-        let target_tokens = tokenize(target);
+        let target_tokens = tokenize(&target);
 
-        // Find the candidate with the highest similarity score
         candidates.iter().max_by_key(|candidate| {
             let candidate_tokens = tokenize(candidate);
-            calculate_similarity(&target_tokens, &candidate_tokens)
+            let similarity = calculate_similarity(&target_tokens, &candidate_tokens);
+            // Prefer higher similarity; if equal, prefer shorter path
+            (similarity, usize::MAX - candidate.len())
         })
     }
 
@@ -211,7 +243,7 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             return;
         }
 
-        inner_manager.add_remove_outlet_route_nodes(
+        inner_manager.update_outlet_nodes_route(
             outlet_current_route.get_value(),
             matched_route.get_untracked(),
         );
@@ -225,7 +257,7 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         let root_outlet_ran_first_time = StoredValue::new(false);
         manager.location.set_value(location);
         manager
-            .current_outlet_route
+            .current_location
             .set_value(matched_route.get_untracked());
         let inner_manager = manager.clone();
         Effect::new(move || {
@@ -243,9 +275,14 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
                 .replace_children_with_node_0();
 
             // Perform outbound and inbound transition
+            // Cloning this twice isn't fantastic to be honest
+            // Refactor maybe behind a pointer
+            let inner_manager = inner_manager.clone();
             animation_class.set("");
-            request_animation_frame(move || animation_class.set(intro_class));
             inner_manager.transition();
+            request_animation_frame(move || {
+                animation_class.set(intro_class);
+            });
         });
 
         manager.initialized.set_value(true);
@@ -286,9 +323,10 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
 
     on_cleanup(move || {
         log!(
-            "Parent route {} being cleaned up :)",
+            "Parent route outlet {} being cleaned up :)",
             matched_route.get_untracked()
-        )
+        );
+        manager.remove_disposed_outlet_route(matched_route.get_untracked());
     });
 
     view! {
