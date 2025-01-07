@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::animators::fluid_outlet::FluidManager;
+use leptos_fluid::animators::fluid_manager::FluidManager;
 use leptos_meta::*;
 use leptos_router::{
     components::{ParentRoute, Route, Router, Routes},

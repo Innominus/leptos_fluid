@@ -1,0 +1,7 @@
+[build]
+minify = "on_release"
+
+# [[hooks]]
+# stage = "post_build"
+# command = "./build.sh"
+# command_arguments = []

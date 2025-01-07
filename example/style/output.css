@@ -2243,6 +2243,27 @@ details.collapse summary::-webkit-details-marker {
   border-top-width: 4px;
 }
 
+.btn-sm {
+  height: 2rem;
+  min-height: 2rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.btn-square:where(.btn-sm) {
+  height: 2rem;
+  width: 2rem;
+  padding: 0px;
+}
+
+.btn-circle:where(.btn-sm) {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 9999px;
+  padding: 0px;
+}
+
 .join.join-vertical {
   flex-direction: column;
 }
@@ -3125,12 +3146,12 @@ a[aria-current="page"] {
 }
 
 .fly-in-transition {
-  animation: flyIn ease-in-out 3000ms;
+  animation: flyIn ease-in-out 300ms;
   /* fadeIn ease-in-out 300ms; */
 }
 
 .fly-out-transition {
-  animation: flyOut ease-in-out 3000ms;
+  animation: flyOut ease-in-out 300ms;
   /* fadeOut ease-in-out 300ms; */
 }
 

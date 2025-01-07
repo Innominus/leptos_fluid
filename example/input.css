@@ -97,12 +97,12 @@ a[aria-current="page"] {
 }
 
 .fly-in-transition {
-    animation: flyIn ease-in-out 3000ms;
+    animation: flyIn ease-in-out 300ms;
     /* fadeIn ease-in-out 300ms; */
 }
 
 .fly-out-transition {
-    animation: flyOut ease-in-out 3000ms;
+    animation: flyOut ease-in-out 300ms;
     /* fadeOut ease-in-out 300ms; */
 }
 
