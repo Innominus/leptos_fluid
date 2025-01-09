@@ -1,8 +1,10 @@
 use leptos::{logging::log, prelude::*};
 use leptos_router::{
-    components::{ParentRoute, Route, RouteChildren},
-    ChooseView, NestedRoute, SsrMode,
+    components::{ParentRoute, Route, RouteChildren, Routes},
+    ChooseView, MatchNestedRoutes, NestedRoute, PossibleRouteMatch, SsrMode,
 };
+
+use super::fluid_manager::FluidManager;
 
 #[component(transparent)]
 pub fn FluidRoute<Segments, View>(
@@ -19,9 +21,12 @@ pub fn FluidRoute<Segments, View>(
     ssr: SsrMode,
 ) -> NestedRoute<Segments, (), (), View>
 where
+    Segments: PossibleRouteMatch,
     View: ChooseView,
 {
-    log!("I'm in a route :)");
+    let mut router_vec = Vec::new();
+    path.generate_path(&mut router_vec);
+    log!("I am in a nested route: {:?}", router_vec);
     Route(leptos_router::components::RouteProps { path, view, ssr })
 }
 
@@ -42,13 +47,80 @@ pub fn FluidParentRoute<Segments, View, Children>(
     ssr: SsrMode,
 ) -> NestedRoute<Segments, Children, (), View>
 where
+    Segments: PossibleRouteMatch,
+    Children: MatchNestedRoutes + Clone + Send + 'static,
     View: ChooseView,
 {
-    log!("I am in a ParentRoute");
+    let new_children = children
+        .clone()
+        .into_inner()
+        .generate_routes()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    let mut router_vec = Vec::new();
+    path.generate_path(&mut router_vec);
+    log!(
+        "I am in a ParentRoute: {:?}, children: {:?}",
+        router_vec,
+        new_children
+    );
     ParentRoute(leptos_router::components::ParentRouteProps {
         path,
         view,
         children,
         ssr,
     })
+}
+
+#[component(transparent)]
+pub fn FluidRoutes<Defs, FallbackFn, Fallback>(
+    /// A function that returns the view that should be shown if no route is matched.
+    fallback: FallbackFn,
+    /// Whether to use the View Transition API during navigation.
+    #[prop(optional)]
+    transition: bool,
+    /// The route definitions. This should consist of one or more [`ParentRoute`] or [`Route`]
+    /// components.
+    children: RouteChildren<Defs>,
+) -> impl IntoView
+where
+    Defs: MatchNestedRoutes + Clone + Send + 'static,
+    FallbackFn: FnOnce() -> Fallback + Clone + Send + 'static,
+    Fallback: IntoView + 'static,
+{
+    let inner = children.clone().into_inner();
+    let mut routes = inner
+        .generate_routes()
+        .into_iter()
+        .map(|data| {
+            data.segments
+                .iter()
+                .map(|seg| seg.as_raw_str().to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    log!("These are all the routes: {:?}", routes);
+
+    if let Some(manager) = use_context::<FluidManager>() {
+        manager
+            .generated_routes
+            .update_value(|vals| vals.append(&mut routes));
+    } else {
+        let new_manager = FluidManager::new(routes);
+        provide_context(new_manager);
+    };
+
+    Routes(leptos_router::components::RoutesProps {
+        fallback,
+        transition,
+        children,
+    })
+}
+
+#[component]
+pub fn IndexProvider(index: usize, children: Children) -> impl IntoView {
+    let manager = FluidManager::get_manager();
+    view! { {children()} }
 }

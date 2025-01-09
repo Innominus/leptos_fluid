@@ -22,10 +22,11 @@ pub struct FluidManager {
     pub(crate) navigate_backwards: RwSignal<bool>,
     pub(crate) initialized: StoredValue<bool>,
     pub(crate) current_location: StoredValue<String>,
+    pub(crate) generated_routes: StoredValue<Vec<Vec<String>>>,
 }
 
 impl FluidManager {
-    pub fn new() -> Self {
+    pub fn new(generated_routes: Vec<Vec<String>>) -> Self {
         if use_context::<FluidManager>().is_some() {
             panic!("Fluid Manager has already been initialized");
         }
@@ -39,6 +40,7 @@ impl FluidManager {
             navigate_backwards: RwSignal::new(false),
             initialized: StoredValue::new(false),
             current_location: StoredValue::new(String::new()),
+            generated_routes: StoredValue::new(generated_routes),
         };
 
         manager.listen();
@@ -52,16 +54,14 @@ impl FluidManager {
     }
 
     pub(crate) fn transition(&mut self) {
-        let candidates = self.outlet_route_cache.get();
-
-        let matched_outlet =
-            Self::match_location_to_outlet(self.location.get_value().get_untracked(), &candidates)
-                .unwrap();
+        let matched_outlet = self
+            .match_location_to_outlet(self.location.get_value().get_untracked())
+            .unwrap();
 
         let cloned_intro_node = self
             .outlet_nodes
             .read_untracked()
-            .get(matched_outlet)
+            .get(&matched_outlet)
             .expect("Intro route should exist in hashmap")
             .intro_node
             .get_untracked()
@@ -90,7 +90,7 @@ impl FluidManager {
 
         let matched_outlet_nodes = self.outlet_nodes.with_untracked(|outlet_routes| {
             outlet_routes
-                .get(matched_outlet)
+                .get(&matched_outlet)
                 .expect("Intro route should exist")
                 .clone()
         });
@@ -111,7 +111,7 @@ impl FluidManager {
         matched_outlet_nodes.is_transitioning.set(true);
         self.current_location
             .set_value(self.location.get_value().get_untracked());
-        self.clean_cache_hierarchy(matched_outlet);
+        self.clean_cache_hierarchy(&matched_outlet);
     }
 
     pub(crate) fn add_outlet_route_nodes(
@@ -179,10 +179,8 @@ impl FluidManager {
     // TODO TEST THIS
     // ADD NEW OUTLETS TO A VEC OF STRINGS TO MATCH AGAINST THE CURRENT LOCATION!
     // USE THIS FUNCTION TO RETRIEVE THE STRING AND GRAB THE TARGET OUTLET FOR TRANSITION
-    pub(crate) fn match_location_to_outlet<'a>(
-        target: String,
-        candidates: &'a [String],
-    ) -> Option<&'a String> {
+    pub(crate) fn match_location_to_outlet<'a>(&self, target: String) -> Option<String> {
+        // let candidates = self.outlet_route_cache.get();
         fn tokenize(path: &str) -> Vec<&str> {
             path.split('/').filter(|&s| !s.is_empty()).collect()
         }
@@ -197,55 +195,17 @@ impl FluidManager {
 
         let target_tokens = tokenize(&target);
 
-        candidates.iter().max_by_key(|candidate| {
-            let candidate_tokens = tokenize(candidate);
-            let similarity = calculate_similarity(&target_tokens, &candidate_tokens);
-            // Prefer higher similarity; if equal, prefer shorter path
-            (similarity, usize::MAX - candidate.len())
-        })
+        self.outlet_route_cache
+            .read()
+            .iter()
+            .max_by_key(|candidate| {
+                let candidate_tokens = tokenize(candidate);
+                let similarity = calculate_similarity(&target_tokens, &candidate_tokens);
+                // Prefer higher similarity; if equal, prefer shorter path
+                (similarity, usize::MAX - candidate.len())
+            })
+            .cloned()
     }
-
-    // fn match_location_to_outlet<'a>(
-    //     target1: &str,
-    //     target2: &str,
-    //     candidates: &'a [String],
-    // ) -> Option<&'a String> {
-    //     fn tokenize(path: &str) -> Vec<&str> {
-    //         path.split('/').filter(|&s| !s.is_empty()).collect()
-    //     }
-
-    //     fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> usize {
-    //         target_tokens
-    //             .iter()
-    //             .zip(candidate_tokens.iter())
-    //             .take_while(|(t, c)| t == c)
-    //             .count()
-    //     }
-
-    //     fn score_similarity(
-    //         target_tokens: &[&str],
-    //         candidate: &str,
-    //         candidate_tokens: &[&str],
-    //     ) -> (usize, usize) {
-    //         let similarity = calculate_similarity(target_tokens, candidate_tokens);
-    //         let penalty_for_length = usize::MAX - candidate.len(); // Shorter paths win on ties
-    //         (similarity, penalty_for_length)
-    //     }
-
-    //     let target1_tokens = tokenize(target1);
-    //     let target2_tokens = tokenize(target2);
-
-    //     candidates.iter().max_by_key(|candidate| {
-    //         let candidate_tokens = tokenize(candidate);
-
-    //         // Calculate scores for both targets
-    //         let score1 = score_similarity(&target1_tokens, candidate, &candidate_tokens);
-    //         let score2 = score_similarity(&target2_tokens, candidate, &candidate_tokens);
-
-    //         // Use the best score for this candidate
-    //         score1.max(score2)
-    //     })
-    // }
 
     // TODO: Probably need an effect listener to the route
     // so we can check if we're going backwards or forwards
@@ -254,8 +214,6 @@ impl FluidManager {
         let closure = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
             // TODO: Use this to reverse animations
             inner_manager.navigate_backwards.set(true);
-            // TODO: Figure out transitioning route
-            // inner_manager.transition();
             log!("PopState event triggered");
         }) as Box<dyn FnMut(web_sys::PopStateEvent)>);
 

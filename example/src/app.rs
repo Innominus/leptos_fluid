@@ -1,5 +1,8 @@
 use leptos::prelude::*;
-use leptos_fluid::animators::fluid_manager::FluidManager;
+use leptos_fluid::animators::{
+    fluid_manager::FluidManager,
+    fluid_route::{FluidParentRoute, FluidRoute, FluidRoutes},
+};
 use leptos_meta::*;
 use leptos_router::{
     components::{ParentRoute, Route, Router, Routes},
@@ -15,11 +18,10 @@ use crate::{
 pub fn App() -> impl IntoView {
     provide_meta_context();
     // TODO: Eventually move this into the first Outlet that gets spawned so it's seamless as an API
-    provide_context(FluidManager::new());
 
     view! {
         <Router>
-            <Routes fallback=|| "Page not found">
+            <FluidRoutes fallback=|| "Page not found">
                 <ParentRoute path=StaticSegment("/") view=Overlay>
                     <Route path=StaticSegment("") view=Home />
                     <Route path=StaticSegment("about") view=About />
@@ -33,7 +35,7 @@ pub fn App() -> impl IntoView {
                         </ParentRoute>
                     </ParentRoute>
                 </ParentRoute>
-            </Routes>
+            </FluidRoutes>
         </Router>
     }
 }

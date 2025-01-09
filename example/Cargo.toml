@@ -5,9 +5,12 @@ edition = "2021"
 
 [dependencies]
 leptos_fluid = { path = "../" }
-leptos = { version = "0.7.2", features = ["csr"] }
-leptos_meta = { version = "0.7.2" }
-leptos_router = { version = "0.7.2" }
+# leptos = { version = "0.7.2", features = ["csr"] }
+# leptos_meta = { version = "0.7.2" }
+# leptos_router = { version = "0.7.2" }
+leptos = { path = "../../../../OSS/leptos-inno/leptos", features = ["csr"] }
+leptos_meta = { path = "../../../../OSS/leptos-inno/meta" }
+leptos_router = { path = "../../../../OSS/leptos-inno/router" }
 gloo-net = { version = "0.5", features = ["http"] }
 console_error_panic_hook = { version = "0.1" }
 web-sys = { version = "0.3.69", features = ["DomRect", "Element", "Storage"] }
