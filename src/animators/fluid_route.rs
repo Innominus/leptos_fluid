@@ -26,7 +26,6 @@ where
 {
     let mut router_vec = Vec::new();
     path.generate_path(&mut router_vec);
-    log!("I am in a nested route: {:?}", router_vec);
     Route(leptos_router::components::RouteProps { path, view, ssr })
 }
 
@@ -60,11 +59,6 @@ where
 
     let mut router_vec = Vec::new();
     path.generate_path(&mut router_vec);
-    log!(
-        "I am in a ParentRoute: {:?}, children: {:?}",
-        router_vec,
-        new_children
-    );
     ParentRoute(leptos_router::components::ParentRouteProps {
         path,
         view,
@@ -96,21 +90,21 @@ where
         .map(|data| {
             data.segments
                 .iter()
-                .map(|seg| seg.as_raw_str().to_string())
+                .map(|seg| match seg {
+                    leptos_router::PathSegment::Static(_) | leptos_router::PathSegment::Unit => {
+                        seg.as_raw_str().to_string()
+                    }
+                    _ => String::from(":"),
+                })
+                .map(|seg| seg.replace("/", ""))
+                // .filter(|s| !s.is_empty() && s != "/")
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
-    log!("These are all the routes: {:?}", routes);
-
-    if let Some(manager) = use_context::<FluidManager>() {
-        manager
-            .generated_routes
-            .update_value(|vals| vals.append(&mut routes));
-    } else {
-        let new_manager = FluidManager::new(routes);
-        provide_context(new_manager);
-    };
+    FluidManager::get_manager()
+        .generated_routes
+        .update_value(|vals| vals.append(&mut routes));
 
     Routes(leptos_router::components::RoutesProps {
         fallback,

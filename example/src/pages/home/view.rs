@@ -4,7 +4,6 @@ use crate::components::common::PageShell;
 
 #[component]
 pub fn Home() -> impl IntoView {
-    // log!("Home Navigated");
     view! {
         // <AnimatedInlet intro_class="fly-in-transition">
         <PageShell>

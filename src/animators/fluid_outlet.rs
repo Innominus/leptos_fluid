@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-
 use leptos::{html::Div, logging::log, prelude::*};
 use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
 };
-use web_sys::{
-    wasm_bindgen::{prelude::Closure, JsCast},
-    AnimationEvent, Node,
-};
+use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
 
 use crate::animators::fluid_manager::FluidManager;
 
@@ -27,8 +22,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
     let matched_route = use_matched();
     let location = use_location().pathname;
 
-    log!("Path in outlet: {}", matched_route.get_untracked());
-
     // TRACKS CHANGES IN THE CURRENT ROUTE IF A PARENT ROUTE HAS PARAM SEGMENTS/DYNAMIC CHANGES
     let outlet_current_route = StoredValue::new(matched_route.get_untracked());
     let outlet_initialized = StoredValue::new(false);
@@ -43,27 +36,21 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             .update_outlet_nodes_route(outlet_current_route.get_value(), matched_route.get());
 
         outlet_current_route.set_value(matched_route.get());
-        log!("CHANGED PATH IN OUTLET: {}", matched_route.get());
     });
 
     // TODO: Breakout initialization into its own function
     if !manager.initialized.get_value() {
         let root_outlet_ran_first_time = StoredValue::new(false);
         manager.location.set_value(location);
-        manager
-            .current_location
-            .set_value(matched_route.get_untracked());
+        manager.current_location.set_value(location.get_untracked());
         let inner_manager = manager.clone();
         Effect::new(move || {
             location.track();
-            log!("Matched path in outlet: {}", matched_route.get_untracked());
-            log!("Location: {}", location.get_untracked());
             if !root_outlet_ran_first_time.get_value() {
                 root_outlet_ran_first_time.set_value(true);
                 return;
             }
 
-            log!("CHANGED PATH IN OUTLET: {}", matched_route.get_untracked());
             let mut inner_manager = inner_manager.clone();
             // Ensure old node is cleaned up for fast navigations
 
@@ -84,7 +71,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         is_transitioning,
     );
 
-    // TODO: Test while navigating fast
     let animation_classes = move || {
         if is_transitioning.get() {
             if navigate_backwards.get_untracked() {
@@ -97,7 +83,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         }
     };
 
-    // TODO: remove children when outro_ends
     let outro_ends = move |e: AnimationEvent| {
         // checking if the animation that's ended is on the local FluidOutlet div node
         if e.target().unwrap().unchecked_ref::<Node>()
@@ -106,7 +91,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
                 .unwrap()
                 .unchecked_ref::<Node>()
         {
-            // log!("Target is equal to node");
             outro_node_ref
                 .get_untracked()
                 .expect("Node ref should be mounted in outro end")
@@ -114,7 +98,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
             is_transitioning.set(false);
             navigate_backwards.set(false);
         }
-        // log!("Outro ended");
     };
 
     let animation_direction = move || {
@@ -126,10 +109,6 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
     };
 
     on_cleanup(move || {
-        log!(
-            "Parent route outlet {} being cleaned up :)",
-            matched_route.get_untracked()
-        );
         manager.remove_disposed_outlet_route(matched_route.get_untracked());
     });
 

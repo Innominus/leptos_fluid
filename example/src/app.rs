@@ -17,7 +17,7 @@ use crate::{
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    // TODO: Eventually move this into the first Outlet that gets spawned so it's seamless as an API
+    provide_context(FluidManager::new());
 
     view! {
         <Router>
@@ -29,7 +29,7 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=Home />
                         <Route path=StaticSegment("about") view=About />
 
-                        <ParentRoute path=ParamSegment(":id") view=Overlay>
+                        <ParentRoute path=ParamSegment("id") view=Overlay>
                             <Route path=StaticSegment("") view=Home />
                             <Route path=StaticSegment("about") view=About />
                         </ParentRoute>

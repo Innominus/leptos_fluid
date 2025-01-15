@@ -16,7 +16,7 @@ pub struct FluidManager {
     pub is_transitioning: RwSignal<bool>,
     pub(crate) outlet_nodes: RwSignal<HashMap<String, OutletNodes>>,
     pub(crate) location: StoredValue<Memo<String>>,
-    // TODO: Use this for backwards navigation
+    // TODO: Use this for backwards navigation, maybe
     pub(crate) recent_navigations: RwSignal<Vec<String>>,
     pub(crate) outlet_route_cache: RwSignal<Vec<String>>,
     pub(crate) navigate_backwards: RwSignal<bool>,
@@ -26,7 +26,7 @@ pub struct FluidManager {
 }
 
 impl FluidManager {
-    pub fn new(generated_routes: Vec<Vec<String>>) -> Self {
+    pub fn new() -> Self {
         if use_context::<FluidManager>().is_some() {
             panic!("Fluid Manager has already been initialized");
         }
@@ -40,10 +40,10 @@ impl FluidManager {
             navigate_backwards: RwSignal::new(false),
             initialized: StoredValue::new(false),
             current_location: StoredValue::new(String::new()),
-            generated_routes: StoredValue::new(generated_routes),
+            generated_routes: StoredValue::new(Vec::new()),
         };
 
-        manager.listen();
+        // manager.listen();
 
         manager
     }
@@ -58,6 +58,8 @@ impl FluidManager {
             .match_location_to_outlet(self.location.get_value().get_untracked())
             .unwrap();
 
+        self.calculate_reversal();
+
         let cloned_intro_node = self
             .outlet_nodes
             .read_untracked()
@@ -69,36 +71,12 @@ impl FluidManager {
             .clone_node_with_deep(true)
             .unwrap();
 
-        log!(
-            "TRANSITIONING! Current route: {}, New route: {}, Matched outlet: {}",
-            self.current_location.get_value(),
-            self.location.get_value().get_untracked(),
-            matched_outlet
-        );
-        log!(
-            "Cached routes: {:?}",
-            self.outlet_route_cache.get_untracked(),
-        );
-        log!(
-            "Total Outlet Node Routes: {:?}",
-            self.outlet_nodes
-                .get_untracked()
-                .iter()
-                .map(|nodes| nodes.0.clone())
-                .collect::<Vec<String>>(),
-        );
-
         let matched_outlet_nodes = self.outlet_nodes.with_untracked(|outlet_routes| {
             outlet_routes
                 .get(&matched_outlet)
                 .expect("Intro route should exist")
                 .clone()
         });
-
-        log!(
-            "This is the matched outlet: {}",
-            matched_outlet_nodes.outlet_route.get_value()
-        );
 
         let outro_node = matched_outlet_nodes
             .outro_node
@@ -142,13 +120,13 @@ impl FluidManager {
             if let Some(pos) = routes.iter().position(|r| r == route) {
                 // Retain up to and including the matched route
                 // This is because outlets are added in their hierarchy order
+                // TODO: Test if this theory is always correct
                 routes.truncate(pos + 1);
             }
         })
     }
 
     pub(crate) fn remove_disposed_outlet_route(&mut self, route: String) {
-        log!("Disposing of route: {}", route);
         self.outlet_route_cache
             .update_untracked(|cache| cache.retain_mut(|val| *val != route));
         self.outlet_nodes.update_untracked(|nodes| {
@@ -180,19 +158,6 @@ impl FluidManager {
     // ADD NEW OUTLETS TO A VEC OF STRINGS TO MATCH AGAINST THE CURRENT LOCATION!
     // USE THIS FUNCTION TO RETRIEVE THE STRING AND GRAB THE TARGET OUTLET FOR TRANSITION
     pub(crate) fn match_location_to_outlet<'a>(&self, target: String) -> Option<String> {
-        // let candidates = self.outlet_route_cache.get();
-        fn tokenize(path: &str) -> Vec<&str> {
-            path.split('/').filter(|&s| !s.is_empty()).collect()
-        }
-
-        fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> usize {
-            target_tokens
-                .iter()
-                .zip(candidate_tokens.iter())
-                .take_while(|(t, c)| t == c)
-                .count()
-        }
-
         let target_tokens = tokenize(&target);
 
         self.outlet_route_cache
@@ -207,6 +172,55 @@ impl FluidManager {
             .cloned()
     }
 
+    pub(crate) fn calculate_reversal(&self) {
+        fn get_route_index<'a>(
+            incoming_route: &str,
+            generated_routes: &'a [Vec<String>],
+        ) -> Option<usize> {
+            // Tokenize the incoming route into components
+            let incoming_tokens: Vec<&str> = incoming_route.split('/').collect();
+
+            // Iterate through the generated routes and match
+            for route in generated_routes {
+                if route.len() != incoming_tokens.len() {
+                    continue; // Skip routes with different lengths
+                }
+
+                let mut is_match = true;
+                for (token, &ref pattern) in incoming_tokens.iter().zip(route) {
+                    if pattern.starts_with(':') || pattern.starts_with('*') {
+                        // This is a wildcard segment, match any incoming token
+                        continue;
+                    } else if pattern != *token {
+                        // Static segments must match exactly
+                        is_match = false;
+                        break;
+                    }
+                }
+
+                if is_match {
+                    return generated_routes
+                        .iter()
+                        .position(|generated_route| generated_route == route);
+                }
+            }
+
+            None // No match found
+        }
+        let read_value = &self.current_location.read_value();
+        let current_location_index =
+            get_route_index(&read_value, self.generated_routes.get_value().as_slice());
+
+        let read_value = &self.location.get_value().read_untracked();
+        let new_location_index =
+            get_route_index(&read_value, self.generated_routes.get_value().as_slice());
+        // let split_new_location = tokenize(read_value);
+
+        if current_location_index.unwrap_or(0) > new_location_index.unwrap_or(0) {
+            self.navigate_backwards.set(true);
+        }
+    }
+
     // TODO: Probably need an effect listener to the route
     // so we can check if we're going backwards or forwards
     fn listen(&self) {
@@ -214,7 +228,6 @@ impl FluidManager {
         let closure = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
             // TODO: Use this to reverse animations
             inner_manager.navigate_backwards.set(true);
-            log!("PopState event triggered");
         }) as Box<dyn FnMut(web_sys::PopStateEvent)>);
 
         window()
@@ -223,4 +236,20 @@ impl FluidManager {
 
         closure.forget();
     }
+}
+
+fn tokenize(path: &str) -> Vec<&str> {
+    path.split('/').filter(|&s| !s.is_empty()).collect()
+}
+
+fn tokenize_no_filter(path: &str) -> Vec<&str> {
+    path.split_inclusive('/').collect()
+}
+
+fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> usize {
+    target_tokens
+        .iter()
+        .zip(candidate_tokens.iter())
+        .take_while(|(t, c)| t == c)
+        .count()
 }
