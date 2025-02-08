@@ -16,10 +16,9 @@ pub struct FluidManager {
     pub is_transitioning: RwSignal<bool>,
     pub(crate) outlet_nodes: RwSignal<HashMap<String, OutletNodes>>,
     pub(crate) location: StoredValue<Memo<String>>,
-    // TODO: Use this for backwards navigation, maybe
-    pub(crate) recent_navigations: RwSignal<Vec<String>>,
     pub(crate) outlet_route_cache: RwSignal<Vec<String>>,
     pub(crate) navigate_backwards: RwSignal<bool>,
+    pub(crate) skip_transition: StoredValue<bool>,
     pub(crate) initialized: StoredValue<bool>,
     pub(crate) current_location: StoredValue<String>,
     pub(crate) generated_routes: StoredValue<Vec<Vec<String>>>,
@@ -35,15 +34,15 @@ impl FluidManager {
             is_transitioning: RwSignal::new(false),
             outlet_nodes: RwSignal::new(HashMap::new()),
             location: StoredValue::new(Memo::new(|_| String::from("/"))),
-            recent_navigations: RwSignal::new(Vec::new()),
             outlet_route_cache: RwSignal::new(Vec::new()),
             navigate_backwards: RwSignal::new(false),
+            skip_transition: StoredValue::new(false),
             initialized: StoredValue::new(false),
             current_location: StoredValue::new(String::new()),
             generated_routes: StoredValue::new(Vec::new()),
         };
 
-        // manager.listen();
+        manager.setup_incompatibility_listener();
 
         manager
     }
@@ -58,7 +57,14 @@ impl FluidManager {
             .match_location_to_outlet(self.location.get_value().get_untracked())
             .unwrap();
 
-        self.calculate_reversal();
+        if self.check_skip_transition() {
+            self.current_location
+                .set_value(self.location.get_value().get_untracked());
+            self.clean_cache_hierarchy(&matched_outlet);
+            return;
+        }
+
+        self.set_reversal();
 
         let cloned_intro_node = self
             .outlet_nodes
@@ -172,7 +178,7 @@ impl FluidManager {
             .cloned()
     }
 
-    pub(crate) fn calculate_reversal(&self) {
+    pub(crate) fn set_reversal(&self) {
         fn get_route_index<'a>(
             incoming_route: &str,
             generated_routes: &'a [Vec<String>],
@@ -214,7 +220,6 @@ impl FluidManager {
         let read_value = &self.location.get_value().read_untracked();
         let new_location_index =
             get_route_index(&read_value, self.generated_routes.get_value().as_slice());
-        // let split_new_location = tokenize(read_value);
 
         if current_location_index.unwrap_or(0) > new_location_index.unwrap_or(0) {
             self.navigate_backwards.set(true);
@@ -223,11 +228,14 @@ impl FluidManager {
 
     // TODO: Probably need an effect listener to the route
     // so we can check if we're going backwards or forwards
-    fn listen(&self) {
+    fn setup_incompatibility_listener(&self) {
+        if is_back_button_compatible() {
+            return;
+        }
+
         let inner_manager = self.clone();
         let closure = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
-            // TODO: Use this to reverse animations
-            inner_manager.navigate_backwards.set(true);
+            inner_manager.skip_transition.set_value(true);
         }) as Box<dyn FnMut(web_sys::PopStateEvent)>);
 
         window()
@@ -236,14 +244,19 @@ impl FluidManager {
 
         closure.forget();
     }
+
+    fn check_skip_transition(&mut self) -> bool {
+        if self.skip_transition.get_value() {
+            self.skip_transition.set_value(false);
+            return true;
+        }
+
+        false
+    }
 }
 
 fn tokenize(path: &str) -> Vec<&str> {
     path.split('/').filter(|&s| !s.is_empty()).collect()
-}
-
-fn tokenize_no_filter(path: &str) -> Vec<&str> {
-    path.split_inclusive('/').collect()
 }
 
 fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> usize {
@@ -252,4 +265,25 @@ fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> us
         .zip(candidate_tokens.iter())
         .take_while(|(t, c)| t == c)
         .count()
+}
+
+fn is_back_button_compatible() -> bool {
+    // Safari on MacOS and all Apple devices that aren't a Macintosh lead to blips and glitches
+    // due to the backswipe animation built into the devices
+    let incompatible_agent_keywords = vec!["safari", "IPad", "IPhone", "IPod"];
+
+    let user_agent = window().navigator().user_agent();
+
+    if let Ok(agent_string) = user_agent {
+        return incompatible_agent_keywords
+            .iter()
+            .find(|os| {
+                agent_string
+                    .to_lowercase()
+                    .contains(os.to_lowercase().as_str())
+            })
+            .is_none();
+    }
+
+    true
 }

@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_fluid::animators::fluid_outlet::FluidOutlet;
-use leptos_router::components::A;
+use leptos_router::components::{Outlet, A};
 
 #[component]
 pub fn Overlay() -> impl IntoView {

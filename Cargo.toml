@@ -7,12 +7,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# leptos = { version = "0.7.3", features = ["csr"] }
-# leptos_meta = { version = "0.7.3" }
-# leptos_router = { version = "0.7.3" }
-leptos = { git = "https://github.com/leptos-rs/leptos", features = ["csr"] }
-leptos_meta = { git = "https://github.com/leptos-rs/leptos" }
-leptos_router = { git = "https://github.com/leptos-rs/leptos" }
+leptos = { version = "0.7.5", features = ["csr"] }
+leptos_meta = { version = "0.7.5" }
+leptos_router = { version = "0.7.5" }
+# leptos = { git = "https://github.com/leptos-rs/leptos", features = ["csr"] }
+# leptos_meta = { git = "https://github.com/leptos-rs/leptos" }
+# leptos_router = { git = "https://github.com/leptos-rs/leptos" }
 console_error_panic_hook = { version = "0.1" }
-web-sys = { version = "0.3.69", features = ["DomRect", "Element", "Storage"] }
-gloo-events = "0.2.0"
+web-sys = { version = "0.3.69", features = ["DomRect", "Element", "Storage", "Navigator"] }

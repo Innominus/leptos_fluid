@@ -1,71 +1,10 @@
-use leptos::{logging::log, prelude::*};
+use leptos::prelude::*;
 use leptos_router::{
-    components::{ParentRoute, Route, RouteChildren, Routes},
-    ChooseView, MatchNestedRoutes, NestedRoute, PossibleRouteMatch, SsrMode,
+    components::{RouteChildren, Routes},
+    MatchNestedRoutes,
 };
 
 use super::fluid_manager::FluidManager;
-
-#[component(transparent)]
-pub fn FluidRoute<Segments, View>(
-    /// The path fragment that this route should match. This can be created using the
-    /// [`path`](crate::path) macro, or path segments ([`StaticSegment`](crate::StaticSegment),
-    /// [`ParamSegment`](crate::ParamSegment), [`WildcardSegment`](crate::WildcardSegment), and
-    /// [`OptionalParamSegment`](crate::OptionalParamSegment)).
-    path: Segments,
-    /// The view for this route.
-    view: View,
-    /// The mode that this route prefers during server-side rendering.
-    /// Defaults to out-of-order streaming.
-    #[prop(optional)]
-    ssr: SsrMode,
-) -> NestedRoute<Segments, (), (), View>
-where
-    Segments: PossibleRouteMatch,
-    View: ChooseView,
-{
-    let mut router_vec = Vec::new();
-    path.generate_path(&mut router_vec);
-    Route(leptos_router::components::RouteProps { path, view, ssr })
-}
-
-#[component(transparent)]
-pub fn FluidParentRoute<Segments, View, Children>(
-    /// The path fragment that this route should match. This can be created using the
-    /// [`path`](crate::path) macro, or path segments ([`StaticSegment`](crate::StaticSegment),
-    /// [`ParamSegment`](crate::ParamSegment), [`WildcardSegment`](crate::WildcardSegment), and
-    /// [`OptionalParamSegment`](crate::OptionalParamSegment)).
-    path: Segments,
-    /// The view for this route.
-    view: View,
-    /// Nested child routes.
-    children: RouteChildren<Children>,
-    /// The mode that this route prefers during server-side rendering.
-    /// Defaults to out-of-order streaming.
-    #[prop(optional)]
-    ssr: SsrMode,
-) -> NestedRoute<Segments, Children, (), View>
-where
-    Segments: PossibleRouteMatch,
-    Children: MatchNestedRoutes + Clone + Send + 'static,
-    View: ChooseView,
-{
-    let new_children = children
-        .clone()
-        .into_inner()
-        .generate_routes()
-        .into_iter()
-        .collect::<Vec<_>>();
-
-    let mut router_vec = Vec::new();
-    path.generate_path(&mut router_vec);
-    ParentRoute(leptos_router::components::ParentRouteProps {
-        path,
-        view,
-        children,
-        ssr,
-    })
-}
 
 #[component(transparent)]
 pub fn FluidRoutes<Defs, FallbackFn, Fallback>(
@@ -97,7 +36,6 @@ where
                     _ => String::from(":"),
                 })
                 .map(|seg| seg.replace("/", ""))
-                // .filter(|s| !s.is_empty() && s != "/")
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
@@ -111,10 +49,4 @@ where
         transition,
         children,
     })
-}
-
-#[component]
-pub fn IndexProvider(index: usize, children: Children) -> impl IntoView {
-    let manager = FluidManager::get_manager();
-    view! { {children()} }
 }

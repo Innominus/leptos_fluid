@@ -1,4 +1,4 @@
-use leptos::{html::Div, logging::log, prelude::*};
+use leptos::{html::Div, prelude::*};
 use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
@@ -83,22 +83,12 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         }
     };
 
-    let outro_ends = move |e: AnimationEvent| {
-        // checking if the animation that's ended is on the local FluidOutlet div node
-        if e.target().unwrap().unchecked_ref::<Node>()
-            == outro_node_ref
-                .get_untracked()
-                .unwrap()
-                .unchecked_ref::<Node>()
-        {
-            outro_node_ref
-                .get_untracked()
-                .expect("Node ref should be mounted in outro end")
-                .replace_children_with_node_0();
-            is_transitioning.set(false);
-            navigate_backwards.set(false);
-        }
-    };
+    let (intro_handler, outro_handler) = setup_animation_handlers(
+        intro_node_ref,
+        outro_node_ref,
+        is_transitioning,
+        navigate_backwards,
+    );
 
     let animation_direction = move || {
         if navigate_backwards.get() {
@@ -116,7 +106,7 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         <section style="width: 100%; height: 100%; position: relative; overflow-x: hidden;">
             <div
                 node_ref=outro_node_ref
-                on:animationend=outro_ends
+                on:animationend=outro_handler
                 class=move || animation_classes().0
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
@@ -124,13 +114,58 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
                 }
             ></div>
             <div
+                node_ref=intro_node_ref
+                on:animationend=intro_handler
                 style=move || { "width: 100%; height: 100%;".to_string() + animation_direction() }
                 class=move || animation_classes().1
             >
-                <div node_ref=intro_node_ref style="width: 100%; height: 100%;">
-                    <Outlet />
-                </div>
+                <Outlet />
             </div>
         </section>
+    }
+}
+
+fn setup_animation_handlers(
+    intro_node_ref: NodeRef<Div>,
+    outro_node_ref: NodeRef<Div>,
+    is_transitioning: RwSignal<bool>,
+    navigate_backwards: RwSignal<bool>,
+) -> (impl Fn(AnimationEvent), impl Fn(AnimationEvent)) {
+    let intro_has_ended = RwSignal::new(false);
+    let outro_has_ended = RwSignal::new(false);
+
+    let cleanup_fn = move || {
+        // only cleanup the outro node if both animations have ended
+        if intro_has_ended.get() && outro_has_ended.get() {
+            outro_node_ref
+                .get_untracked()
+                .expect("Node ref should be mounted in outro end")
+                .replace_children_with_node_0();
+            is_transitioning.set(false);
+            navigate_backwards.set(false);
+            intro_has_ended.set(false);
+            outro_has_ended.set(false);
+        }
+    };
+
+    let intro_ends = create_animation_handler(intro_node_ref, intro_has_ended, cleanup_fn);
+    let outro_ends = create_animation_handler(outro_node_ref, outro_has_ended, cleanup_fn);
+
+    (intro_ends, outro_ends)
+}
+
+fn create_animation_handler(
+    node: NodeRef<Div>,
+    has_ended: RwSignal<bool>,
+    cleanup_fn: impl Fn(),
+) -> impl Fn(AnimationEvent) {
+    move |e: AnimationEvent| {
+        // checking if the animation that's ended is on the local FluidOutlet div node
+        if e.target().unwrap().unchecked_ref::<Node>()
+            == node.get_untracked().unwrap().unchecked_ref::<Node>()
+        {
+            has_ended.set(true);
+            cleanup_fn();
+        }
     }
 }
