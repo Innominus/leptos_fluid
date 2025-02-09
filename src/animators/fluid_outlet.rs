@@ -1,4 +1,4 @@
-use leptos::{html::Div, prelude::*};
+use leptos::{html::Div, logging::log, prelude::*};
 use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
@@ -98,19 +98,38 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
         }
     };
 
+    let z_index = move || {
+        if navigate_backwards.get() {
+            "z-index: 1;"
+        } else {
+            ""
+        }
+    };
+
+    let hide_while_animating = move || {
+        if is_transitioning.get() {
+            "overflow: hidden;"
+        } else {
+            ""
+        }
+    };
+
     on_cleanup(move || {
         manager.remove_disposed_outlet_route(matched_route.get_untracked());
     });
 
     view! {
-        <section style="width: 100%; height: 100%; position: relative; overflow-x: hidden;">
+        <section style=move || {
+            "width: 100%; height: 100%; position: relative; isolation: isolate;".to_string()
+                + hide_while_animating()
+        }>
             <div
                 node_ref=outro_node_ref
                 on:animationend=outro_handler
                 class=move || animation_classes().0
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
-                        .to_string() + animation_direction()
+                        .to_string() + animation_direction() + z_index()
                 }
             ></div>
             <div

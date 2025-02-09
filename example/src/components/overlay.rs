@@ -26,7 +26,7 @@ pub fn Overlay() -> impl IntoView {
                     "DEEPEST OUTLET - ROUTE PARAM 46"
                 </A>
             </div>
-            <FluidOutlet intro_class="fly-in-transition" outro_class="fly-out-transition" />
+            <FluidOutlet intro_class="fly-up-transition" outro_class="scale-down-transition" />
         </main>
     }
 }

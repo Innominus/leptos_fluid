@@ -269,7 +269,7 @@ fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> us
 
 fn is_back_button_compatible() -> bool {
     // Safari on MacOS and all Apple devices that aren't a Macintosh lead to blips and glitches
-    // due to the backswipe animation built into the devices
+    // due to the backswipe animation built into the safari browser engine
     let incompatible_agent_keywords = vec!["safari", "IPad", "IPhone", "IPod"];
 
     let user_agent = window().navigator().user_agent();

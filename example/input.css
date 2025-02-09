@@ -106,6 +106,42 @@ a[aria-current="page"] {
     /* fadeOut ease-in-out 300ms; */
 }
 
+.fly-up-transition {
+    animation: flyUp ease-in-out 500ms;
+}
+
+.scale-down-transition {
+    animation: scaleDown ease-in-out 500ms;
+}
+
+@keyframes scaleDown {
+    0% {
+        scale: 1;
+    }
+
+    60% {
+        scale: 0.98;
+    }
+
+    100% {
+        scale: 0.98;
+    }
+}
+
+@keyframes flyUp {
+    0% {
+        transform: translateY(100%);
+    }
+
+    30% {
+        transform: translateY(100%);
+    }
+
+    100% {
+        transform: translateY(0%);
+    }
+}
+
 @keyframes fadeIn {
     0% {
         opacity: 0;
