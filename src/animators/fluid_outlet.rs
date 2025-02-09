@@ -1,4 +1,4 @@
-use leptos::{html::Div, logging::log, prelude::*};
+use leptos::{html::Div, prelude::*};
 use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
@@ -8,7 +8,10 @@ use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
 use crate::animators::fluid_manager::FluidManager;
 
 #[component]
-pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl IntoView {
+pub fn FluidOutlet(
+    #[prop(into)] intro_class: Signal<&'static str>,
+    #[prop(into)] outro_class: Signal<&'static str>,
+) -> impl IntoView {
     // Setup variables needed for each stage
     // TODO: Probably refactor and make this a lot neater once working
     let mut manager = FluidManager::get_manager();
@@ -74,9 +77,9 @@ pub fn FluidOutlet(intro_class: &'static str, outro_class: &'static str) -> impl
     let animation_classes = move || {
         if is_transitioning.get() {
             if navigate_backwards.get_untracked() {
-                (intro_class, outro_class)
+                (intro_class.get_untracked(), outro_class.get_untracked())
             } else {
-                (outro_class, intro_class)
+                (outro_class.get_untracked(), intro_class.get_untracked())
             }
         } else {
             ("", "")
