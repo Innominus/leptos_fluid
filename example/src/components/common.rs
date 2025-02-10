@@ -7,10 +7,16 @@ pub fn PageShell(#[prop(optional)] class: &'static str, children: Children) -> i
     let delayed_class = RwSignal::new("");
     Effect::new(move || request_animation_frame(move || delayed_class.set(class)));
     view! {
-        <section class=move || {
-            "flex flex-1 flex-col h-full w-full items-center scroll-bar ".to_string()
-                + delayed_class.get()
-        }>{children()}</section>
+        <section
+            data-scrollable
+            style="max-height:500px;"
+            class=move || {
+                "flex flex-1 overflow-y-scroll flex-col w-full items-center scroll-bar ".to_string()
+                    + delayed_class.get()
+            }
+        >
+            {children()}
+        </section>
     }
 }
 

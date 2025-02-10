@@ -1,7 +1,18 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
-use leptos::{html::Div, logging::log, prelude::*};
-use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
+use leptos::{
+    html::{Div, ElementType},
+    logging::log,
+    prelude::*,
+};
+use web_sys::{
+    wasm_bindgen::{prelude::Closure, JsCast},
+    Element, HtmlElement,
+};
+
+use super::utils::{get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr};
+
+const SCROLLABLE_ATTR: &'static str = "data-scrollable";
 
 #[derive(Clone, Debug)]
 pub struct OutletNodes {
@@ -9,6 +20,7 @@ pub struct OutletNodes {
     pub(crate) intro_node: NodeRef<Div>,
     pub(crate) outro_node: NodeRef<Div>,
     pub(crate) is_transitioning: RwSignal<bool>,
+    // pub(crate) scroll_nodes: Vec<NodeRef<Box<dyn ElementType>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -66,16 +78,18 @@ impl FluidManager {
 
         self.set_reversal();
 
-        let cloned_intro_node = self
+        let intro_element = self
             .outlet_nodes
             .read_untracked()
             .get(&matched_outlet)
             .expect("Intro route should exist in hashmap")
             .intro_node
             .get_untracked()
-            .expect("Intro route Node should be mounted")
-            .clone_node_with_deep(true)
-            .unwrap();
+            .expect("Intro route Node should be mounted");
+
+        let scroll_positions = get_scroll_pos_of_attr_children(&intro_element, SCROLLABLE_ATTR);
+
+        let cloned_intro_node = intro_element.clone_node_with_deep(true).unwrap();
 
         let matched_outlet_nodes = self.outlet_nodes.with_untracked(|outlet_routes| {
             outlet_routes
@@ -91,6 +105,7 @@ impl FluidManager {
 
         outro_node.replace_children_with_node_0();
         outro_node.append_child(&cloned_intro_node).unwrap();
+        set_scroll_pos_to_children_with_attr(&outro_node, SCROLLABLE_ATTR, scroll_positions);
 
         matched_outlet_nodes.is_transitioning.set(true);
         self.current_location

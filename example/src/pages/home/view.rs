@@ -6,7 +6,12 @@ use crate::components::common::PageShell;
 pub fn Home() -> impl IntoView {
     view! {
         <PageShell>
-            <div class="inline-block w-full h-full text-center text-white bg-teal-500">"Home"</div>
+            <div
+                style="min-height:1000px;"
+                class="inline-block w-full text-center text-white bg-teal-500"
+            >
+                "Home"
+            </div>
         </PageShell>
     }
 }
