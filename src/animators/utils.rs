@@ -1,3 +1,4 @@
+use leptos::logging::log;
 use web_sys::{wasm_bindgen::JsCast, Element};
 
 pub(crate) fn get_scroll_pos_of_attr_children(
@@ -13,6 +14,7 @@ pub(crate) fn get_scroll_pos_of_attr_children(
                 top_left_scroll_pos.push((el.scroll_top(), el.scroll_left()));
             }
         }
+        log!("{:?}", top_left_scroll_pos);
         return top_left_scroll_pos;
     }
 
