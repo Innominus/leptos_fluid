@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::animators::fluid_outlet::FluidOutlet;
+use leptos_fluid::animators::view_transitions::fluid_outlet::FluidOutlet;
 use leptos_router::components::A;
 
 #[component]

@@ -10,9 +10,6 @@ edition = "2024"
 leptos = { version = "0.7.5", features = ["csr"] }
 leptos_meta = { version = "0.7.5" }
 leptos_router = { version = "0.7.5" }
-# leptos = { git = "https://github.com/leptos-rs/leptos", features = ["csr"] }
-# leptos_meta = { git = "https://github.com/leptos-rs/leptos" }
-# leptos_router = { git = "https://github.com/leptos-rs/leptos" }
 console_error_panic_hook = { version = "0.1" }
 web-sys = { version = "0.3.69", features = [
     "DomRect",
@@ -20,4 +17,10 @@ web-sys = { version = "0.3.69", features = [
     "Storage",
     "Navigator",
     "NodeList",
+    "Animation",
+    "KeyframeAnimationOptions",
+    "FillMode",
 ] }
+
+serde-wasm-bindgen = "0.6.5"
+serde = { version = "1.0", features = ["derive"] }

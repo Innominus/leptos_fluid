@@ -1,8 +1,10 @@
 use leptos::prelude::*;
-use leptos_fluid::animators::{fluid_manager::FluidManager, fluid_route::FluidRoutes};
+use leptos_fluid::animators::view_transitions::{
+    fluid_manager::FluidManager, fluid_route::FluidRoutes,
+};
 use leptos_meta::*;
 use leptos_router::{
-    components::{ParentRoute, Route, Router, Routes},
+    components::{ParentRoute, Route, Router},
     ParamSegment, StaticSegment,
 };
 

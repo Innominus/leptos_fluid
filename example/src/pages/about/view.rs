@@ -1,4 +1,4 @@
-use leptos::{logging::log, prelude::*};
+use leptos::prelude::*;
 
 use crate::components::common::PageShell;
 

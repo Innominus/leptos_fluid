@@ -1,7 +1,5 @@
 use leptos::prelude::*;
 
-// pub const BASE_PADDING: &str = "py-2 px-2 sm:px-14";
-
 #[component]
 pub fn PageShell(#[prop(optional)] class: &'static str, children: Children) -> impl IntoView {
     let delayed_class = RwSignal::new("");

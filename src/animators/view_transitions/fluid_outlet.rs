@@ -5,7 +5,7 @@ use leptos_router::{
 };
 use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
 
-use crate::animators::fluid_manager::FluidManager;
+use crate::animators::view_transitions::fluid_manager::FluidManager;
 
 #[component]
 pub fn FluidOutlet(
@@ -95,9 +95,9 @@ pub fn FluidOutlet(
 
     let animation_direction = move || {
         if navigate_backwards.get() {
-            " animation-direction: reverse;"
+            Some(true)
         } else {
-            ""
+            None
         }
     };
 
@@ -127,18 +127,20 @@ pub fn FluidOutlet(
                 + hide_while_animating()
         }>
             <div
+                data-reverse=animation_direction
                 node_ref=outro_node_ref
                 on:animationend=outro_handler
                 class=move || animation_classes().0
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
-                        .to_string() + animation_direction() + z_index()
+                        .to_string() + z_index()
                 }
             ></div>
             <div
+                data-reverse=animation_direction
                 node_ref=intro_node_ref
                 on:animationend=intro_handler
-                style=move || { "width: 100%; height: 100%;".to_string() + animation_direction() }
+                style=move || { "width: 100%; height: 100%;".to_string() }
                 class=move || animation_classes().1
             >
                 <Outlet />

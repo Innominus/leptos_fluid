@@ -1,16 +1,14 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use leptos::{
-    html::{Div, ElementType},
-    logging::log,
-    prelude::*,
-};
+use leptos::{html::Div, prelude::*};
 use web_sys::{
     wasm_bindgen::{prelude::Closure, JsCast},
     Element, HtmlElement,
 };
 
-use super::utils::{get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr};
+use crate::animators::utils::{
+    get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr,
+};
 
 const SCROLLABLE_ATTR: &'static str = "data-scrollable";
 
