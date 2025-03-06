@@ -19,7 +19,7 @@ pub struct Flip {
     id_selector: StoredValue<String>,
     is_animating: RwSignal<bool>,
     options: FlipOptions,
-    animation: StoredValue<Option<Animation>, LocalStorage>,
+    animation: StoredValue<Option<(Animation, Element)>, LocalStorage>,
 }
 
 impl Flip {
@@ -65,9 +65,10 @@ impl Flip {
         let (el, from_values) = self.measure(None);
 
         if self.is_animating.get_untracked() {
-            self.animation.get_value().unwrap().cancel();
+            let (animation, element) = self.animation.get_value().unwrap();
             // TODO: probs need to hold onto the old element that's attached to the animation
-            el.style("");
+            animation.cancel();
+            element.style("");
         }
 
         animator_fn();
@@ -109,7 +110,7 @@ impl Flip {
         to: FlipValues,
         options: FlipOptions,
         is_animating: RwSignal<bool>,
-        animation_store: StoredValue<Option<Animation>, LocalStorage>,
+        animation_store: StoredValue<Option<(Animation, Element)>, LocalStorage>,
     ) {
         let dx = from.left - to.left;
         let dy = from.top - to.top;
@@ -154,7 +155,7 @@ impl Flip {
 
         closure.into_js_value();
 
-        animation_store.set_value(Some(animation));
+        animation_store.set_value(Some((animation, element)));
     }
 
     pub fn rect(element: Element) -> (Element, FlipValues) {
