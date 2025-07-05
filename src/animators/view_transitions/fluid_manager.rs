@@ -1,10 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use leptos::{html::Div, prelude::*};
-use web_sys::{
-    wasm_bindgen::{prelude::Closure, JsCast},
-    Element, HtmlElement,
-};
+use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
 
 use crate::animators::utils::{
     get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr,
@@ -283,19 +280,23 @@ fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> us
 fn is_back_button_compatible() -> bool {
     // Safari on MacOS and all Apple devices that aren't a Macintosh lead to blips and glitches
     // due to the backswipe animation built into the safari browser engine
-    let incompatible_agent_keywords = vec!["safari", "IPad", "IPhone", "IPod"];
-
     let user_agent = window().navigator().user_agent();
 
     if let Ok(agent_string) = user_agent {
-        return incompatible_agent_keywords
-            .iter()
-            .find(|os| {
-                agent_string
-                    .to_lowercase()
-                    .contains(os.to_lowercase().as_str())
-            })
-            .is_none();
+        let agent_lower = agent_string.to_lowercase();
+
+        // Check for Apple mobile devices first
+        if agent_lower.contains("ipad")
+            || agent_lower.contains("iphone")
+            || agent_lower.contains("ipod")
+        {
+            return false;
+        }
+
+        // Check for Safari on macOS (Safari without Chrome in the user agent)
+        if agent_lower.contains("safari") && !agent_lower.contains("chrome") {
+            return false;
+        }
     }
 
     true
