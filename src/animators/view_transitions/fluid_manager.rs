@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use leptos::{html::Div, prelude::*};
+use leptos::{html::Div, logging::warn, prelude::*};
 use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
 
 use crate::animators::utils::{
@@ -33,8 +33,9 @@ pub struct FluidManager {
 
 impl FluidManager {
     pub fn new() -> Self {
-        if use_context::<FluidManager>().is_some() {
-            panic!("Fluid Manager has already been initialized");
+        //debug cfg for this
+        if cfg!(debug_assertions) && use_context::<FluidManager>().is_some() {
+            warn!("Fluid Manager has already been initialized");
         }
 
         let manager = FluidManager {
