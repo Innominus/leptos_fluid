@@ -7,6 +7,16 @@ use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
 
 use crate::animators::view_transitions::fluid_manager::FluidManager;
 
+const NO_ANIMATION_CSS: &'static str = r#"
+    .no-animations * {
+      animation-duration: 0s !important;
+      transition-duration: 0s !important;
+      animation-delay: 0s !important;
+      transition-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+    }
+"#;
+
 #[component]
 pub fn FluidOutlet(
     #[prop(into)] intro_class: Signal<&'static str>,
@@ -122,6 +132,7 @@ pub fn FluidOutlet(
     });
 
     view! {
+        <style>{NO_ANIMATION_CSS}</style>
         <section style=move || {
             "width: 100%; height: 100%; position: relative; isolation: isolate;".to_string()
                 + hide_while_animating()
@@ -130,7 +141,7 @@ pub fn FluidOutlet(
                 data-reverse=animation_direction
                 node_ref=outro_node_ref
                 on:animationend=outro_handler
-                class=move || animation_classes().0
+                class=move || animation_classes().0.to_string() + " no-animations"
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
                         .to_string() + z_index()
