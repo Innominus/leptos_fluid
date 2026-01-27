@@ -25,6 +25,10 @@ pub(crate) fn set_scroll_pos_to_children_with_attr(
     attr_name: &str,
     top_left_scroll_pos: Vec<(i32, i32)>,
 ) {
+    if top_left_scroll_pos.is_empty() {
+        return;
+    }
+
     let selector = get_selector(attr_name);
     if let Ok(node_list) = parent.query_selector_all(&selector) {
         request_animation_frame(move || {

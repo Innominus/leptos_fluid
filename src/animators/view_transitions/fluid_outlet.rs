@@ -14,6 +14,7 @@ const NO_ANIMATION_CSS: &'static str = r#"
       animation-delay: 0s !important;
       transition-delay: 0s !important;
       animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
     }
 "#;
 
