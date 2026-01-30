@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-leptos_fluid = { path = "../" }
-leptos = { version = "0.8", features = ["csr"] }
+leptos_fluid = { path = "../", features = ["view-transitions", "motion"] }
+leptos = { version = "0.8", default-features = false, features = ["csr"] }
 leptos_meta = { version = "0.8" }
 leptos_router = { version = "0.8" }
 gloo-net = { version = "0.5", features = ["http"] }

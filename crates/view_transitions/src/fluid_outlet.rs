@@ -5,9 +5,9 @@ use leptos_router::{
 };
 use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
 
-use crate::animators::view_transitions::fluid_manager::FluidManager;
+use crate::fluid_manager::FluidManager;
 
-const NO_ANIMATION_CSS: &'static str = r#"
+const NO_ANIMATION_CSS: &str = r#"
     .no-animations * {
       animation-duration: 0s !important;
       transition-duration: 0s !important;
@@ -23,8 +23,6 @@ pub fn FluidOutlet(
     #[prop(into)] intro_class: Signal<&'static str>,
     #[prop(into)] outro_class: Signal<&'static str>,
 ) -> impl IntoView {
-    // Setup variables needed for each stage
-    // TODO: Probably refactor and make this a lot neater once working
     let mut manager = FluidManager::get_manager();
 
     let intro_node_ref = NodeRef::new();
@@ -36,7 +34,6 @@ pub fn FluidOutlet(
     let matched_route = use_matched();
     let location = use_location().pathname;
 
-    // TRACKS CHANGES IN THE CURRENT ROUTE IF A PARENT ROUTE HAS PARAM SEGMENTS/DYNAMIC CHANGES
     let outlet_current_route = StoredValue::new(matched_route.get_untracked());
     let outlet_initialized = StoredValue::new(false);
     let mut inner_manager = manager.clone();
@@ -52,7 +49,6 @@ pub fn FluidOutlet(
         outlet_current_route.set_value(matched_route.get());
     });
 
-    // TODO: Breakout initialization into its own function
     if !manager.initialized.get_value() {
         let root_outlet_ran_first_time = StoredValue::new(false);
         manager.location.set_value(location);
@@ -66,18 +62,12 @@ pub fn FluidOutlet(
             }
 
             let mut inner_manager = inner_manager.clone();
-            // Ensure old node is cleaned up for fast navigations
-
-            // Perform outbound and inbound transition
-            // Cloning this twice isn't fantastic to be honest
-            // Refactor maybe behind a pointer
             inner_manager.transition();
         });
 
         manager.initialized.set_value(true);
     }
 
-    // Add nodes to manager for transitioning
     manager.add_outlet_route_nodes(
         matched_route.get_untracked(),
         intro_node_ref,
@@ -104,21 +94,9 @@ pub fn FluidOutlet(
         navigate_backwards,
     );
 
-    let animation_direction = move || {
-        if navigate_backwards.get() {
-            Some(true)
-        } else {
-            None
-        }
-    };
+    let animation_direction = move || if navigate_backwards.get() { Some(true) } else { None };
 
-    let z_index = move || {
-        if navigate_backwards.get() {
-            "z-index: 1;"
-        } else {
-            ""
-        }
-    };
+    let z_index = move || if navigate_backwards.get() { "z-index: 1;" } else { "" };
 
     let hide_while_animating = move || {
         if is_transitioning.get() {
@@ -145,14 +123,15 @@ pub fn FluidOutlet(
                 class=move || animation_classes().0.to_string() + " no-animations"
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
-                        .to_string() + z_index()
+                        .to_string()
+                        + z_index()
                 }
             ></div>
             <div
                 data-reverse=animation_direction
                 node_ref=intro_node_ref
                 on:animationend=intro_handler
-                style=move || { "width: 100%; height: 100%;".to_string() }
+                style=move || "width: 100%; height: 100%;".to_string()
                 class=move || animation_classes().1
             >
                 <Outlet />
@@ -171,7 +150,6 @@ fn setup_animation_handlers(
     let outro_has_ended = RwSignal::new(false);
 
     let cleanup_fn = move || {
-        // only cleanup the outro node if both animations have ended
         if intro_has_ended.get() && outro_has_ended.get() {
             outro_node_ref
                 .get_untracked()
@@ -196,9 +174,7 @@ fn create_animation_handler(
     cleanup_fn: impl Fn(),
 ) -> impl Fn(AnimationEvent) {
     move |e: AnimationEvent| {
-        // checking if the animation that's ended is on the local FluidOutlet div node
-        if e.target().unwrap().unchecked_ref::<Node>()
-            == node.get_untracked().unwrap().unchecked_ref::<Node>()
+        if e.target().unwrap().unchecked_ref::<Node>() == node.get_untracked().unwrap().unchecked_ref::<Node>()
         {
             has_ended.set(true);
             cleanup_fn();

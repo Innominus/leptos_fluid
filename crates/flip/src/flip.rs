@@ -5,12 +5,7 @@ use web_sys::{
     Animation, Element, KeyframeAnimationOptions,
 };
 
-const LINEAR: &str = "linear(
-    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017,
-    1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%,
-    1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%,
-    0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1
-)";
+const LINEAR: &str = "linear(\n    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017,\n    1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%,\n    1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%,\n    0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1\n)";
 
 const EASE_IN_OUT: &str = "cubic-bezier(0.83, 0, 0.17, 1)";
 
@@ -24,25 +19,21 @@ pub struct Flip {
 
 impl Flip {
     pub fn new(id_selector: String) -> Self {
-        let new_self = Self {
+        Self {
             id_selector: StoredValue::new(id_selector),
             is_animating: RwSignal::new(false),
             options: FlipOptions::new(),
             animation: StoredValue::new_local(None),
-        };
-
-        new_self
+        }
     }
 
     pub fn new_with_options(id_selector: String, options: FlipOptions) -> Self {
-        let new_self = Self {
+        Self {
             id_selector: StoredValue::new(id_selector),
             is_animating: RwSignal::new(false),
             options,
             animation: StoredValue::new_local(None),
-        };
-
-        new_self
+        }
     }
 
     pub fn set_id_selector(&mut self, id_selector: String) {
@@ -62,11 +53,11 @@ impl Flip {
         F: FnMut() + Send + Sync + 'static,
     {
         let is_animating = self.is_animating;
-        let (el, from_values) = self.measure(None);
+        let (_el, from_values) = self.measure(None);
 
         if self.is_animating.get_untracked() {
             let (animation, element) = self.animation.get_value().unwrap();
-            // TODO: probs need to hold onto the old element that's attached to the animation
+            // TODO: hold onto the old element that's attached to the animation
             animation.cancel();
             element.style("");
         }

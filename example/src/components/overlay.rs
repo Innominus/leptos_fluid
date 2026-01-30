@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::animators::view_transitions::fluid_outlet::FluidOutlet;
+use leptos_fluid::view_transitions::FluidOutlet;
 use leptos_router::components::A;
 
 #[component]
@@ -13,16 +13,25 @@ pub fn Overlay() -> impl IntoView {
                 <A attr:class="btn btn-sm text-xs" href="/about">
                     "TOP OUTLET ABOUT"
                 </A>
+                <A attr:class="btn btn-sm text-xs" href="/motion">
+                    "TOP OUTLET MOTION"
+                </A>
                 <A attr:class="btn btn-sm text-xs" href="/new-route/">
                     "MIDDLE OUTLET"
                 </A>
                 <A attr:class="btn btn-sm text-xs" href="/new-route/about">
                     "MIDDLE OUTLET ABOUT"
                 </A>
+                <A attr:class="btn btn-sm text-xs" href="/new-route/motion">
+                    "MIDDLE OUTLET MOTION"
+                </A>
                 <A attr:class="btn btn-sm text-xs" href="/new-route/32/">
                     "DEEPEST OUTLET - ROUTE PARAM 32"
                 </A>
                 <A attr:class="btn btn-sm text-xs" href="/new-route/46/about">
+                    "DEEPEST OUTLET - ROUTE PARAM 46"
+                </A>
+                <A attr:class="btn btn-sm text-xs" href="/new-route/46/motion">
                     "DEEPEST OUTLET - ROUTE PARAM 46"
                 </A>
             </div>

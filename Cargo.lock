@@ -918,13 +918,9 @@ dependencies = [
 name = "leptos_fluid"
 version = "0.1.1"
 dependencies = [
- "console_error_panic_hook",
- "leptos",
- "leptos_meta",
- "leptos_router",
- "serde",
- "serde-wasm-bindgen",
- "web-sys",
+ "leptos_fluid_flip",
+ "leptos_fluid_motion",
+ "leptos_fluid_view_transitions",
 ]
 
 [[package]]
@@ -939,6 +935,44 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "uuid",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_flip"
+version = "0.1.1"
+dependencies = [
+ "leptos",
+ "serde",
+ "serde-wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_motion"
+version = "0.1.1"
+dependencies = [
+ "js-sys",
+ "leptos",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_motion_example"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "leptos_fluid",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_view_transitions"
+version = "0.1.1"
+dependencies = [
+ "leptos",
+ "leptos_router",
  "web-sys",
 ]
 

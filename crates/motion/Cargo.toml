@@ -1,0 +1,13 @@
+[package]
+name = "leptos_fluid_motion"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
+js-sys = "0.3.69"
+web-sys = { version = "0.3.69", features = [
+    "Element",
+    "HtmlElement",
+    "CssStyleDeclaration",
+] }

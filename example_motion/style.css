@@ -1,0 +1,417 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;700&display=swap");
+
+:root {
+    color-scheme: light;
+    --bg: #0b0d17;
+    --bg-soft: #121426;
+    --card: #14182c;
+    --glow: #74f1ff;
+    --accent: #ff8bd6;
+    --accent-2: #ffcc70;
+    --text: #f7f5ff;
+    --muted: #b5b2d3;
+    --stroke: rgba(255, 255, 255, 0.12);
+    --shadow: 0 30px 80px rgba(6, 7, 18, 0.6);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family:
+        "Space Grotesk",
+        system-ui,
+        -apple-system,
+        sans-serif;
+    background:
+        radial-gradient(circle at 15% 20%, #1f2242, transparent 45%),
+        radial-gradient(circle at 80% 5%, #2a1030, transparent 40%),
+        radial-gradient(circle at 90% 80%, #102139, transparent 45%), var(--bg);
+    color: var(--text);
+}
+
+.page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+    padding: 4rem clamp(1.5rem, 4vw, 4.5rem) 6rem;
+}
+
+.hero {
+    display: grid;
+    gap: 2.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: center;
+}
+
+.hero h1 {
+    font-family: "Fraunces", serif;
+    font-size: clamp(2.5rem, 4vw, 4.5rem);
+    line-height: 1.05;
+    margin: 0;
+}
+
+.hero p {
+    color: var(--muted);
+    font-size: 1rem;
+    max-width: 38ch;
+}
+
+.glass {
+    background: linear-gradient(
+        140deg,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.02)
+    );
+    border: 1px solid var(--stroke);
+    border-radius: 28px;
+    padding: 1.8rem;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #fbd7ff;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+button {
+    font-family: inherit;
+    border: none;
+    border-radius: 999px;
+    padding: 0.6rem 1.2rem;
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text);
+    cursor: pointer;
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+}
+
+button.alt {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.tabs-demo {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: center;
+}
+
+.tabs-card {
+    background: rgba(12, 14, 28, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    padding: 1.5rem;
+    display: grid;
+    gap: 1.25rem;
+}
+
+.tab-list {
+    position: relative;
+    display: flex;
+    gap: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab-button {
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    font: inherit;
+    padding: 0.4rem 0.1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.tab-button.active {
+    color: var(--text);
+}
+
+.tab-underline {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #74f1ff, #ff8bd6);
+    box-shadow: 0 0 18px rgba(116, 241, 255, 0.4);
+}
+
+.tab-panel {
+    background: rgba(10, 12, 22, 0.6);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.25rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-height: 220px;
+}
+
+.card h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.orb {
+    position: absolute;
+    inset: auto;
+    border-radius: 999px;
+    filter: blur(1px);
+    opacity: 0.7;
+}
+
+.orb.one {
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, #84f6ff, transparent 70%);
+    top: -40px;
+    right: 20px;
+}
+
+.orb.two {
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, #ff93d8, transparent 70%);
+    bottom: -60px;
+    left: -20px;
+}
+
+.panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.panel h2 {
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.chip {
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+}
+
+.footer {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.follow-arena {
+    position: relative;
+    height: 280px;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        radial-gradient(
+            circle at 20% 20%,
+            rgba(116, 241, 255, 0.2),
+            transparent 40%
+        ),
+        radial-gradient(
+            circle at 80% 80%,
+            rgba(255, 139, 214, 0.2),
+            transparent 45%
+        ),
+        rgba(12, 14, 28, 0.8);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.follow-ball {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff8bd6, #74f1ff);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.follow-hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.island-shell {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: center;
+}
+
+.island-wrap {
+    position: relative;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.island {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 25px 70px rgba(3, 6, 16, 0.7);
+    overflow: hidden;
+}
+
+.island-inner {
+    width: 100%;
+    height: 100%;
+    padding: 1rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.island-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.island-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--glow);
+    box-shadow: 0 0 12px rgba(116, 241, 255, 0.8);
+}
+
+.island-wave {
+    width: 46px;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #74f1ff, #ff8bd6);
+    opacity: 0.8;
+}
+
+.island-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 1rem;
+}
+
+.island-title {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+}
+
+.island-sub {
+    margin: 0.25rem 0 0;
+    font-size: 1rem;
+}
+
+.island-meter {
+    display: flex;
+    gap: 0.3rem;
+    align-items: flex-end;
+}
+
+.island-meter span {
+    width: 4px;
+    height: 18px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #74f1ff, #ff8bd6);
+    opacity: 0.8;
+}
+
+.island-meter span:nth-child(2) {
+    height: 26px;
+}
+
+.island-meter span:nth-child(3) {
+    height: 14px;
+}
+
+.island-glow {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 999px;
+    background: radial-gradient(
+        circle,
+        rgba(116, 241, 255, 0.4),
+        transparent 70%
+    );
+}
+
+@media (max-width: 720px) {
+    .page {
+        padding: 3rem 1.4rem 4rem;
+    }
+}

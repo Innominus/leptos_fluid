@@ -3,19 +3,15 @@ use std::{collections::HashMap, fmt::Debug};
 use leptos::{html::Div, logging::warn, prelude::*};
 use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
 
-use crate::animators::utils::{
-    get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr,
-};
+use crate::utils::{get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr};
 
-const SCROLLABLE_ATTR: &'static str = "data-scrollable";
+const SCROLLABLE_ATTR: &str = "data-scrollable";
 
 #[derive(Clone, Debug)]
 pub struct OutletNodes {
-    pub(crate) outlet_route: StoredValue<String>,
     pub(crate) intro_node: NodeRef<Div>,
     pub(crate) outro_node: NodeRef<Div>,
     pub(crate) is_transitioning: RwSignal<bool>,
-    // pub(crate) scroll_nodes: Vec<NodeRef<Box<dyn ElementType>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -33,7 +29,6 @@ pub struct FluidManager {
 
 impl FluidManager {
     pub fn new() -> Self {
-        //debug cfg for this
         if cfg!(debug_assertions) && use_context::<FluidManager>().is_some() {
             warn!("Fluid Manager has already been initialized");
         }
@@ -119,11 +114,9 @@ impl FluidManager {
         self.outlet_route_cache
             .update_untracked(|cache| cache.push(route.clone()));
         self.outlet_nodes.update_untracked(|nodes| {
-            // TODO: cleanup when outlet no longer exists
             nodes.insert(
                 route.clone(),
                 OutletNodes {
-                    outlet_route: StoredValue::new(route),
                     intro_node,
                     outro_node,
                     is_transitioning,
@@ -135,9 +128,6 @@ impl FluidManager {
     pub(crate) fn clean_cache_hierarchy(&mut self, route: &str) {
         self.outlet_route_cache.update_untracked(|routes| {
             if let Some(pos) = routes.iter().position(|r| r == route) {
-                // Retain up to and including the matched route
-                // This is because outlets are added in their hierarchy order
-                // TODO: Test if this theory is always correct
                 routes.truncate(pos + 1);
             }
         })
@@ -146,16 +136,10 @@ impl FluidManager {
     pub(crate) fn remove_disposed_outlet_route(&mut self, route: String) {
         self.outlet_route_cache
             .update_untracked(|cache| cache.retain_mut(|val| *val != route));
-        self.outlet_nodes.update_untracked(|nodes| {
-            nodes.remove(&route)
-            // We would love to have an expect here
-            // But clean ups can sometimes be delayed and then happen close together, which causes this to crash
-            // Attempts to clean up twice
-            // .expect("Removal of nodes by old route should yield the old nodes");
-        });
+        self.outlet_nodes
+            .update_untracked(|nodes| nodes.remove(&route));
     }
 
-    // don't have to add a whole new outlet node because the previous node refs and values should be valid
     pub(crate) fn update_outlet_nodes_route(&mut self, previous_route: String, new_route: String) {
         self.outlet_route_cache.update_untracked(|cache| {
             cache.retain_mut(|val| val != &previous_route);
@@ -171,10 +155,7 @@ impl FluidManager {
         })
     }
 
-    // TODO TEST THIS
-    // ADD NEW OUTLETS TO A VEC OF STRINGS TO MATCH AGAINST THE CURRENT LOCATION!
-    // USE THIS FUNCTION TO RETRIEVE THE STRING AND GRAB THE TARGET OUTLET FOR TRANSITION
-    pub(crate) fn match_location_to_outlet<'a>(&self, target: String) -> Option<String> {
+    pub(crate) fn match_location_to_outlet(&self, target: String) -> Option<String> {
         let target_tokens = tokenize(&target);
 
         self.outlet_route_cache
@@ -183,33 +164,28 @@ impl FluidManager {
             .max_by_key(|candidate| {
                 let candidate_tokens = tokenize(candidate);
                 let similarity = calculate_similarity(&target_tokens, &candidate_tokens);
-                // Prefer higher similarity; if equal, prefer shorter path
                 (similarity, usize::MAX - candidate.len())
             })
             .cloned()
     }
 
     pub(crate) fn set_reversal(&self) {
-        fn get_route_index<'a>(
+        fn get_route_index(
             incoming_route: &str,
-            generated_routes: &'a [Vec<String>],
+            generated_routes: &[Vec<String>],
         ) -> Option<usize> {
-            // Tokenize the incoming route into components
             let incoming_tokens: Vec<&str> = incoming_route.split('/').collect();
 
-            // Iterate through the generated routes and match
             for route in generated_routes {
                 if route.len() != incoming_tokens.len() {
-                    continue; // Skip routes with different lengths
+                    continue;
                 }
 
                 let mut is_match = true;
                 for (token, &ref pattern) in incoming_tokens.iter().zip(route) {
                     if pattern.starts_with(':') || pattern.starts_with('*') {
-                        // This is a wildcard segment, match any incoming token
                         continue;
                     } else if pattern != *token {
-                        // Static segments must match exactly
                         is_match = false;
                         break;
                     }
@@ -222,23 +198,21 @@ impl FluidManager {
                 }
             }
 
-            None // No match found
+            None
         }
         let read_value = &self.current_location.read_value();
         let current_location_index =
-            get_route_index(&read_value, self.generated_routes.get_value().as_slice());
+            get_route_index(read_value, self.generated_routes.get_value().as_slice());
 
         let read_value = &self.location.get_value().read_untracked();
         let new_location_index =
-            get_route_index(&read_value, self.generated_routes.get_value().as_slice());
+            get_route_index(read_value, self.generated_routes.get_value().as_slice());
 
         if current_location_index.unwrap_or(0) > new_location_index.unwrap_or(0) {
             self.navigate_backwards.set(true);
         }
     }
 
-    // TODO: Probably need an effect listener to the route
-    // so we can check if we're going backwards or forwards
     fn setup_incompatibility_listener(&self) {
         if is_back_button_compatible() {
             return;
@@ -279,14 +253,11 @@ fn calculate_similarity(target_tokens: &[&str], candidate_tokens: &[&str]) -> us
 }
 
 fn is_back_button_compatible() -> bool {
-    // Safari on MacOS and all Apple devices that aren't a Macintosh lead to blips and glitches
-    // due to the backswipe animation built into the safari browser engine
     let user_agent = window().navigator().user_agent();
 
     if let Ok(agent_string) = user_agent {
         let agent_lower = agent_string.to_lowercase();
 
-        // Check for Apple mobile devices first
         if agent_lower.contains("ipad")
             || agent_lower.contains("iphone")
             || agent_lower.contains("ipod")
@@ -294,7 +265,6 @@ fn is_back_button_compatible() -> bool {
             return false;
         }
 
-        // Check for Safari on macOS (Safari without Chrome in the user agent)
         if agent_lower.contains("safari") && !agent_lower.contains("chrome") {
             return false;
         }

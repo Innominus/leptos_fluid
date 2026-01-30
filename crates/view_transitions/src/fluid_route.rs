@@ -4,7 +4,7 @@ use leptos_router::{
     MatchNestedRoutes,
 };
 
-use super::fluid_manager::FluidManager;
+use crate::fluid_manager::FluidManager;
 
 #[component(transparent)]
 pub fn FluidRoutes<Defs, FallbackFn, Fallback>(
