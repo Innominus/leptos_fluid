@@ -19,15 +19,7 @@ fn apply_style(element: &Element, style: &MotionStyle) {
 }
 
 fn transition_value(transition: &Transition) -> String {
-    if transition.duration_ms == 0 && transition.delay_ms == 0 {
-        "none".to_string()
-    } else {
-        let easing = transition.easing_string();
-        format!(
-            "all {}ms {} {}ms",
-            transition.duration_ms, easing, transition.delay_ms
-        )
-    }
+    transition.transition_css()
 }
 
 fn apply_transition(element: &HtmlElement, transition: &Transition) {

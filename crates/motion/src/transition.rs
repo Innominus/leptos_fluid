@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt::Write;
 
 const EASE_OUT_CUBIC: &str = "cubic-bezier(0.215, 0.61, 0.355, 1)";
 const EASE_IN_OUT_CUBIC: &str = "cubic-bezier(0.645, 0.045, 0.355, 1)";
@@ -73,6 +74,7 @@ pub struct Transition {
     pub delay_ms: u32,
     pub easing: Easing,
     pub spring: Option<Spring>,
+    pub excluded_properties: Vec<Cow<'static, str>>,
 }
 
 impl Default for Transition {
@@ -82,6 +84,7 @@ impl Default for Transition {
             delay_ms: 0,
             easing: Easing::EaseOut,
             spring: None,
+            excluded_properties: Vec::new(),
         }
     }
 }
@@ -121,6 +124,7 @@ impl Transition {
             delay_ms: 0,
             easing: Easing::Spring,
             spring: Some(spring),
+            excluded_properties: Vec::new(),
         }
     }
 
@@ -139,7 +143,40 @@ impl Transition {
             delay_ms: 0,
             easing: Easing::EaseOut,
             spring: None,
+            excluded_properties: Vec::new(),
         }
+    }
+
+    pub fn exclude_properties<I, S>(mut self, props: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'static, str>>,
+    {
+        let mut list = Vec::new();
+        for prop in props {
+            push_unique_property(&mut list, prop.into());
+        }
+        self.excluded_properties = list;
+        self
+    }
+
+    pub fn add_excluded_properties<I, S>(mut self, props: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'static, str>>,
+    {
+        for prop in props {
+            push_unique_property(&mut self.excluded_properties, prop.into());
+        }
+        self
+    }
+
+    pub fn without_properties<I, S>(self, props: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Cow<'static, str>>,
+    {
+        self.exclude_properties(props)
     }
 
     pub fn easing_string(&self) -> Cow<'_, str> {
@@ -149,6 +186,44 @@ impl Transition {
             Cow::Borrowed(self.easing.as_str())
         }
     }
+
+    pub(crate) fn transition_css(&self) -> String {
+        if self.duration_ms == 0 && self.delay_ms == 0 {
+            return "none".to_string();
+        }
+
+        let easing = self.easing_string();
+        let mut out = String::new();
+        let _ = write!(
+            out,
+            "all {}ms {} {}ms",
+            self.duration_ms, easing, self.delay_ms
+        );
+
+        for prop in &self.excluded_properties {
+            if prop.is_empty() {
+                continue;
+            }
+            let _ = write!(out, ", {} 0ms linear 0ms", prop);
+        }
+
+        out
+    }
+
+    #[cfg(feature = "bench")]
+    pub fn transition_css_public(&self) -> String {
+        self.transition_css()
+    }
+}
+
+fn push_unique_property(list: &mut Vec<Cow<'static, str>>, prop: Cow<'static, str>) {
+    if list
+        .iter()
+        .any(|existing| existing.as_ref() == prop.as_ref())
+    {
+        return;
+    }
+    list.push(prop);
 }
 
 fn spring_easing(duration_ms: u32, bounce: f64) -> String {
@@ -218,5 +293,24 @@ mod tests {
         let spring = Transition::spring_with(400, 0.0);
         let easing = spring.easing_string();
         assert_eq!(easing.as_ref(), SPRING_EASING);
+    }
+
+    #[test]
+    fn default_transition_is_all() {
+        let transition = Transition::new().duration_ms(300).delay_ms(50);
+        let css = transition.transition_css();
+        assert!(css.starts_with("all 300ms"));
+        assert!(css.ends_with("50ms"));
+    }
+
+    #[test]
+    fn excluded_properties_disable_specific_animation() {
+        let transition = Transition::new()
+            .duration_ms(300)
+            .exclude_properties(["height", "width"]);
+        let css = transition.transition_css();
+        assert!(css.contains("all 300ms"));
+        assert!(css.contains(", height 0ms linear 0ms"));
+        assert!(css.contains(", width 0ms linear 0ms"));
     }
 }

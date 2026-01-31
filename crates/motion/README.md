@@ -113,6 +113,13 @@ let custom = Spring::new(500, 0.2);
 let spring = Transition::spring_with(custom.duration_ms, custom.bounce);
 ```
 
+By default transitions use `all` for implicit animation. You can opt out of specific properties:
+
+```rust
+let no_layout = Transition::spring().exclude_properties(["width", "height"]);
+let no_blur = Transition::new().without_properties(["filter"]);
+```
+
 ## MotionSignal
 
 `animate`, `class`, and `style` accept static values, Leptos signals/memos, or closures.
@@ -149,8 +156,40 @@ view! {
 }
 ```
 
+## AnimatePresence
+
+Keep an element mounted long enough to play an exit animation.
+
+```rust
+use leptos::prelude::*;
+use leptos_fluid::motion::{AnimatePresence, MotionStyle, Transition};
+
+let open = RwSignal::new(false);
+
+view! {
+    <button on:click=move |_| open.update(|v| *v = !*v)>"Toggle"</button>
+    <AnimatePresence
+        show=open
+        initial=MotionStyle::new().opacity(0.0).y(12.0)
+        animate=MotionStyle::new().opacity(1.0).y(0.0)
+        exit=MotionStyle::new().opacity(0.0).y(-12.0)
+        transition=Transition::spring()
+    >
+        <div class="panel">"I'm here until exit finishes"</div>
+    </AnimatePresence>
+}
+```
+
 ## Design goals
 
 - Minimal runtime and deps (CSS transitions only)
 - Fast updates (cancels/replaces active animations)
 - Ergonomic API with predictable defaults
+
+## Benchmarks
+
+Run microbenchmarks for spring math and style/transition generation:
+
+```bash
+cargo bench -p leptos_fluid_motion --features bench
+```

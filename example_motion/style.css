@@ -174,6 +174,122 @@ button.alt {
     font-size: 0.95rem;
 }
 
+.presence-demo {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: center;
+}
+
+.presence-card {
+    background: rgba(12, 14, 28, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    padding: 1.5rem;
+    display: grid;
+    gap: 1.2rem;
+}
+
+.presence-stage {
+    position: relative;
+    height: 220px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        radial-gradient(
+            circle at 20% 20%,
+            rgba(116, 241, 255, 0.18),
+            transparent 55%
+        ),
+        radial-gradient(
+            circle at 80% 80%,
+            rgba(255, 139, 214, 0.2),
+            transparent 60%
+        ),
+        rgba(9, 12, 22, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.presence-orb {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 999px;
+    background: radial-gradient(
+        circle,
+        rgba(116, 241, 255, 0.3),
+        transparent 70%
+    );
+    filter: blur(12px);
+}
+
+.presence-toast {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.9rem 1.1rem;
+    min-width: 230px;
+    border-radius: 18px;
+    background: rgba(8, 10, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 16px 40px rgba(2, 6, 16, 0.6);
+}
+
+.presence-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #74f1ff;
+    box-shadow: 0 0 12px rgba(116, 241, 255, 0.9);
+    animation: presence-pulse 1.8s ease-in-out infinite;
+}
+
+.presence-title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.presence-sub {
+    margin: 0.1rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.presence-pill {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 139, 214, 0.18);
+    border: 1px solid rgba(255, 139, 214, 0.35);
+    color: #ffd3ef;
+}
+
+.presence-caption {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+@keyframes presence-pulse {
+    0%,
+    100% {
+        transform: scale(0.9);
+        opacity: 0.7;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+}
+
 .card {
     background: var(--card);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -255,6 +371,95 @@ button.alt {
     font-size: 0.85rem;
 }
 
+.perf-section {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: center;
+}
+
+.perf-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.perf-control input[type="range"] {
+    accent-color: #74f1ff;
+}
+
+.perf-value {
+    min-width: 2.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+.perf-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-top: 1.2rem;
+}
+
+.perf-metrics .label {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.perf-metrics strong {
+    font-size: 1.05rem;
+    color: var(--text);
+}
+
+.perf-stage {
+    position: relative;
+    height: 240px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        radial-gradient(
+            circle at 30% 20%,
+            rgba(116, 241, 255, 0.15),
+            transparent 55%
+        ),
+        radial-gradient(
+            circle at 70% 80%,
+            rgba(255, 139, 214, 0.18),
+            transparent 60%
+        ),
+        rgba(10, 12, 22, 0.7);
+    overflow: hidden;
+}
+
+.perf-dot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+    margin-top: -4px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #74f1ff, #ff8bd6);
+    box-shadow: 0 0 12px rgba(116, 241, 255, 0.35);
+}
+
+.perf-hint {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+}
+
 .follow-arena {
     position: relative;
     height: 280px;
@@ -320,6 +525,8 @@ button.alt {
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 25px 70px rgba(3, 6, 16, 0.7);
     overflow: hidden;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 .island-inner {
@@ -329,6 +536,23 @@ button.alt {
     display: flex;
     align-items: center;
     gap: 1.2rem;
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+
+.island::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.12),
+        transparent 60%
+    );
+    opacity: 0.7;
+    pointer-events: none;
 }
 
 .island-pill {

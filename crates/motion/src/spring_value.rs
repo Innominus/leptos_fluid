@@ -127,3 +127,18 @@ fn spring_constants(duration_ms: u32, bounce: f64) -> (f64, f64) {
 pub fn use_spring(initial: f64, spring: Spring) -> SpringValue {
     SpringValue::new(initial, spring)
 }
+
+#[cfg(feature = "bench")]
+pub fn spring_step(
+    value: f64,
+    velocity: f64,
+    target: f64,
+    spring_cfg: Spring,
+    dt: f64,
+) -> (f64, f64) {
+    let (stiffness, damping) = spring_constants(spring_cfg.duration_ms, spring_cfg.bounce);
+    let acceleration = -stiffness * (value - target) - damping * velocity;
+    let next_velocity = velocity + acceleration * dt;
+    let next_value = value + next_velocity * dt;
+    (next_value, next_velocity)
+}
