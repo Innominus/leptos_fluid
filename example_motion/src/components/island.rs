@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, MotionDiv, MotionStyle, Spring, Transition};
+use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
 
 #[component]
 pub fn IslandSection() -> impl IntoView {
@@ -62,7 +62,7 @@ pub fn IslandSection() -> impl IntoView {
         } else {
             "0 18px 50px rgba(3, 6, 16, 0.6)"
         };
-        MotionStyle::new()
+        FluidStyle::new()
             .width(island_width.get())
             .height(island_height.get())
             .opacity(1.0)
@@ -73,14 +73,14 @@ pub fn IslandSection() -> impl IntoView {
     };
 
     let island_glow = move || {
-        MotionStyle::new()
+        FluidStyle::new()
             .opacity(island_glow_opacity.get())
             .scale(island_glow_scale.get())
             .with("filter", "blur(22px)")
     };
 
     let island_content = move || {
-        MotionStyle::new()
+        FluidStyle::new()
             .opacity(island_content_opacity.get())
             .y(island_content_y.get())
             .scale(island_content_scale.get())
@@ -107,28 +107,28 @@ pub fn IslandSection() -> impl IntoView {
             </div>
 
             <div class="island-wrap">
-                <MotionDiv
+                <FluidDiv
                     class="island-glow"
-                    initial=MotionStyle::new().opacity(0.0).scale(0.92)
+                    initial=FluidStyle::new().opacity(0.0).scale(0.92)
                     animate=island_glow
                     transition=Transition::new().duration_ms(0)
-                ></MotionDiv>
+                ></FluidDiv>
 
-                <MotionDiv
+                <FluidDiv
                     class="island"
-                    initial=MotionStyle::new().width(170.0).height(46.0).opacity(1.0)
+                    initial=FluidStyle::new().width(170.0).height(46.0).opacity(1.0)
                     animate=island_style
                     transition=Transition::new().duration_ms(0)
-                    while_hover=MotionStyle::new().scale(1.02)
+                    while_hover=FluidStyle::new().scale(1.02)
                 >
                     <div class="island-inner">
                         <div class="island-pill">
                             <div class="island-dot"></div>
                             <div class="island-wave"></div>
                         </div>
-                        <MotionDiv
+                        <FluidDiv
                             class="island-content"
-                            initial=MotionStyle::new().opacity(0.0).y(14.0).scale(0.96)
+                            initial=FluidStyle::new().opacity(0.0).y(14.0).scale(0.96)
                             animate=island_content
                             transition=Transition::new().duration_ms(0)
                         >
@@ -141,9 +141,9 @@ pub fn IslandSection() -> impl IntoView {
                                 <span></span>
                                 <span></span>
                             </div>
-                        </MotionDiv>
+                        </FluidDiv>
                     </div>
-                </MotionDiv>
+                </FluidDiv>
             </div>
         </section>
     }

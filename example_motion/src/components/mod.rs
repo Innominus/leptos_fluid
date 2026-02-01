@@ -7,6 +7,7 @@ mod perf;
 mod presence;
 mod staggered;
 mod tabs;
+mod timeline;
 
 pub use cards::CardsSection;
 pub use follow::SpringFollowSection;
@@ -15,5 +16,7 @@ pub use hero::HeroSection;
 pub use island::IslandSection;
 pub use perf::PerfSection;
 pub use presence::PresenceSection;
+pub use presence::PresenceSwapSection;
 pub use staggered::StaggeredChipsSection;
 pub use tabs::TabsSection;
+pub use timeline::TimelineSection;

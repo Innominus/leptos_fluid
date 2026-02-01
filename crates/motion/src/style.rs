@@ -1,59 +1,59 @@
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum MotionValue {
+pub enum FluidValue {
     Number(f64),
     Text(Cow<'static, str>),
 }
 
-impl MotionValue {
+impl FluidValue {
     fn to_string_value(&self) -> String {
         match self {
-            MotionValue::Number(value) => value.to_string(),
-            MotionValue::Text(value) => value.to_string(),
+            FluidValue::Number(value) => value.to_string(),
+            FluidValue::Text(value) => value.to_string(),
         }
     }
 }
 
-impl From<f64> for MotionValue {
+impl From<f64> for FluidValue {
     fn from(value: f64) -> Self {
-        MotionValue::Number(value)
+        FluidValue::Number(value)
     }
 }
 
-impl From<f32> for MotionValue {
+impl From<f32> for FluidValue {
     fn from(value: f32) -> Self {
-        MotionValue::Number(value as f64)
+        FluidValue::Number(value as f64)
     }
 }
 
-impl From<i32> for MotionValue {
+impl From<i32> for FluidValue {
     fn from(value: i32) -> Self {
-        MotionValue::Number(value as f64)
+        FluidValue::Number(value as f64)
     }
 }
 
-impl From<u32> for MotionValue {
+impl From<u32> for FluidValue {
     fn from(value: u32) -> Self {
-        MotionValue::Number(value as f64)
+        FluidValue::Number(value as f64)
     }
 }
 
-impl From<&'static str> for MotionValue {
+impl From<&'static str> for FluidValue {
     fn from(value: &'static str) -> Self {
-        MotionValue::Text(Cow::Borrowed(value))
+        FluidValue::Text(Cow::Borrowed(value))
     }
 }
 
-impl From<String> for MotionValue {
+impl From<String> for FluidValue {
     fn from(value: String) -> Self {
-        MotionValue::Text(Cow::Owned(value))
+        FluidValue::Text(Cow::Owned(value))
     }
 }
 
-impl From<Cow<'static, str>> for MotionValue {
+impl From<Cow<'static, str>> for FluidValue {
     fn from(value: Cow<'static, str>) -> Self {
-        MotionValue::Text(value)
+        FluidValue::Text(value)
     }
 }
 
@@ -96,12 +96,12 @@ impl Transform {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct MotionStyle {
-    props: Vec<(Cow<'static, str>, MotionValue)>,
+pub struct FluidStyle {
+    props: Vec<(Cow<'static, str>, FluidValue)>,
     transform: Transform,
 }
 
-impl MotionStyle {
+impl FluidStyle {
     pub fn new() -> Self {
         Self::default()
     }
@@ -113,7 +113,7 @@ impl MotionStyle {
     pub fn set<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: Into<Cow<'static, str>>,
-        V: Into<MotionValue>,
+        V: Into<FluidValue>,
     {
         self.props.push((key.into(), value.into()));
         self
@@ -122,7 +122,7 @@ impl MotionStyle {
     pub fn with<K, V>(mut self, key: K, value: V) -> Self
     where
         K: Into<Cow<'static, str>>,
-        V: Into<MotionValue>,
+        V: Into<FluidValue>,
     {
         self.set(key, value);
         self
@@ -189,10 +189,9 @@ impl MotionStyle {
             .props
             .iter()
             .any(|(key, _)| key.as_ref() == "transform")
+            && let Some(transform) = self.transform.to_css()
         {
-            if let Some(transform) = self.transform.to_css() {
-                props.push((Cow::Borrowed("transform"), transform));
-            }
+            props.push((Cow::Borrowed("transform"), transform));
         }
 
         props
@@ -202,7 +201,7 @@ impl MotionStyle {
 #[macro_export]
 macro_rules! style {
     ($($key:literal => $value:expr),* $(,)?) => {{
-        let mut style = $crate::MotionStyle::new();
+        let mut style = $crate::FluidStyle::new();
         $(
             style.set($key, $value);
         )*
@@ -216,7 +215,7 @@ mod tests {
 
     #[test]
     fn builds_transform_chain() {
-        let style = MotionStyle::new()
+        let style = FluidStyle::new()
             .translate_x(12.0)
             .translate_y(-4.0)
             .scale(1.1)

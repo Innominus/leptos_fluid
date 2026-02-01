@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::Write;
 
+use crate::spring_math::{clamp_bounce, duration_seconds};
 const EASE_OUT_CUBIC: &str = "cubic-bezier(0.215, 0.61, 0.355, 1)";
 const EASE_IN_OUT_CUBIC: &str = "cubic-bezier(0.645, 0.045, 0.355, 1)";
 const SPRING_EASING: &str = EASE_OUT_CUBIC;
@@ -47,7 +48,7 @@ impl Spring {
     pub fn new(duration_ms: u32, bounce: f64) -> Self {
         Self {
             duration_ms,
-            bounce: bounce.clamp(0.0, 1.0),
+            bounce: clamp_bounce(bounce),
             rest_delta: 0.001,
         }
     }
@@ -58,7 +59,7 @@ impl Spring {
     }
 
     pub fn bounce(mut self, value: f64) -> Self {
-        self.bounce = value.clamp(0.0, 1.0);
+        self.bounce = clamp_bounce(value);
         self
     }
 
@@ -129,7 +130,7 @@ impl Transition {
     }
 
     pub fn bounce(mut self, bounce: f64) -> Self {
-        let value = bounce.clamp(0.0, 1.0);
+        let value = clamp_bounce(bounce);
         match &mut self.spring {
             Some(spring) => spring.bounce = value,
             None => self.spring = Some(Spring::new(self.duration_ms, value)),
@@ -227,40 +228,36 @@ fn push_unique_property(list: &mut Vec<Cow<'static, str>>, prop: Cow<'static, st
 }
 
 fn spring_easing(duration_ms: u32, bounce: f64) -> String {
-    let bounce = bounce.clamp(0.0, 1.0);
+    let bounce = clamp_bounce(bounce);
     if bounce <= 0.0 {
         return SPRING_EASING.to_string();
     }
 
-    let duration = (duration_ms as f64 / 1000.0).max(0.12);
+    let duration = duration_seconds(duration_ms);
     let zeta = (1.0 - 0.85 * bounce).clamp(0.05, 0.98);
     let omega_n = 4.0 / duration;
     let omega_d = omega_n * (1.0 - zeta * zeta).sqrt();
     let coeff = zeta / (1.0 - zeta * zeta).sqrt();
 
-    let mut points = Vec::with_capacity(8);
-    for i in 0..=7 {
-        let t = i as f64 / 7.0;
-        let expo = (-zeta * omega_n * t).exp();
-        let value = 1.0 - expo * ((omega_d * t).cos() + coeff * (omega_d * t).sin());
-        points.push((t, value.clamp(-0.1, 1.35)));
-    }
-
-    if let Some(first) = points.first_mut() {
-        first.1 = 0.0;
-    }
-    if let Some(last) = points.last_mut() {
-        last.1 = 1.0;
-    }
-
     let mut out = String::from("linear(");
-    for (index, (t, value)) in points.iter().enumerate() {
-        if index == 0 {
-            out.push_str(&format!("{:.3}", value));
-        } else if index + 1 == points.len() {
-            out.push_str(&format!(", {:.3}", value));
+    for index in 0..=7 {
+        let t = index as f64 / 7.0;
+        let value = if index == 0 {
+            0.0
+        } else if index == 7 {
+            1.0
         } else {
-            out.push_str(&format!(", {:.3} {:.1}%", value, t * 100.0));
+            let expo = (-zeta * omega_n * t).exp();
+            let value = 1.0 - expo * ((omega_d * t).cos() + coeff * (omega_d * t).sin());
+            value.clamp(-0.1, 1.35)
+        };
+
+        if index == 0 {
+            let _ = write!(out, "{:.3}", value);
+        } else if index == 7 {
+            let _ = write!(out, ", {:.3}", value);
+        } else {
+            let _ = write!(out, ", {:.3} {:.1}%", value, t * 100.0);
         }
     }
     out.push(')');

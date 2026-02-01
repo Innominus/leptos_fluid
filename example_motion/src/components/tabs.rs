@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, MotionDiv, MotionStyle, Spring, Transition};
+use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
 
 #[component]
 pub fn TabsSection() -> impl IntoView {
@@ -43,7 +43,7 @@ pub fn TabsSection() -> impl IntoView {
     });
 
     let underline_style = move || {
-        MotionStyle::new()
+        FluidStyle::new()
             .x(underline_x.get())
             .width(underline_w.get())
             .opacity(1.0)
@@ -80,7 +80,7 @@ pub fn TabsSection() -> impl IntoView {
                         class:active=move || active_tab.get() == 1
                         on:click=move |_| active_tab.set(1)
                     >
-                        "Motion"
+                        "Fluid"
                     </button>
                     <button
                         node_ref=tab_refs[2]
@@ -98,17 +98,17 @@ pub fn TabsSection() -> impl IntoView {
                     >
                         "Notes"
                     </button>
-                    <MotionDiv
+                    <FluidDiv
                         class="tab-underline"
-                        initial=MotionStyle::new().x(0.0).width(0.0)
+                        initial=FluidStyle::new().x(0.0).width(0.0)
                         animate=underline_style
                         transition=Transition::new().duration_ms(0)
-                    ></MotionDiv>
+                    ></FluidDiv>
                 </div>
                 <div class="tab-panel">
                     {move || match active_tab.get() {
                         0 => view! { <p>"Overview content slides in smoothly."</p> }.into_any(),
-                        1 => view! { <p>"Motion settings react mid-flight."</p> }.into_any(),
+                        1 => view! { <p>"Fluid settings react mid-flight."</p> }.into_any(),
                         2 => view! { <p>"Tokens shift without snapping."</p> }.into_any(),
                         _ => view! { <p>"Notes keep the underline moving."</p> }.into_any(),
                     }}

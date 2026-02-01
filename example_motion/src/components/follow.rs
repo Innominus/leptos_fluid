@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, MotionDiv, MotionStyle, Spring, Transition};
+use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
 
 #[component]
 pub fn SpringFollowSection() -> impl IntoView {
@@ -11,7 +11,7 @@ pub fn SpringFollowSection() -> impl IntoView {
         let follow_x = follow_x.clone();
         let follow_y = follow_y.clone();
         move || {
-            MotionStyle::new()
+            FluidStyle::new()
                 .x(follow_x.get())
                 .y(follow_y.get())
                 .scale(1.0)
@@ -55,12 +55,12 @@ pub fn SpringFollowSection() -> impl IntoView {
                     }
                 }
             >
-                <MotionDiv
+                <FluidDiv
                     class="follow-ball"
-                    initial=MotionStyle::new().opacity(1.0).scale(1.0)
+                    initial=FluidStyle::new().opacity(1.0).scale(1.0)
                     animate=ball_style
                     transition=Transition::new().duration_ms(1000)
-                ></MotionDiv>
+                ></FluidDiv>
                 <div class="follow-hint">"Move your cursor"</div>
             </div>
         </section>

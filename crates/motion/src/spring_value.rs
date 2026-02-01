@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::spring_math::{clamp_bounce, duration_seconds};
 use crate::Spring;
 
 use js_sys::Date;
@@ -116,8 +117,8 @@ fn schedule_step(
 }
 
 fn spring_constants(duration_ms: u32, bounce: f64) -> (f64, f64) {
-    let duration = (duration_ms as f64 / 1000.0).max(0.12);
-    let damping_ratio = (1.0 - bounce).clamp(0.05, 1.0);
+    let duration = duration_seconds(duration_ms);
+    let damping_ratio = (1.0 - clamp_bounce(bounce)).clamp(0.05, 1.0);
     let angular = 4.0 / (duration * damping_ratio);
     let stiffness = angular * angular;
     let damping = 2.0 * damping_ratio * angular;

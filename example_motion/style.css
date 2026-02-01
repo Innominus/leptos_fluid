@@ -278,6 +278,51 @@ button.alt {
     font-size: 0.8rem;
 }
 
+.timeline-card {
+    background: rgba(10, 12, 24, 0.7);
+}
+
+.timeline-stage {
+    height: 240px;
+}
+
+.timeline-orb {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    border-radius: 999px;
+    background: radial-gradient(
+        circle,
+        rgba(255, 204, 112, 0.32),
+        transparent 70%
+    );
+    filter: blur(10px);
+}
+
+.timeline-widget {
+    position: relative;
+    z-index: 1;
+    min-width: 190px;
+    padding: 1rem 1.2rem;
+    border-radius: 18px;
+    background: rgba(8, 10, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: grid;
+    gap: 0.4rem;
+    text-align: center;
+}
+
+.timeline-widget h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.timeline-widget p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
 @keyframes presence-pulse {
     0%,
     100% {
@@ -352,6 +397,13 @@ button.alt {
     gap: 0.6rem;
 }
 
+.mode-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .chip {
     padding: 0.35rem 0.7rem;
     border-radius: 999px;
@@ -360,6 +412,18 @@ button.alt {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.18em;
+}
+
+.chip-button {
+    cursor: pointer;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.chip-button.active {
+    background: rgba(116, 241, 255, 0.2);
+    border-color: rgba(116, 241, 255, 0.55);
+    box-shadow: 0 0 18px rgba(116, 241, 255, 0.25);
 }
 
 .footer {

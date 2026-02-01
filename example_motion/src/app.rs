@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::components::{
     CardsSection, FooterSection, HeroSection, IslandSection, PerfSection, PresenceSection,
-    SpringFollowSection, StaggeredChipsSection, TabsSection,
+    PresenceSwapSection, SpringFollowSection, StaggeredChipsSection, TabsSection, TimelineSection,
 };
 
 #[component]
@@ -15,7 +15,9 @@ pub fn App() -> impl IntoView {
             <HeroSection pulse card_focus />
             <CardsSection card_focus />
             <TabsSection />
+            <TimelineSection />
             <PresenceSection />
+            <PresenceSwapSection />
             <IslandSection />
             <SpringFollowSection />
             <StaggeredChipsSection pulse />

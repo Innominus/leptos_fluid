@@ -3,7 +3,7 @@ compile_error!("Enable the bench feature: cargo bench -p leptos_fluid_motion --f
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
-use leptos_fluid_motion::{MotionStyle, Spring, Transition};
+use leptos_fluid_motion::{FluidStyle, Spring, Transition};
 
 #[cfg(feature = "bench")]
 use leptos_fluid_motion::spring_step;
@@ -41,9 +41,9 @@ fn bench_spring_steps(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_motion_style_to_props(c: &mut Criterion) {
-    c.bench_function("motion_style_to_props", |b| {
-        let style = MotionStyle::new()
+fn bench_fluid_style_to_props(c: &mut Criterion) {
+    c.bench_function("fluid_style_to_props", |b| {
+        let style = FluidStyle::new()
             .opacity(0.8)
             .x(12.0)
             .y(-6.0)
@@ -79,7 +79,7 @@ fn bench_transition_css(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_spring_steps,
-    bench_motion_style_to_props,
+    bench_fluid_style_to_props,
     bench_transition_css
 );
 criterion_main!(benches);

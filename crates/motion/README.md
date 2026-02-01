@@ -23,68 +23,67 @@ leptos_fluid_motion = { path = "../leptos_fluid/crates/motion" }
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid::motion::{MotionDiv, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
 
 #[component]
 fn Demo() -> impl IntoView {
     let expanded = RwSignal::new(false);
-
     let animate = move || {
         if expanded.get() {
-            MotionStyle::new().opacity(1.0).y(0.0).scale(1.0)
+            FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
         } else {
-            MotionStyle::new().opacity(0.6).y(24.0).scale(0.96)
+            FluidStyle::new().opacity(0.6).y(24.0).scale(0.96)
         }
     };
 
     view! {
-        <MotionDiv
+        <FluidDiv
             class="card"
-            initial=MotionStyle::new().opacity(0.0).y(16.0)
+            initial=FluidStyle::new().opacity(0.0).y(16.0)
             animate=animate
             transition=Transition::spring()
-            while_hover=MotionStyle::new().scale(1.02)
-            while_tap=MotionStyle::new().scale(0.98)
+            while_hover=FluidStyle::new().scale(1.02)
+            while_tap=FluidStyle::new().scale(0.98)
         >
             <button on:click=move |_| expanded.update(|v| *v = !*v)>
                 "Toggle"
             </button>
-        </MotionDiv>
+        </FluidDiv>
     }
 }
 ```
 
-## MotionElement (dynamic tag)
+## FluidElement (dynamic tag)
 
-If you want a single reusable element for any tag, use `MotionElement` and pass the tag name:
+If you want a single reusable element for any tag, use `FluidElement` and pass the tag name:
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid::motion::{MotionElement, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidElement, FluidStyle, Transition};
 
 view! {
-    <MotionElement
+    <FluidElement
         tag="section"
         class="panel"
-        initial=MotionStyle::new().opacity(0.0).y(12.0)
-        animate=MotionStyle::new().opacity(1.0).y(0.0)
+        initial=FluidStyle::new().opacity(0.0).y(12.0)
+        animate=FluidStyle::new().opacity(1.0).y(0.0)
         transition=Transition::spring()
     >
         "Hello motion"
-    </MotionElement>
+    </FluidElement>
 }
 ```
 
-If you need a node ref, use `MotionNodeRef` (it maps to `web_sys::HtmlElement` for any tag).
+If you need a node ref, use `FluidNodeRef` (it maps to `web_sys::HtmlElement` for any tag).
 
-## MotionStyle
+## FluidStyle
 
-`MotionStyle` is a small builder that produces CSS keyframes + inline styles.
+`FluidStyle` is a small builder that produces CSS keyframes + inline styles.
 
 ```rust
-use leptos_fluid::motion::{MotionStyle, style};
+use leptos_fluid::motion::{FluidStyle, style};
 
-let base = MotionStyle::new()
+let base = FluidStyle::new()
     .opacity(0.8)
     .x(12.0)
     .y(-4.0)
@@ -120,19 +119,48 @@ let no_layout = Transition::spring().exclude_properties(["width", "height"]);
 let no_blur = Transition::new().without_properties(["filter"]);
 ```
 
-## MotionSignal
+## FluidSignal
 
 `animate`, `class`, and `style` accept static values, Leptos signals/memos, or closures.
 This keeps the DX ergonomic while staying light.
 
 ```rust
-use leptos_fluid::motion::MotionSignal;
+use leptos_fluid::motion::FluidSignal;
 
-let class = MotionSignal::from("card");
-let style = MotionSignal::from(move || format!("opacity:{};", opacity.get()));
+let class = FluidSignal::from("card");
+let style = FluidSignal::from(move || format!("opacity:{};", opacity.get()));
 ```
 
 You can also pass a `node_ref` if you need direct access to the underlying element.
+
+## FluidTimeline
+
+Compose sequences without embedding hooks in the elements themselves.
+The timeline drives a `FluidStyle` signal; elements keep using the regular
+`animate` + `transition` props.
+
+```rust
+use leptos::prelude::*;
+use leptos_fluid::motion::{FluidTimeline, FluidStep, FluidStyle, FluidDiv, Transition};
+
+let transition = Transition::spring();
+let timeline = FluidTimeline::new(FluidStyle::new());
+let animate = timeline.signal();
+
+timeline.set_steps([
+    FluidStep::new(FluidStyle::new().opacity(1.0).y(0.0)).wait_for(&transition),
+    FluidStep::new(FluidStyle::new().opacity(0.6).y(24.0)).wait_for(&transition),
+]);
+timeline.play();
+
+view! {
+    <FluidDiv
+        initial=FluidStyle::new().opacity(0.0).y(16.0)
+        animate=animate
+        transition=transition
+    />
+}
+```
 
 ## Spring values
 
@@ -140,43 +168,68 @@ For pointer-follow or drag experiences, use a spring value that is driven by dur
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, Spring, MotionDiv, MotionStyle};
+use leptos_fluid::motion::{use_spring, Spring, FluidDiv, FluidStyle};
 
 let x = use_spring(0.0, Spring::new(500, 0.2));
 let y = use_spring(0.0, Spring::new(500, 0.2));
 
-let ball_style = move || MotionStyle::new().x(x.get()).y(y.get());
+let ball_style = move || FluidStyle::new().x(x.get()).y(y.get());
 
 view! {
-    <MotionDiv
+    <FluidDiv
         class="ball"
         animate=ball_style
-        initial=MotionStyle::new()
-    ></MotionDiv>
+        initial=FluidStyle::new()
+    ></FluidDiv>
 }
 ```
 
-## AnimatePresence
+## FluidPresence
 
 Keep an element mounted long enough to play an exit animation.
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid::motion::{AnimatePresence, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidPresence, FluidStyle, Transition};
 
 let open = RwSignal::new(false);
 
 view! {
     <button on:click=move |_| open.update(|v| *v = !*v)>"Toggle"</button>
-    <AnimatePresence
+    <FluidPresence
         show=open
-        initial=MotionStyle::new().opacity(0.0).y(12.0)
-        animate=MotionStyle::new().opacity(1.0).y(0.0)
-        exit=MotionStyle::new().opacity(0.0).y(-12.0)
+        initial_animation=true
+        initial=FluidStyle::new().opacity(0.0).y(12.0)
+        animate=FluidStyle::new().opacity(1.0).y(0.0)
+        exit=FluidStyle::new().opacity(0.0).y(-12.0)
         transition=Transition::spring()
     >
         <div class="panel">"I'm here until exit finishes"</div>
-    </AnimatePresence>
+    </FluidPresence>
+}
+```
+
+### FluidSwap
+
+Swap between two views with a simple boolean.
+
+```rust
+use leptos::prelude::*;
+use leptos_fluid::motion::{FluidSwap, FluidStyle, Transition};
+
+let show_primary = RwSignal::new(true);
+
+view! {
+    <button on:click=move |_| show_primary.update(|v| *v = !*v)>"Swap"</button>
+    <FluidSwap
+        show=show_primary
+        initial=FluidStyle::new().opacity(0.0).y(10.0)
+        animate=FluidStyle::new().opacity(1.0).y(0.0)
+        exit=FluidStyle::new().opacity(0.0).y(-10.0)
+        transition=Transition::spring()
+        first=move || view! { <div class="chip">"Primary"</div> }
+        second=move || view! { <div class="chip">"Secondary"</div> }
+    />
 }
 ```
 

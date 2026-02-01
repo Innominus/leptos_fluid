@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{MotionDiv, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
 
 #[component]
 pub fn Motion() -> impl IntoView {
@@ -8,13 +8,13 @@ pub fn Motion() -> impl IntoView {
 
     let card_style = move || {
         if expanded.get() {
-            MotionStyle::new()
+            FluidStyle::new()
                 .opacity(1.0)
                 .y(0.0)
                 .scale(1.0)
                 .with("box-shadow", "0 24px 60px rgba(15, 23, 42, 0.18)")
         } else {
-            MotionStyle::new()
+            FluidStyle::new()
                 .opacity(0.6)
                 .y(26.0)
                 .scale(0.96)
@@ -24,12 +24,12 @@ pub fn Motion() -> impl IntoView {
 
     let glow_style = move || {
         if highlight.get() {
-            MotionStyle::new()
+            FluidStyle::new()
                 .opacity(1.0)
                 .scale(1.0)
                 .with("filter", "blur(0px)")
         } else {
-            MotionStyle::new()
+            FluidStyle::new()
                 .opacity(0.0)
                 .scale(0.94)
                 .with("filter", "blur(16px)")
@@ -41,7 +41,7 @@ pub fn Motion() -> impl IntoView {
             <div class="flex flex-col gap-10 py-12 px-6 mx-auto w-full max-w-5xl">
                 <header class="flex flex-col gap-4">
                     <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                        "Leptos Motion"
+                        "Leptos Fluid Motion"
                     </p>
                     <h1 class="text-4xl font-semibold text-slate-900">
                         "A focused motion playground"
@@ -59,7 +59,7 @@ pub fn Motion() -> impl IntoView {
                                     "State-driven motion"
                                 </h2>
                                 <p class="mt-2 text-sm text-slate-500">
-                                    "Toggle the card or accent glow to watch MotionStyle updates."
+                                    "Toggle the card or accent glow to watch FluidStyle updates."
                                 </p>
                             </div>
                             <div class="flex gap-2 items-center">
@@ -79,26 +79,26 @@ pub fn Motion() -> impl IntoView {
                         </div>
 
                         <div class="relative mt-8">
-                            <MotionDiv
+                            <FluidDiv
                                 class="absolute inset-0 rounded-2xl bg-emerald-200/60"
-                                initial=MotionStyle::new().opacity(0.0).scale(0.95)
+                                initial=FluidStyle::new().opacity(0.0).scale(0.95)
                                 animate=glow_style
                                 transition=Transition::spring()
-                            ></MotionDiv>
+                            ></FluidDiv>
 
-                            <MotionDiv
+                            <FluidDiv
                                 class="relative p-6 bg-white rounded-2xl border border-slate-200"
-                                initial=MotionStyle::new().opacity(0.0).y(18.0).scale(0.97)
+                                initial=FluidStyle::new().opacity(0.0).y(18.0).scale(0.97)
                                 animate=card_style
                                 transition=Transition::spring()
-                                while_hover=MotionStyle::new().scale(1.02)
-                                while_tap=MotionStyle::new().scale(0.98)
+                                while_hover=FluidStyle::new().scale(1.02)
+                                while_tap=FluidStyle::new().scale(0.98)
                             >
                                 <div class="flex gap-4 items-center">
                                     <div class="w-12 h-12 text-white rounded-full bg-slate-900"></div>
                                     <div>
                                         <p class="text-lg font-semibold text-slate-900">
-                                            "Motion Card"
+                                            "Fluid Card"
                                         </p>
                                         <p class="text-sm text-slate-500">
                                             "Hover or tap to feel the micro-interactions."
@@ -110,7 +110,7 @@ pub fn Motion() -> impl IntoView {
                                     <p>"• hover/tap variants"</p>
                                     <p>"• spring easing default"</p>
                                 </div>
-                            </MotionDiv>
+                            </FluidDiv>
                         </div>
                     </div>
 
@@ -119,11 +119,11 @@ pub fn Motion() -> impl IntoView {
                         <ul class="mt-4 space-y-4 text-sm text-slate-600">
                             <li>
                                 <span class="font-semibold text-slate-900">"Slide in"</span>
-                                " — MotionStyle::new().x(32.0).opacity(0.0)"
+                                " — FluidStyle::new().x(32.0).opacity(0.0)"
                             </li>
                             <li>
                                 <span class="font-semibold text-slate-900">"Scale pop"</span>
-                                " — MotionStyle::new().scale(0.94).opacity(0.0)"
+                                " — FluidStyle::new().scale(0.94).opacity(0.0)"
                             </li>
                             <li>
                                 <span class="font-semibold text-slate-900">"Spring"</span>

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use leptos::prelude::*;
-use leptos_fluid::motion::{MotionDiv, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
 use web_sys::js_sys::Date;
 
 const SAMPLE_WINDOW: usize = 120;
@@ -60,7 +60,7 @@ pub fn PerfSection() -> impl IntoView {
             <div class="panel">
                 <h2>"Performance"</h2>
                 <p>
-                    "A lightweight benchmark loop to sample frame times while driving a small MotionDiv swarm. "
+                    "A lightweight benchmark loop to sample frame times while driving a small FluidDiv swarm. "
                     "Use it to compare changes and spot regressions."
                 </p>
                 <div class="button-row">
@@ -113,9 +113,9 @@ pub fn PerfSection() -> impl IntoView {
                         let tick = tick.clone();
                         let index_f = index as f64;
                         view! {
-                            <MotionDiv
+                            <FluidDiv
                                 class="perf-dot"
-                                initial=MotionStyle::new().opacity(0.9)
+                                initial=FluidStyle::new().opacity(0.9)
                                 animate=move || {
                                     let t = tick.get();
                                     let angle = t * 1.2 + index_f * 0.42;
@@ -124,14 +124,14 @@ pub fn PerfSection() -> impl IntoView {
                                     let x = angle.cos() * (radius + wobble);
                                     let y = angle.sin() * (radius + wobble);
                                     let scale = 0.7 + ((t + index_f * 0.15).sin() * 0.5).abs();
-                                    MotionStyle::new()
+                                    FluidStyle::new()
                                         .x(x)
                                         .y(y)
                                         .scale(scale)
                                         .opacity(0.6 + scale * 0.4)
                                 }
                                 transition=Transition::new().duration_ms(0)
-                            ></MotionDiv>
+                            ></FluidDiv>
                         }
                     }
                 />

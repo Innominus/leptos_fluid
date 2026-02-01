@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{MotionDiv, MotionSpan, MotionStyle, Transition};
+use leptos_fluid::motion::{FluidDiv, FluidSpan, FluidStyle, Transition};
 
 fn chip_delay(index: usize) -> Transition {
     Transition::new()
@@ -12,9 +12,9 @@ fn chip_delay(index: usize) -> Transition {
 pub fn StaggeredChipsSection(pulse: RwSignal<bool>) -> impl IntoView {
     let pulse_style = move || {
         if pulse.get() {
-            MotionStyle::new().opacity(0.9).scale(1.0)
+            FluidStyle::new().opacity(0.9).scale(1.0)
         } else {
-            MotionStyle::new().opacity(0.4).scale(0.86)
+            FluidStyle::new().opacity(0.4).scale(0.86)
         }
     };
 
@@ -23,50 +23,50 @@ pub fn StaggeredChipsSection(pulse: RwSignal<bool>) -> impl IntoView {
             <div class="panel">
                 <h2>"Staggered chips"</h2>
                 <p>
-                    "Using MotionSpan with different delay values to get a simple stagger without extra runtime."
+                    "Using FluidSpan with different delay values to get a simple stagger without extra runtime."
                     "Combine translate + opacity for a clean reveal."
                 </p>
                 <div class="list">
-                    <MotionSpan
+                    <FluidSpan
                         class="chip"
-                        initial=MotionStyle::new().opacity(0.0).x(-16.0)
-                        animate=MotionStyle::new().opacity(1.0).x(0.0)
+                        initial=FluidStyle::new().opacity(0.0).x(-16.0)
+                        animate=FluidStyle::new().opacity(1.0).x(0.0)
                         transition=chip_delay(1)
                     >
                         "Initial → animate"
-                    </MotionSpan>
-                    <MotionSpan
+                    </FluidSpan>
+                    <FluidSpan
                         class="chip"
-                        initial=MotionStyle::new().opacity(0.0).x(-16.0)
-                        animate=MotionStyle::new().opacity(1.0).x(0.0)
+                        initial=FluidStyle::new().opacity(0.0).x(-16.0)
+                        animate=FluidStyle::new().opacity(1.0).x(0.0)
                         transition=chip_delay(2)
                     >
                         "Custom delay"
-                    </MotionSpan>
-                    <MotionSpan
+                    </FluidSpan>
+                    <FluidSpan
                         class="chip"
-                        initial=MotionStyle::new().opacity(0.0).x(-16.0)
-                        animate=MotionStyle::new().opacity(1.0).x(0.0)
+                        initial=FluidStyle::new().opacity(0.0).x(-16.0)
+                        animate=FluidStyle::new().opacity(1.0).x(0.0)
                         transition=chip_delay(3)
                     >
-                        "MotionSpan"
-                    </MotionSpan>
-                    <MotionSpan
+                        "FluidSpan"
+                    </FluidSpan>
+                    <FluidSpan
                         class="chip"
-                        initial=MotionStyle::new().opacity(0.0).x(-16.0)
-                        animate=MotionStyle::new().opacity(1.0).x(0.0)
+                        initial=FluidStyle::new().opacity(0.0).x(-16.0)
+                        animate=FluidStyle::new().opacity(1.0).x(0.0)
                         transition=chip_delay(4)
                     >
                         "Lightweight"
-                    </MotionSpan>
+                    </FluidSpan>
                 </div>
             </div>
 
-            <MotionDiv
+            <FluidDiv
                 class="glass"
-                initial=MotionStyle::new().opacity(0.0).y(26.0)
+                initial=FluidStyle::new().opacity(0.0).y(26.0)
                 animate=move || {
-                    MotionStyle::new()
+                    FluidStyle::new()
                         .opacity(1.0)
                         .y(0.0)
                         .scale(1.0)
@@ -78,14 +78,14 @@ pub fn StaggeredChipsSection(pulse: RwSignal<bool>) -> impl IntoView {
                 transition=Transition::spring_with(560, 0.35)
             >
                 <h2>"Pulse orb"</h2>
-                <p>"Tiny helper layer with MotionDiv + style composition."</p>
-                <MotionDiv
+                <p>"Tiny helper layer with FluidDiv + style composition."</p>
+                <FluidDiv
                     class="orb one"
-                    initial=MotionStyle::new().opacity(0.0).scale(0.8)
+                    initial=FluidStyle::new().opacity(0.0).scale(0.8)
                     animate=pulse_style
                     transition=Transition::spring_with(780, 0.8)
-                ></MotionDiv>
-            </MotionDiv>
+                ></FluidDiv>
+            </FluidDiv>
         </section>
     }
 }
