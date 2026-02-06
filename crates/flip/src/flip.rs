@@ -62,6 +62,10 @@ impl Flip {
             if let Some(animation_state) = self.animation.get_value() {
                 apply_computed_transform(&animation_state.element);
                 animation_state.animation.cancel();
+                for correction in animation_state.scale_corrections.iter() {
+                    correction.animation.cancel();
+                    restore_inline_styles(&correction.element, &correction.inline_styles);
+                }
                 carried_inline_styles = Some(animation_state.inline_styles.clone());
             }
         }
@@ -114,6 +118,11 @@ impl Flip {
         is_animating: RwSignal<bool>,
         animation_store: StoredValue<Option<FlipAnimation>, LocalStorage>,
     ) {
+        if !has_flip_delta_with_size(&from, &to, options.scale_mode.uses_size_delta()) {
+            is_animating.set(false);
+            animation_store.set_value(None);
+            return;
+        }
         let animation = run_flip_animation(element, from, to, options, move || {
             is_animating.set(false);
         });
@@ -158,6 +167,14 @@ struct InlineStyles {
 
 #[derive(Clone)]
 struct FlipAnimation {
+    animation: Animation,
+    element: Element,
+    inline_styles: InlineStyles,
+    scale_corrections: Vec<ScaleCorrectionAnimation>,
+}
+
+#[derive(Clone)]
+struct ScaleCorrectionAnimation {
     animation: Animation,
     element: Element,
     inline_styles: InlineStyles,
@@ -235,7 +252,11 @@ impl FlipGroup {
                 let Some(from_item_values) = from_values.get(&to_item.key) else {
                     continue;
                 };
-                if !has_flip_delta(from_item_values, &to_item.values) {
+                if !has_flip_delta_with_size(
+                    from_item_values,
+                    &to_item.values,
+                    options.scale_mode.uses_size_delta(),
+                ) {
                     continue;
                 }
 
@@ -288,6 +309,10 @@ fn stop_group_animations(
     for animation in active_animations {
         apply_computed_transform(&animation.element);
         animation.animation.cancel();
+        for correction in animation.scale_corrections {
+            correction.animation.cancel();
+            restore_inline_styles(&correction.element, &correction.inline_styles);
+        }
         if let Some(key) = element_key(&animation.element) {
             carried_inline.insert(key, animation.inline_styles.clone());
         }
@@ -297,11 +322,15 @@ fn stop_group_animations(
     carried_inline
 }
 
-fn has_flip_delta(from: &FlipValues, to: &FlipValues) -> bool {
-    (from.left - to.left).abs() > FLIP_DELTA_EPSILON
-        || (from.top - to.top).abs() > FLIP_DELTA_EPSILON
-        || (from.width - to.width).abs() > FLIP_DELTA_EPSILON
-        || (from.height - to.height).abs() > FLIP_DELTA_EPSILON
+fn has_flip_delta_with_size(from: &FlipValues, to: &FlipValues, include_size_delta: bool) -> bool {
+    let has_position_delta = (from.left - to.left).abs() > FLIP_DELTA_EPSILON
+        || (from.top - to.top).abs() > FLIP_DELTA_EPSILON;
+    if has_position_delta {
+        return true;
+    }
+    include_size_delta
+        && ((from.width - to.width).abs() > FLIP_DELTA_EPSILON
+            || (from.height - to.height).abs() > FLIP_DELTA_EPSILON)
 }
 
 #[derive(Clone)]
@@ -317,6 +346,8 @@ pub struct FlipOptions {
     pub delay: usize,
     pub stagger: usize,
     pub easing: Easing,
+    pub scale_mode: ScaleMode,
+    pub scale_correction_selector: Option<&'static str>,
 }
 
 impl FlipOptions {
@@ -351,6 +382,23 @@ impl Easing {
             Easing::EaseInOut => EASE_IN_OUT,
             Easing::Custom(val) => val,
         }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub enum ScaleMode {
+    #[default]
+    PositionOnly,
+    PositionAndScale,
+}
+
+impl ScaleMode {
+    fn uses_scale(&self) -> bool {
+        matches!(self, ScaleMode::PositionAndScale)
+    }
+
+    fn uses_size_delta(&self) -> bool {
+        self.uses_scale()
     }
 }
 
@@ -436,6 +484,13 @@ fn query_elements(selector: &str) -> Vec<Element> {
     node_list_to_elements(list)
 }
 
+fn query_elements_within(root: &Element, selector: &str) -> Vec<Element> {
+    let Ok(list) = root.query_selector_all(selector) else {
+        return Vec::new();
+    };
+    node_list_to_elements(list)
+}
+
 fn node_list_to_elements(list: NodeList) -> Vec<Element> {
     let mut elements = Vec::new();
     let length = list.length();
@@ -488,14 +543,31 @@ where
 {
     let dx = from.left - to.left;
     let dy = from.top - to.top;
-    let scale_x = safe_div(from.width, to.width);
-    let scale_y = safe_div(from.height, to.height);
+    let use_scale = options.scale_mode.uses_scale();
+    let scale_x = if use_scale {
+        safe_div(from.width, to.width)
+    } else {
+        1.0
+    };
+    let scale_y = if use_scale {
+        safe_div(from.height, to.height)
+    } else {
+        1.0
+    };
 
-    let transform_from = format!(
-        "translate({}px, {}px) scale({}, {})",
-        dx, dy, scale_x, scale_y
-    );
-    let transform_to = "translate(0px, 0px) scale(1, 1)".to_string();
+    let transform_from = if use_scale {
+        format!(
+            "translate({}px, {}px) scale({}, {})",
+            dx, dy, scale_x, scale_y
+        )
+    } else {
+        format!("translate({}px, {}px)", dx, dy)
+    };
+    let transform_to = if use_scale {
+        "translate(0px, 0px) scale(1, 1)".to_string()
+    } else {
+        "translate(0px, 0px)".to_string()
+    };
 
     let inline_styles = capture_inline_styles(&element);
     apply_inline_transform(&element, &transform_from);
@@ -517,6 +589,25 @@ where
     animation_options.set_easing(options.easing.get_easing_fn());
     animation_options.set_fill(web_sys::FillMode::Backwards);
 
+    let scale_corrections = if use_scale {
+        options
+            .scale_correction_selector
+            .map(|selector| {
+                let inv_scale_x = safe_div(1.0, scale_x);
+                let inv_scale_y = safe_div(1.0, scale_y);
+                run_scale_correction_animations(
+                    &element,
+                    selector,
+                    inv_scale_x,
+                    inv_scale_y,
+                    options,
+                )
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     let inner_element = element.clone();
     let inner_inline_styles = inline_styles.clone();
     let closure = Closure::wrap(Box::new(move |_: web_sys::AnimationEvent| {
@@ -535,7 +626,71 @@ where
         animation,
         element,
         inline_styles,
+        scale_corrections,
     }
+}
+
+fn run_scale_correction_animations(
+    root: &Element,
+    selector: &str,
+    inv_scale_x: f64,
+    inv_scale_y: f64,
+    options: FlipOptions,
+) -> Vec<ScaleCorrectionAnimation> {
+    if (inv_scale_x - 1.0).abs() <= FLIP_DELTA_EPSILON
+        && (inv_scale_y - 1.0).abs() <= FLIP_DELTA_EPSILON
+    {
+        return Vec::new();
+    }
+
+    let mut animations = Vec::new();
+    for element in query_elements_within(root, selector) {
+        let inline_styles = capture_inline_styles(&element);
+        if let Some(style) = html_style(&element) {
+            let _ = style.set_property("transform-origin", "0 0");
+            let _ = style.set_property("will-change", "transform");
+        }
+
+        let correction_from = format!("scale({}, {})", inv_scale_x, inv_scale_y);
+        let correction_to = "scale(1, 1)".to_string();
+        let keyframes = vec![
+            KeyFrame {
+                transform: correction_from,
+            },
+            KeyFrame {
+                transform: correction_to,
+            },
+        ];
+
+        let keyframes_js = serde_wasm_bindgen::to_value(&keyframes).unwrap();
+        let animation_options = KeyframeAnimationOptions::new();
+        let duration = options.duration.max(1) as f64;
+        animation_options.set_duration(&duration.into());
+        animation_options.set_delay(options.delay as f64);
+        animation_options.set_easing(options.easing.get_easing_fn());
+        animation_options.set_fill(web_sys::FillMode::Backwards);
+
+        let inner_element = element.clone();
+        let inner_inline_styles = inline_styles.clone();
+        let closure = Closure::wrap(Box::new(move |_: web_sys::AnimationEvent| {
+            restore_inline_styles(&inner_element, &inner_inline_styles);
+        }) as Box<dyn FnMut(_)>);
+
+        let animation = element.animate_with_keyframe_animation_options(
+            Some(&keyframes_js.into()),
+            &animation_options,
+        );
+        animation.set_onfinish(Some(closure.as_ref().unchecked_ref()));
+        closure.into_js_value();
+
+        animations.push(ScaleCorrectionAnimation {
+            animation,
+            element,
+            inline_styles,
+        });
+    }
+
+    animations
 }
 
 fn safe_div(numerator: f64, denominator: f64) -> f64 {

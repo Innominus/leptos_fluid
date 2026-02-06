@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid::flip::{Easing as FlipEasing, Flip, FlipGroup, FlipOptions};
+use leptos_fluid::flip::{
+    Easing as FlipEasing, Flip, FlipGroup, FlipOptions, ScaleMode as FlipScaleMode,
+};
 
 #[component]
 pub fn FlipSection() -> impl IntoView {
@@ -10,6 +12,8 @@ pub fn FlipSection() -> impl IntoView {
         FlipOptions {
             duration: 5000,
             easing: FlipEasing::EaseInOut,
+            scale_mode: FlipScaleMode::PositionAndScale,
+            scale_correction_selector: Some(".flip-pill-content"),
             ..Default::default()
         },
     );
@@ -98,17 +102,19 @@ pub fn FlipSection() -> impl IntoView {
                     class:flip-size-md=move || size.get() == 1
                     class:flip-size-lg=move || size.get() == 2
                 >
-                    <span class="chip">"FLIP"</span>
-                    <h3>"Moving target"</h3>
-                    <p>
-                        {move || {
-                            format!(
-                                "{} · {}",
-                                if move_right.get() { "Right lane" } else { "Left lane" },
-                                size_label(),
-                            )
-                        }}
-                    </p>
+                    <div class="flip-pill-content">
+                        <span class="chip">"FLIP"</span>
+                        <h3>"Moving target"</h3>
+                        <p>
+                            {move || {
+                                format!(
+                                    "{} · {}",
+                                    if move_right.get() { "Right lane" } else { "Left lane" },
+                                    size_label(),
+                                )
+                            }}
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -184,6 +190,8 @@ pub fn FlipGroupSection() -> impl IntoView {
             duration: 720,
             stagger: 35,
             easing: FlipEasing::EaseInOut,
+            scale_mode: FlipScaleMode::PositionAndScale,
+            scale_correction_selector: Some(".flip-tile-content"),
             ..Default::default()
         },
     );
@@ -248,7 +256,8 @@ pub fn FlipGroupSection() -> impl IntoView {
                     <code>"flip_group.animate"</code> "."
                 </p>
                 <p class="flip-status">
-                    "Flow: First snapshot -> mutate order/density -> Last snapshot (next frame) -> invert/play."
+                    "Flow: First snapshot -> mutate order/density -> Last snapshot (next frame) -> invert/play. This demo uses scale correction on "
+                    <code>".flip-tile-content"</code> " to keep text crisp while outer tiles scale."
                 </p>
                 <div class="button-row">
                     <button class="alt" on:click=rotate>
@@ -297,9 +306,11 @@ pub fn FlipGroupSection() -> impl IntoView {
                                 }
                                 attr:data-flip-id=tile.id
                             >
-                                <span class="chip">"Track"</span>
-                                <h3>{tile.title}</h3>
-                                <p>{tile.detail}</p>
+                                <div class="flip-tile-content">
+                                    <span class="chip">"Track"</span>
+                                    <h3>{tile.title}</h3>
+                                    <p>{tile.detail}</p>
+                                </div>
                             </div>
                         }
                     })
