@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-leptos_fluid = { path = "../", features = ["motion"] }
+leptos_fluid = { path = "../", features = ["motion", "flip"] }
 leptos = { version = "0.8", default-features = false, features = ["csr"] }
 console_error_panic_hook = { version = "0.1" }
 web-sys = { version = "0.3.69", features = ["DomRect", "Element", "PointerEvent"] }
