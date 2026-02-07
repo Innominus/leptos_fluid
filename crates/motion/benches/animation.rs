@@ -1,7 +1,7 @@
 #[cfg(not(feature = "bench"))]
 compile_error!("Enable the bench feature: cargo bench -p leptos_fluid_motion --features bench");
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 use leptos_fluid_motion::{FluidStyle, Spring, Transition};
 

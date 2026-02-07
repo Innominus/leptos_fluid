@@ -1,9 +1,8 @@
 use leptos::prelude::*;
 
-use crate::spring_math::{clamp_bounce, duration_seconds};
 use crate::Spring;
-
-use js_sys::Date;
+use crate::spring_math::{clamp_bounce, duration_seconds};
+use crate::timing::now_ms;
 
 #[derive(Clone)]
 pub struct SpringValue {
@@ -78,7 +77,7 @@ fn schedule_step(
             return;
         }
 
-        let now = Date::now();
+        let now = now_ms();
         let last = last_time.get_value().unwrap_or(now);
         let mut dt = (now - last) / 1000.0;
         if dt <= 0.0 {

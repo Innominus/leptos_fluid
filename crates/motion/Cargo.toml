@@ -9,9 +9,10 @@ bench = []
 [dependencies]
 leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
 js-sys = "0.3.69"
+leptos_fluid_web = { path = "../web" }
 web-sys = { version = "0.3.69", features = [
     "Element",
-    "HtmlElement",
+    "Animation",
     "CssStyleDeclaration",
     "Window",
 ] }

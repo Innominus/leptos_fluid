@@ -59,7 +59,7 @@ pub fn SpringFollowSection() -> impl IntoView {
                     class="follow-ball"
                     initial=FluidStyle::new().opacity(1.0).scale(1.0)
                     animate=ball_style
-                    transition=Transition::new().duration_ms(1000)
+                    transition=Transition::new().duration_ms(0)
                 ></FluidDiv>
                 <div class="follow-hint">"Move your cursor"</div>
             </div>

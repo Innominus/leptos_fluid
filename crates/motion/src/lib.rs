@@ -1,4 +1,3 @@
-mod presence;
 mod spring_math;
 mod spring_value;
 mod style;
@@ -9,10 +8,9 @@ mod transition;
 mod components;
 mod signal;
 
-pub use presence::{FluidPresence, FluidSwap, PresenceMode};
 #[cfg(feature = "bench")]
 pub use spring_value::spring_step;
-pub use spring_value::{use_spring, SpringValue};
+pub use spring_value::{SpringValue, use_spring};
 pub use style::{FluidStyle, FluidValue, Transform};
 pub use timeline::{FluidStep, FluidTimeline};
 pub use transition::{Easing, Spring, Transition};
@@ -22,9 +20,8 @@ pub use signal::FluidSignal;
 
 pub mod prelude {
     pub use crate::{
-        use_spring, Easing, FluidElement, FluidNodeRef, FluidPresence, FluidStep, FluidStyle,
-        FluidSwap, FluidTimeline, FluidValue, PresenceMode, Spring, SpringValue, Transform,
-        Transition,
+        Easing, FluidElement, FluidNodeRef, FluidStep, FluidStyle, FluidTimeline, FluidValue,
+        Spring, SpringValue, Transform, Transition, use_spring,
     };
 
     pub use crate::{FluidButton, FluidDiv, FluidSignal, FluidSpan};

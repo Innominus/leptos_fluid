@@ -2,18 +2,14 @@ use std::sync::Arc;
 
 use leptos::prelude::{
     Callable, Callback, GetUntracked, GetValue, ReadValue, RwSignal, Set, SetValue, Signal,
-    StoredValue, Update, WithValue, WriteValue,
+    StoredValue, Update, WriteValue,
 };
+use leptos_fluid_web::{animation_pause, animation_play, element_get_active_animation};
 
 use crate::components::FluidNodeRef;
-use crate::timing::schedule_after;
+use crate::timing::{now_ms, schedule_after};
 use crate::{FluidSignal, FluidStyle, Transition};
-
 use web_sys::wasm_bindgen::JsCast;
-
-fn now_ms() -> f64 {
-    js_sys::Date::now()
-}
 
 #[derive(Clone, Debug)]
 pub struct FluidStep {
@@ -58,6 +54,7 @@ struct FluidTimelineInner {
     paused: RwSignal<bool>,
     step_index: RwSignal<usize>,
     step_start: RwSignal<f64>,
+    step_wait_ms: RwSignal<u32>,
     remaining_ms: RwSignal<u32>,
     auto_loop: RwSignal<bool>,
     steps: StoredValue<Arc<Vec<FluidStep>>>,
@@ -78,6 +75,7 @@ impl FluidTimeline {
             paused: RwSignal::new(false),
             step_index: RwSignal::new(0),
             step_start: RwSignal::new(now_ms()),
+            step_wait_ms: RwSignal::new(0),
             remaining_ms: RwSignal::new(0),
             auto_loop: RwSignal::new(false),
             steps: StoredValue::new(Arc::new(Vec::new())),
@@ -149,6 +147,9 @@ impl FluidTimeline {
         if inner.paused.get_untracked() {
             return;
         }
+        if !inner.running.get_untracked() {
+            return;
+        }
 
         let steps = inner.steps.get_value();
         if steps.is_empty() {
@@ -160,54 +161,68 @@ impl FluidTimeline {
         let generation = inner.generation.get_value().wrapping_add(1);
         inner.generation.set_value(generation);
 
-        let index = inner.step_index.get_untracked();
-        let wait_ms = steps.get(index).map(|step| step.wait_ms).unwrap_or(0);
+        let wait_ms = inner.step_wait_ms.get_untracked();
         let elapsed = (now_ms() - inner.step_start.get_untracked()).max(0.0) as u32;
         let remaining = wait_ms.saturating_sub(elapsed).max(1);
         inner.remaining_ms.set(remaining);
 
-        let Some(node_ref) = inner.node_ref.get_value() else {
-            return;
-        };
-        let Some(element) = node_ref.get_untracked() else {
-            return;
-        };
-        let element: web_sys::Element = element.unchecked_into();
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let Ok(Some(computed)) = window.get_computed_style(&element) else {
-            return;
-        };
-        let opacity = computed
-            .get_property_value("opacity")
-            .unwrap_or_else(|_| "1".to_string());
-        let transform = computed
-            .get_property_value("transform")
-            .unwrap_or_else(|_| "none".to_string());
-
-        let frozen = FluidStyle::new()
-            .with("opacity", opacity)
-            .with("transform", transform)
-            .with("transition", "none");
-        inner.value.set(frozen);
+        pause_active_animation(&inner);
     }
 
     pub fn resume(&self) {
-        let inner = self.inner.read_value();
+        let inner = self.inner.get_value();
         if !inner.paused.get_untracked() {
             return;
         }
 
         let remaining = inner.remaining_ms.get_untracked().max(1);
-        let start_at = inner.step_index.get_untracked();
-        start_sequence(self.inner, start_at, Some(remaining));
+        let current_index = inner.step_index.get_untracked();
+        let steps = inner.steps.get_value();
+        if steps.is_empty() {
+            return;
+        }
+
+        let generation = inner.generation.get_value().wrapping_add(1);
+        inner.generation.set_value(generation);
+        inner.running.set(true);
+        inner.paused.set(false);
+        inner.step_start.set(now_ms());
+        inner.step_wait_ms.set(remaining);
+
+        resume_active_animation(&inner);
+
+        let inner_store = self.inner;
+        let on_done = make_on_done(inner_store);
+        let on_tick = Callback::new(move |_| {
+            let inner = inner_store.read_value();
+            if inner.generation.get_value() != generation {
+                return;
+            }
+
+            let steps = inner.steps.get_value();
+            if let Some(step) = steps.get(current_index) {
+                if let Some(callback) = step.on_complete {
+                    callback.run(());
+                }
+            }
+
+            run_steps(
+                inner_store,
+                generation,
+                steps,
+                0,
+                current_index + 1,
+                Some(on_done),
+            );
+        });
+        schedule_after(generation, inner.generation, remaining, on_tick);
     }
 
     pub fn stop(&self) {
         let inner = self.inner.write_value();
         inner.running.set(false);
         inner.paused.set(false);
+        inner.step_wait_ms.set(0);
         let generation = inner.generation.get_value().wrapping_add(1);
         inner.generation.set_value(generation);
     }
@@ -255,24 +270,55 @@ fn start_sequence(
     inner.generation.set_value(generation);
     inner.running.set(true);
     inner.paused.set(false);
+    inner.step_wait_ms.set(0);
 
-    let on_done = {
-        let inner_store = inner_store;
-        Callback::new(move |_| {
-            let inner = inner_store.get_value();
-            if inner.auto_loop.get_untracked() {
-                start_sequence(inner_store, 0, None);
-            }
-        })
+    let on_done = make_on_done(inner_store);
+
+    run_steps(inner_store, generation, steps, start_at, 0, Some(on_done));
+}
+
+fn make_on_done(inner_store: StoredValue<FluidTimelineInner>) -> Callback<()> {
+    Callback::new(move |_| {
+        let inner = inner_store.get_value();
+        if inner.auto_loop.get_untracked() {
+            start_sequence(inner_store, 0, None);
+        }
+    })
+}
+
+fn pause_active_animation(inner: &FluidTimelineInner) {
+    let Some(node_ref) = inner.node_ref.get_value() else {
+        return;
     };
+    let Some(node) = node_ref.get_untracked() else {
+        return;
+    };
+    let element: web_sys::Element = node.unchecked_into();
+    let Some(animation) = element_get_active_animation(&element) else {
+        return;
+    };
+    let _ = animation_pause(&animation);
+}
 
-    run_steps(inner_store, generation, steps, 0, Some(on_done));
+fn resume_active_animation(inner: &FluidTimelineInner) {
+    let Some(node_ref) = inner.node_ref.get_value() else {
+        return;
+    };
+    let Some(node) = node_ref.get_untracked() else {
+        return;
+    };
+    let element: web_sys::Element = node.unchecked_into();
+    let Some(animation) = element_get_active_animation(&element) else {
+        return;
+    };
+    let _ = animation_play(&animation);
 }
 
 fn run_steps(
     inner_store: StoredValue<FluidTimelineInner>,
     generation: u32,
     steps: Arc<Vec<FluidStep>>,
+    base_index: usize,
     index: usize,
     on_done: Option<Callback<()>>,
 ) {
@@ -290,8 +336,9 @@ fn run_steps(
     }
 
     let step = steps[index].clone();
-    inner.step_index.set(index);
+    inner.step_index.set(base_index + index);
     inner.step_start.set(now_ms());
+    inner.step_wait_ms.set(step.wait_ms);
     inner.value.set(step.style);
 
     let wait_ms = step.wait_ms;
@@ -299,7 +346,14 @@ fn run_steps(
         if let Some(callback) = step.on_complete {
             callback.run(());
         }
-        run_steps(inner_store, generation, steps, index + 1, on_done);
+        run_steps(
+            inner_store,
+            generation,
+            steps,
+            base_index,
+            index + 1,
+            on_done,
+        );
         return;
     }
 
@@ -314,6 +368,7 @@ fn run_steps(
             inner_store_next,
             generation,
             steps_next.clone(),
+            base_index,
             index + 1,
             on_done,
         );

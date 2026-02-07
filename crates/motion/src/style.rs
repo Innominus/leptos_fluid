@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use web_sys::CssStyleDeclaration;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FluidValue {
@@ -196,6 +197,21 @@ impl FluidStyle {
 
         props
     }
+
+    pub(crate) fn apply_to(&self, style: &CssStyleDeclaration) {
+        for (key, value) in &self.props {
+            let _ = style.set_property(key.as_ref(), &value.to_string_value());
+        }
+
+        if self
+            .props
+            .iter()
+            .all(|(key, _)| key.as_ref() != "transform")
+            && let Some(transform) = self.transform.to_css()
+        {
+            let _ = style.set_property("transform", &transform);
+        }
+    }
 }
 
 #[macro_export]
@@ -236,11 +252,15 @@ mod tests {
     fn style_macro_sets_props() {
         let style = style!("opacity" => 0.4, "filter" => "blur(4px)");
         let props = style.to_props();
-        assert!(props
-            .iter()
-            .any(|(key, value)| key.as_ref() == "opacity" && value == "0.4"));
-        assert!(props
-            .iter()
-            .any(|(key, value)| key.as_ref() == "filter" && value == "blur(4px)"));
+        assert!(
+            props
+                .iter()
+                .any(|(key, value)| key.as_ref() == "opacity" && value == "0.4")
+        );
+        assert!(
+            props
+                .iter()
+                .any(|(key, value)| key.as_ref() == "filter" && value == "blur(4px)")
+        );
     }
 }

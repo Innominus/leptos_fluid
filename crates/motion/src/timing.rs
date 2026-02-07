@@ -1,5 +1,9 @@
 use js_sys::Date;
-use leptos::prelude::{request_animation_frame, Callable, Callback, GetValue, StoredValue};
+use leptos::prelude::{Callable, Callback, GetValue, StoredValue, request_animation_frame};
+
+pub(crate) fn now_ms() -> f64 {
+    Date::now()
+}
 
 pub(crate) fn schedule_after(
     generation: u32,
@@ -7,7 +11,7 @@ pub(crate) fn schedule_after(
     total_ms: u32,
     on_complete: Callback<()>,
 ) {
-    let start_ms = Date::now();
+    let start_ms = now_ms();
 
     fn step(
         generation: u32,
@@ -21,7 +25,7 @@ pub(crate) fn schedule_after(
                 return;
             }
 
-            let elapsed = Date::now() - start_ms;
+            let elapsed = now_ms() - start_ms;
             if elapsed >= total_ms as f64 {
                 on_complete.run(());
                 return;

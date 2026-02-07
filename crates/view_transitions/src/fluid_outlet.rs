@@ -3,7 +3,7 @@ use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
 };
-use web_sys::{wasm_bindgen::JsCast, AnimationEvent, Node};
+use web_sys::{AnimationEvent, Node, wasm_bindgen::JsCast};
 
 use crate::fluid_manager::FluidManager;
 
@@ -94,9 +94,21 @@ pub fn FluidOutlet(
         navigate_backwards,
     );
 
-    let animation_direction = move || if navigate_backwards.get() { Some(true) } else { None };
+    let animation_direction = move || {
+        if navigate_backwards.get() {
+            Some(true)
+        } else {
+            None
+        }
+    };
 
-    let z_index = move || if navigate_backwards.get() { "z-index: 1;" } else { "" };
+    let z_index = move || {
+        if navigate_backwards.get() {
+            "z-index: 1;"
+        } else {
+            ""
+        }
+    };
 
     let hide_while_animating = move || {
         if is_transitioning.get() {
@@ -174,7 +186,8 @@ fn create_animation_handler(
     cleanup_fn: impl Fn(),
 ) -> impl Fn(AnimationEvent) {
     move |e: AnimationEvent| {
-        if e.target().unwrap().unchecked_ref::<Node>() == node.get_untracked().unwrap().unchecked_ref::<Node>()
+        if e.target().unwrap().unchecked_ref::<Node>()
+            == node.get_untracked().unwrap().unchecked_ref::<Node>()
         {
             has_ended.set(true);
             cleanup_fn();

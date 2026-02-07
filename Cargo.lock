@@ -1105,8 +1105,7 @@ name = "leptos_fluid_flip"
 version = "0.1.1"
 dependencies = [
  "leptos",
- "serde",
- "serde-wasm-bindgen",
+ "leptos_fluid_web",
  "web-sys",
 ]
 
@@ -1117,6 +1116,7 @@ dependencies = [
  "criterion",
  "js-sys",
  "leptos",
+ "leptos_fluid_web",
  "web-sys",
 ]
 
@@ -1125,9 +1125,9 @@ name = "leptos_fluid_motion_example"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "js-sys",
  "leptos",
  "leptos_fluid",
- "web-sys",
 ]
 
 [[package]]
@@ -1136,6 +1136,14 @@ version = "0.1.1"
 dependencies = [
  "leptos",
  "leptos_router",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_web"
+version = "0.1.1"
+dependencies = [
+ "js-sys",
  "web-sys",
 ]
 
@@ -1814,17 +1822,6 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
-]
-
-[[package]]
-name = "serde-wasm-bindgen"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
 ]
 
 [[package]]

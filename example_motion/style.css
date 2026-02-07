@@ -358,7 +358,7 @@ button.alt {
 
 .flip-pill {
     border-radius: 18px;
-    padding: 0.9rem 1.2rem;
+    padding: 0;
     display: grid;
     background: linear-gradient(
         150deg,
@@ -372,7 +372,11 @@ button.alt {
 .flip-pill-content {
     display: grid;
     gap: 0.4rem;
+    padding: 0.9rem 1.2rem;
     transform-origin: 0 0;
+    transform-box: border-box;
+    backface-visibility: hidden;
+    will-change: transform;
 }
 
 .flip-size-sm {
@@ -438,6 +442,9 @@ button.alt {
     display: grid;
     gap: 0.45rem;
     transform-origin: 0 0;
+    transform-box: border-box;
+    backface-visibility: hidden;
+    will-change: transform;
 }
 
 .flip-tile h3 {
@@ -701,6 +708,8 @@ button.alt {
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
+    will-change: transform;
 }
 
 .follow-hint {

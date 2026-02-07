@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
+use js_sys::Date;
 use leptos::prelude::*;
 use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
-use web_sys::js_sys::Date;
 
 const SAMPLE_WINDOW: usize = 120;
 const UPDATE_EVERY: u32 = 10;

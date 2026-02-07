@@ -1,12 +1,11 @@
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::cell::Cell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use web_sys::{
-    wasm_bindgen::{prelude::Closure, JsCast},
-    Animation, CssStyleDeclaration, Element, HtmlElement, KeyframeAnimationOptions, NodeList,
+use leptos_fluid_web::{
+    animate_with_waapi, animation_cancel, animation_set_onfinish, html_style, keyframes_from_two,
+    node_list_to_elements, object_from_str_pairs, restore_inline_property, waapi_options,
 };
+use std::cell::Cell;
+use std::rc::Rc;
+use web_sys::{Animation, CssStyleDeclaration, Element, wasm_bindgen::prelude::Closure};
 
 const LINEAR: &str = "linear(\n    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017,\n    1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%,\n    1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%,\n    0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1\n)";
 
@@ -61,10 +60,19 @@ impl Flip {
         if self.is_animating.get_untracked() {
             if let Some(animation_state) = self.animation.get_value() {
                 apply_computed_transform(&animation_state.element);
-                animation_state.animation.cancel();
+                if let Some(animation) = animation_state.animation.as_ref() {
+                    animation_cancel(animation);
+                }
+                if let Some(correction) = animation_state.border_radius_correction.as_ref() {
+                    correction.stop_signal.set(true);
+                    restore_border_radius_inline_styles(
+                        &animation_state.element,
+                        correction.inline_styles.as_ref(),
+                    );
+                }
                 for correction in animation_state.scale_corrections.iter() {
-                    correction.animation.cancel();
-                    restore_inline_styles(&correction.element, &correction.inline_styles);
+                    correction.stop_signal.set(true);
+                    restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
                 }
                 carried_inline_styles = Some(animation_state.inline_styles.clone());
             }
@@ -77,9 +85,9 @@ impl Flip {
 
         let inner_options = self.options;
         let inner_animation = self.animation;
-        let carried_inline_styles = carried_inline_styles.clone();
+        let carried_inline_styles = carried_inline_styles;
 
-        let inner_self = self.clone();
+        let inner_self = *self;
         request_animation_frame(move || {
             let (el, _) = inner_self.measure(None);
             if let Some(inline_styles) = carried_inline_styles.as_ref() {
@@ -123,9 +131,10 @@ impl Flip {
             animation_store.set_value(None);
             return;
         }
-        let animation = run_flip_animation(element, from, to, options, move || {
+        let on_finish: Rc<dyn Fn()> = Rc::new(move || {
             is_animating.set(false);
         });
+        let animation = run_flip_animation(element, from, to, options, on_finish);
         animation_store.set_value(Some(animation));
     }
 
@@ -144,13 +153,7 @@ impl Flip {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct KeyFrame {
-    transform: String,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FlipValues {
     left: f64,
     top: f64,
@@ -163,21 +166,58 @@ struct InlineStyles {
     transform: String,
     transform_origin: String,
     will_change: String,
+    transition: String,
 }
 
 #[derive(Clone)]
 struct FlipAnimation {
-    animation: Animation,
+    animation: Option<Animation>,
     element: Element,
     inline_styles: InlineStyles,
-    scale_corrections: Vec<ScaleCorrectionAnimation>,
+    scale_corrections: Rc<Vec<ScaleCorrectionAnimation>>,
+    border_radius_correction: Option<BorderRadiusCorrectionAnimation>,
 }
 
 #[derive(Clone)]
 struct ScaleCorrectionAnimation {
-    animation: Animation,
+    stop_signal: Rc<Cell<bool>>,
     element: Element,
-    inline_styles: InlineStyles,
+    inline_styles: Rc<InlineStyles>,
+}
+
+#[derive(Clone)]
+struct ScaleCorrectionTarget {
+    element: Element,
+    offset_x: f64,
+    offset_y: f64,
+}
+
+#[derive(Clone)]
+struct BorderRadiusInlineStyles {
+    top_left: String,
+    top_right: String,
+    bottom_right: String,
+    bottom_left: String,
+}
+
+#[derive(Clone)]
+struct BorderRadiusCorrectionAnimation {
+    stop_signal: Rc<Cell<bool>>,
+    inline_styles: Rc<BorderRadiusInlineStyles>,
+}
+
+#[derive(Clone, Copy)]
+struct BorderRadiusTarget {
+    top_left: RadiusPair,
+    top_right: RadiusPair,
+    bottom_right: RadiusPair,
+    bottom_left: RadiusPair,
+}
+
+#[derive(Clone, Copy)]
+struct RadiusPair {
+    x: f64,
+    y: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -238,7 +278,7 @@ impl FlipGroup {
             let elements = selector.with_value(|value| query_elements(value));
             for element in &elements {
                 if let Some(key) = element_key(element) {
-                    if let Some(inline) = carried_inline.get(&key) {
+                    if let Some(inline) = find_by_key(&carried_inline, &key) {
                         restore_inline_styles(element, inline);
                     }
                 }
@@ -249,7 +289,7 @@ impl FlipGroup {
             let mut new_animations = Vec::new();
 
             for (index, to_item) in to_items.into_iter().enumerate() {
-                let Some(from_item_values) = from_values.get(&to_item.key) else {
+                let Some(from_item_values) = find_by_key(&from_values, &to_item.key) else {
                     continue;
                 };
                 if !has_flip_delta_with_size(
@@ -264,18 +304,19 @@ impl FlipGroup {
                 let remaining_inner = remaining.clone();
                 let is_animating_inner = is_animating;
                 let item_options = options.with_stagger_index(index);
+                let on_finish: Rc<dyn Fn()> = Rc::new(move || {
+                    let next = remaining_inner.get().saturating_sub(1);
+                    remaining_inner.set(next);
+                    if next == 0 {
+                        is_animating_inner.set(false);
+                    }
+                });
                 let animation = run_flip_animation(
                     to_item.element,
-                    from_item_values.clone(),
+                    *from_item_values,
                     to_item.values,
                     item_options,
-                    move || {
-                        let next = remaining_inner.get().saturating_sub(1);
-                        remaining_inner.set(next);
-                        if next == 0 {
-                            is_animating_inner.set(false);
-                        }
-                    },
+                    on_finish,
                 );
                 new_animations.push(animation);
             }
@@ -288,13 +329,12 @@ impl FlipGroup {
         });
     }
 
-    fn snapshot_values(&self) -> HashMap<String, FlipValues> {
+    fn snapshot_values(&self) -> Vec<(String, FlipValues)> {
         let elements = self.selector.with_value(|value| query_elements(value));
-        let mut values = HashMap::new();
-        for item in snapshot_elements(elements) {
-            values.insert(item.key, item.values);
-        }
-        values
+        snapshot_elements(elements)
+            .into_iter()
+            .map(|item| (item.key, item.values))
+            .collect()
     }
 }
 
@@ -302,24 +342,39 @@ const FLIP_DELTA_EPSILON: f64 = 0.1;
 
 fn stop_group_animations(
     animations_store: StoredValue<Vec<FlipAnimation>, LocalStorage>,
-) -> HashMap<String, InlineStyles> {
+) -> Vec<(String, InlineStyles)> {
     let active_animations = animations_store.get_value();
-    let mut carried_inline = HashMap::new();
+    let mut carried_inline = Vec::new();
 
     for animation in active_animations {
         apply_computed_transform(&animation.element);
-        animation.animation.cancel();
-        for correction in animation.scale_corrections {
-            correction.animation.cancel();
-            restore_inline_styles(&correction.element, &correction.inline_styles);
+        if let Some(active) = animation.animation.as_ref() {
+            animation_cancel(active);
+        }
+        if let Some(correction) = animation.border_radius_correction.as_ref() {
+            correction.stop_signal.set(true);
+            restore_border_radius_inline_styles(
+                &animation.element,
+                correction.inline_styles.as_ref(),
+            );
+        }
+        for correction in animation.scale_corrections.iter() {
+            correction.stop_signal.set(true);
+            restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
         }
         if let Some(key) = element_key(&animation.element) {
-            carried_inline.insert(key, animation.inline_styles.clone());
+            carried_inline.push((key, animation.inline_styles.clone()));
         }
     }
 
     animations_store.set_value(Vec::new());
     carried_inline
+}
+
+fn find_by_key<'a, T>(entries: &'a [(String, T)], key: &str) -> Option<&'a T> {
+    entries
+        .iter()
+        .find_map(|(entry_key, value)| (entry_key == key).then_some(value))
 }
 
 fn has_flip_delta_with_size(from: &FlipValues, to: &FlipValues, include_size_delta: bool) -> bool {
@@ -402,16 +457,13 @@ impl ScaleMode {
     }
 }
 
-fn html_style(element: &Element) -> Option<CssStyleDeclaration> {
-    element.dyn_ref::<HtmlElement>().map(|el| el.style())
-}
-
 fn capture_inline_styles(element: &Element) -> InlineStyles {
     let Some(style) = html_style(element) else {
         return InlineStyles {
             transform: String::new(),
             transform_origin: String::new(),
             will_change: String::new(),
+            transition: String::new(),
         };
     };
     InlineStyles {
@@ -420,6 +472,32 @@ fn capture_inline_styles(element: &Element) -> InlineStyles {
             .get_property_value("transform-origin")
             .unwrap_or_default(),
         will_change: style.get_property_value("will-change").unwrap_or_default(),
+        transition: style.get_property_value("transition").unwrap_or_default(),
+    }
+}
+
+fn capture_border_radius_inline_styles(element: &Element) -> BorderRadiusInlineStyles {
+    let Some(style) = html_style(element) else {
+        return BorderRadiusInlineStyles {
+            top_left: String::new(),
+            top_right: String::new(),
+            bottom_right: String::new(),
+            bottom_left: String::new(),
+        };
+    };
+    BorderRadiusInlineStyles {
+        top_left: style
+            .get_property_value("border-top-left-radius")
+            .unwrap_or_default(),
+        top_right: style
+            .get_property_value("border-top-right-radius")
+            .unwrap_or_default(),
+        bottom_right: style
+            .get_property_value("border-bottom-right-radius")
+            .unwrap_or_default(),
+        bottom_left: style
+            .get_property_value("border-bottom-left-radius")
+            .unwrap_or_default(),
     }
 }
 
@@ -439,6 +517,28 @@ fn restore_inline_styles(element: &Element, inline_styles: &InlineStyles) {
     restore_inline_property(&style, "transform", &inline_styles.transform);
     restore_inline_property(&style, "transform-origin", &inline_styles.transform_origin);
     restore_inline_property(&style, "will-change", &inline_styles.will_change);
+    restore_inline_property(&style, "transition", &inline_styles.transition);
+}
+
+fn restore_border_radius_inline_styles(
+    element: &Element,
+    inline_styles: &BorderRadiusInlineStyles,
+) {
+    let Some(style) = html_style(element) else {
+        return;
+    };
+    restore_inline_property(&style, "border-top-left-radius", &inline_styles.top_left);
+    restore_inline_property(&style, "border-top-right-radius", &inline_styles.top_right);
+    restore_inline_property(
+        &style,
+        "border-bottom-right-radius",
+        &inline_styles.bottom_right,
+    );
+    restore_inline_property(
+        &style,
+        "border-bottom-left-radius",
+        &inline_styles.bottom_left,
+    );
 }
 
 fn apply_computed_transform(element: &Element) {
@@ -469,14 +569,6 @@ fn apply_computed_transform(element: &Element) {
     let _ = style.set_property("will-change", "transform");
 }
 
-fn restore_inline_property(style: &CssStyleDeclaration, property: &str, value: &str) {
-    if value.is_empty() {
-        let _ = style.remove_property(property);
-    } else {
-        let _ = style.set_property(property, value);
-    }
-}
-
 fn query_elements(selector: &str) -> Vec<Element> {
     let Ok(list) = document().query_selector_all(selector) else {
         return Vec::new();
@@ -489,21 +581,6 @@ fn query_elements_within(root: &Element, selector: &str) -> Vec<Element> {
         return Vec::new();
     };
     node_list_to_elements(list)
-}
-
-fn node_list_to_elements(list: NodeList) -> Vec<Element> {
-    let mut elements = Vec::new();
-    let length = list.length();
-    for index in 0..length {
-        let Some(node) = list.get(index) else {
-            continue;
-        };
-        let Ok(element) = node.dyn_into::<Element>() else {
-            continue;
-        };
-        elements.push(element);
-    }
-    elements
 }
 
 fn snapshot_elements(elements: Vec<Element>) -> Vec<FlipItem> {
@@ -531,16 +608,13 @@ fn element_key(element: &Element) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn run_flip_animation<F>(
+fn run_flip_animation(
     element: Element,
     from: FlipValues,
     to: FlipValues,
     options: FlipOptions,
-    mut on_finish: F,
-) -> FlipAnimation
-where
-    F: FnMut() + 'static,
-{
+    on_finish: Rc<dyn Fn()>,
+) -> FlipAnimation {
     let dx = from.left - to.left;
     let dy = from.top - to.top;
     let use_scale = options.scale_mode.uses_scale();
@@ -572,125 +646,407 @@ where
     let inline_styles = capture_inline_styles(&element);
     apply_inline_transform(&element, &transform_from);
 
-    let keyframes = vec![
-        KeyFrame {
-            transform: transform_from,
-        },
-        KeyFrame {
-            transform: transform_to,
-        },
-    ];
+    let frame_from = object_from_str_pairs(&[("transform", transform_from.as_str())]);
+    let frame_to = object_from_str_pairs(&[("transform", transform_to.as_str())]);
+    let keyframes = keyframes_from_two(&frame_from, &frame_to);
 
-    let keyframes_js = serde_wasm_bindgen::to_value(&keyframes).unwrap();
-    let animation_options = KeyframeAnimationOptions::new();
-    let duration = options.duration.max(1) as f64;
-    animation_options.set_duration(&duration.into());
-    animation_options.set_delay(options.delay as f64);
-    animation_options.set_easing(options.easing.get_easing_fn());
-    animation_options.set_fill(web_sys::FillMode::Backwards);
+    let animation_options = waapi_options(
+        options.duration.max(1) as u32,
+        options.delay as u32,
+        options.easing.get_easing_fn(),
+        "backwards",
+    );
+    let animation = animate_with_waapi(&element, &keyframes, &animation_options);
+
+    let border_radius_correction = if use_scale {
+        run_border_radius_correction(&element, scale_x, scale_y)
+    } else {
+        None
+    };
 
     let scale_corrections = if use_scale {
         options
             .scale_correction_selector
-            .map(|selector| {
-                let inv_scale_x = safe_div(1.0, scale_x);
-                let inv_scale_y = safe_div(1.0, scale_y);
-                run_scale_correction_animations(
-                    &element,
-                    selector,
-                    inv_scale_x,
-                    inv_scale_y,
-                    options,
-                )
-            })
+            .map(|selector| run_scale_correction_animations(&element, selector, scale_x, scale_y))
             .unwrap_or_default()
     } else {
         Vec::new()
     };
+    let scale_corrections = Rc::new(scale_corrections);
 
     let inner_element = element.clone();
     let inner_inline_styles = inline_styles.clone();
-    let closure = Closure::wrap(Box::new(move |_: web_sys::AnimationEvent| {
+    let border_radius_correction_for_finish = border_radius_correction.clone();
+    let scale_corrections_for_finish = scale_corrections.clone();
+    let on_complete: Rc<dyn Fn()> = Rc::new(move || {
+        if let Some(correction) = &border_radius_correction_for_finish {
+            correction.stop_signal.set(true);
+            restore_border_radius_inline_styles(&inner_element, correction.inline_styles.as_ref());
+        }
+        for correction in scale_corrections_for_finish.iter() {
+            correction.stop_signal.set(true);
+            restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
+        }
         restore_inline_styles(&inner_element, &inner_inline_styles);
         on_finish();
-    }) as Box<dyn FnMut(_)>);
-
-    let animation = element
-        .animate_with_keyframe_animation_options(Some(&keyframes_js.into()), &animation_options);
-
-    animation.set_onfinish(Some(closure.as_ref().unchecked_ref()));
-
-    closure.into_js_value();
+    });
+    if let Some(animation) = animation.as_ref() {
+        let on_complete = Closure::wrap(Box::new(move || on_complete()) as Box<dyn FnMut()>);
+        animation_set_onfinish(animation, Some(on_complete.as_ref().as_ref()));
+        on_complete.forget();
+    } else {
+        request_animation_frame(move || on_complete());
+    }
 
     FlipAnimation {
         animation,
         element,
         inline_styles,
         scale_corrections,
+        border_radius_correction,
     }
 }
 
 fn run_scale_correction_animations(
     root: &Element,
     selector: &str,
-    inv_scale_x: f64,
-    inv_scale_y: f64,
-    options: FlipOptions,
+    initial_scale_x: f64,
+    initial_scale_y: f64,
 ) -> Vec<ScaleCorrectionAnimation> {
-    if (inv_scale_x - 1.0).abs() <= FLIP_DELTA_EPSILON
-        && (inv_scale_y - 1.0).abs() <= FLIP_DELTA_EPSILON
+    if (initial_scale_x - 1.0).abs() <= FLIP_DELTA_EPSILON
+        && (initial_scale_y - 1.0).abs() <= FLIP_DELTA_EPSILON
     {
         return Vec::new();
     }
 
+    let fallback_inv_scale_x = safe_div(1.0, initial_scale_x);
+    let fallback_inv_scale_y = safe_div(1.0, initial_scale_y);
+    let stop_signal = Rc::new(Cell::new(false));
+    let root_rect = root.get_bounding_client_rect();
     let mut animations = Vec::new();
-    for element in query_elements_within(root, selector) {
+    let mut correction_targets = Vec::new();
+
+    for element in query_elements_within(root, selector).into_iter() {
+        let rect = element.get_bounding_client_rect();
+        // `getBoundingClientRect` is in viewport space and already includes the
+        // root's current FLIP scale. Convert back to root-local offsets.
+        let offset_x = (rect.left() - root_rect.left()) * fallback_inv_scale_x;
+        let offset_y = (rect.top() - root_rect.top()) * fallback_inv_scale_y;
         let inline_styles = capture_inline_styles(&element);
         if let Some(style) = html_style(&element) {
             let _ = style.set_property("transform-origin", "0 0");
             let _ = style.set_property("will-change", "transform");
         }
-
-        let correction_from = format!("scale({}, {})", inv_scale_x, inv_scale_y);
-        let correction_to = "scale(1, 1)".to_string();
-        let keyframes = vec![
-            KeyFrame {
-                transform: correction_from,
-            },
-            KeyFrame {
-                transform: correction_to,
-            },
-        ];
-
-        let keyframes_js = serde_wasm_bindgen::to_value(&keyframes).unwrap();
-        let animation_options = KeyframeAnimationOptions::new();
-        let duration = options.duration.max(1) as f64;
-        animation_options.set_duration(&duration.into());
-        animation_options.set_delay(options.delay as f64);
-        animation_options.set_easing(options.easing.get_easing_fn());
-        animation_options.set_fill(web_sys::FillMode::Backwards);
-
-        let inner_element = element.clone();
-        let inner_inline_styles = inline_styles.clone();
-        let closure = Closure::wrap(Box::new(move |_: web_sys::AnimationEvent| {
-            restore_inline_styles(&inner_element, &inner_inline_styles);
-        }) as Box<dyn FnMut(_)>);
-
-        let animation = element.animate_with_keyframe_animation_options(
-            Some(&keyframes_js.into()),
-            &animation_options,
+        apply_inline_scale_correction(
+            &element,
+            fallback_inv_scale_x,
+            fallback_inv_scale_y,
+            offset_x,
+            offset_y,
         );
-        animation.set_onfinish(Some(closure.as_ref().unchecked_ref()));
-        closure.into_js_value();
+        correction_targets.push(ScaleCorrectionTarget {
+            element: element.clone(),
+            offset_x,
+            offset_y,
+        });
 
         animations.push(ScaleCorrectionAnimation {
-            animation,
+            stop_signal: stop_signal.clone(),
             element,
-            inline_styles,
+            inline_styles: Rc::new(inline_styles),
         });
     }
 
+    if !correction_targets.is_empty() {
+        schedule_scale_correction_frame(
+            root.clone(),
+            Rc::new(correction_targets),
+            stop_signal,
+            fallback_inv_scale_x,
+            fallback_inv_scale_y,
+        );
+    }
+
     animations
+}
+
+fn schedule_scale_correction_frame(
+    root: Element,
+    correction_targets: Rc<Vec<ScaleCorrectionTarget>>,
+    stop_signal: Rc<Cell<bool>>,
+    fallback_inv_scale_x: f64,
+    fallback_inv_scale_y: f64,
+) {
+    request_animation_frame(move || {
+        if stop_signal.get() {
+            return;
+        }
+
+        let (inv_scale_x, inv_scale_y) = current_inverse_scale(&root)
+            .map(|(scale_x, scale_y)| (safe_div(1.0, scale_x), safe_div(1.0, scale_y)))
+            .unwrap_or((fallback_inv_scale_x, fallback_inv_scale_y));
+
+        for target in correction_targets.iter() {
+            apply_inline_scale_correction(
+                &target.element,
+                inv_scale_x,
+                inv_scale_y,
+                target.offset_x,
+                target.offset_y,
+            );
+        }
+
+        schedule_scale_correction_frame(
+            root,
+            correction_targets,
+            stop_signal,
+            fallback_inv_scale_x,
+            fallback_inv_scale_y,
+        );
+    });
+}
+
+fn apply_inline_scale_correction(
+    element: &Element,
+    inv_scale_x: f64,
+    inv_scale_y: f64,
+    offset_x: f64,
+    offset_y: f64,
+) {
+    let Some(style) = html_style(element) else {
+        return;
+    };
+    // Counteract parent scale and keep the corrected child anchored in place.
+    let translate_x = offset_x * (inv_scale_x - 1.0);
+    let translate_y = offset_y * (inv_scale_y - 1.0);
+    let _ = style.set_property(
+        "transform",
+        &format!(
+            "translate3d({}px, {}px, 0px) scale({}, {})",
+            translate_x, translate_y, inv_scale_x, inv_scale_y
+        ),
+    );
+}
+
+fn run_border_radius_correction(
+    element: &Element,
+    initial_scale_x: f64,
+    initial_scale_y: f64,
+) -> Option<BorderRadiusCorrectionAnimation> {
+    if (initial_scale_x - 1.0).abs() <= FLIP_DELTA_EPSILON
+        && (initial_scale_y - 1.0).abs() <= FLIP_DELTA_EPSILON
+    {
+        return None;
+    }
+
+    let target = read_border_radius_target(element)?;
+    let inline_styles = Rc::new(capture_border_radius_inline_styles(element));
+    let stop_signal = Rc::new(Cell::new(false));
+    let fallback_inv_scale_x = safe_div(1.0, initial_scale_x);
+    let fallback_inv_scale_y = safe_div(1.0, initial_scale_y);
+
+    apply_border_radius_correction(element, target, fallback_inv_scale_x, fallback_inv_scale_y);
+    schedule_border_radius_correction_frame(
+        element.clone(),
+        target,
+        stop_signal.clone(),
+        fallback_inv_scale_x,
+        fallback_inv_scale_y,
+    );
+
+    Some(BorderRadiusCorrectionAnimation {
+        stop_signal,
+        inline_styles,
+    })
+}
+
+fn schedule_border_radius_correction_frame(
+    element: Element,
+    target: BorderRadiusTarget,
+    stop_signal: Rc<Cell<bool>>,
+    fallback_inv_scale_x: f64,
+    fallback_inv_scale_y: f64,
+) {
+    request_animation_frame(move || {
+        if stop_signal.get() {
+            return;
+        }
+
+        let (inv_scale_x, inv_scale_y) = current_inverse_scale(&element)
+            .map(|(scale_x, scale_y)| (safe_div(1.0, scale_x), safe_div(1.0, scale_y)))
+            .unwrap_or((fallback_inv_scale_x, fallback_inv_scale_y));
+
+        apply_border_radius_correction(&element, target, inv_scale_x, inv_scale_y);
+
+        schedule_border_radius_correction_frame(
+            element,
+            target,
+            stop_signal,
+            fallback_inv_scale_x,
+            fallback_inv_scale_y,
+        );
+    });
+}
+
+fn apply_border_radius_correction(
+    element: &Element,
+    target: BorderRadiusTarget,
+    inv_scale_x: f64,
+    inv_scale_y: f64,
+) {
+    let Some(style) = html_style(element) else {
+        return;
+    };
+
+    set_corner_radius(
+        &style,
+        "border-top-left-radius",
+        target.top_left,
+        inv_scale_x,
+        inv_scale_y,
+    );
+    set_corner_radius(
+        &style,
+        "border-top-right-radius",
+        target.top_right,
+        inv_scale_x,
+        inv_scale_y,
+    );
+    set_corner_radius(
+        &style,
+        "border-bottom-right-radius",
+        target.bottom_right,
+        inv_scale_x,
+        inv_scale_y,
+    );
+    set_corner_radius(
+        &style,
+        "border-bottom-left-radius",
+        target.bottom_left,
+        inv_scale_x,
+        inv_scale_y,
+    );
+}
+
+fn set_corner_radius(
+    style: &CssStyleDeclaration,
+    property: &str,
+    base: RadiusPair,
+    inv_scale_x: f64,
+    inv_scale_y: f64,
+) {
+    let radius_x = base.x * inv_scale_x;
+    let radius_y = base.y * inv_scale_y;
+
+    let value = if (radius_x - radius_y).abs() <= FLIP_DELTA_EPSILON {
+        format!("{}px", radius_x)
+    } else {
+        format!("{}px {}px", radius_x, radius_y)
+    };
+    let _ = style.set_property(property, &value);
+}
+
+fn read_border_radius_target(element: &Element) -> Option<BorderRadiusTarget> {
+    let Some(window) = web_sys::window() else {
+        return None;
+    };
+    let Ok(Some(computed)) = window.get_computed_style(element) else {
+        return None;
+    };
+
+    Some(BorderRadiusTarget {
+        top_left: parse_radius_pair(&computed.get_property_value("border-top-left-radius").ok()?)?,
+        top_right: parse_radius_pair(
+            &computed
+                .get_property_value("border-top-right-radius")
+                .ok()?,
+        )?,
+        bottom_right: parse_radius_pair(
+            &computed
+                .get_property_value("border-bottom-right-radius")
+                .ok()?,
+        )?,
+        bottom_left: parse_radius_pair(
+            &computed
+                .get_property_value("border-bottom-left-radius")
+                .ok()?,
+        )?,
+    })
+}
+
+fn parse_radius_pair(value: &str) -> Option<RadiusPair> {
+    let mut parts = value.split_whitespace();
+    let first = parse_px(parts.next()?)?;
+    let second = parts.next().and_then(parse_px).unwrap_or(first);
+    Some(RadiusPair {
+        x: first,
+        y: second,
+    })
+}
+
+fn parse_px(value: &str) -> Option<f64> {
+    value
+        .trim()
+        .strip_suffix("px")
+        .and_then(|raw| raw.trim().parse::<f64>().ok())
+}
+
+fn current_inverse_scale(element: &Element) -> Option<(f64, f64)> {
+    let Some(window) = web_sys::window() else {
+        return None;
+    };
+    let Ok(Some(computed)) = window.get_computed_style(element) else {
+        return None;
+    };
+    let Ok(transform) = computed.get_property_value("transform") else {
+        return None;
+    };
+    parse_transform_scale(&transform)
+}
+
+fn parse_transform_scale(transform: &str) -> Option<(f64, f64)> {
+    let transform = transform.trim();
+    if transform.is_empty() || transform == "none" {
+        return Some((1.0, 1.0));
+    }
+
+    if let Some(values) = transform
+        .strip_prefix("matrix(")
+        .and_then(|value| value.strip_suffix(')'))
+    {
+        let mut matrix = [0.0; 6];
+        let mut count = 0usize;
+        for value in values.split(',') {
+            if count >= matrix.len() {
+                break;
+            }
+            matrix[count] = value.trim().parse().ok()?;
+            count += 1;
+        }
+        if count == matrix.len() {
+            return Some((matrix[0], matrix[3]));
+        }
+    }
+
+    if let Some(values) = transform
+        .strip_prefix("matrix3d(")
+        .and_then(|value| value.strip_suffix(')'))
+    {
+        let mut matrix = [0.0; 16];
+        let mut count = 0usize;
+        for value in values.split(',') {
+            if count >= matrix.len() {
+                break;
+            }
+            matrix[count] = value.trim().parse().ok()?;
+            count += 1;
+        }
+        if count == matrix.len() {
+            return Some((matrix[0], matrix[5]));
+        }
+    }
+
+    None
 }
 
 fn safe_div(numerator: f64, denominator: f64) -> f64 {
@@ -698,9 +1054,5 @@ fn safe_div(numerator: f64, denominator: f64) -> f64 {
         return 1.0;
     }
     let value = numerator / denominator;
-    if value.is_finite() {
-        value
-    } else {
-        1.0
-    }
+    if value.is_finite() { value } else { 1.0 }
 }

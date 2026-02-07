@@ -1,7 +1,14 @@
 cargo-features = ["panic-immediate-abort"]
 
 [workspace]
-members = ["example", "example_motion", "crates/flip", "crates/view_transitions", "crates/motion"]
+members = [
+    "example",
+    "example_motion",
+    "crates/flip",
+    "crates/view_transitions",
+    "crates/motion",
+    "crates/web",
+]
 
 [package]
 name = "leptos_fluid"

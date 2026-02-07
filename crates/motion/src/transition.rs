@@ -188,6 +188,7 @@ impl Transition {
         }
     }
 
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn transition_css(&self) -> String {
         if self.duration_ms == 0 && self.delay_ms == 0 {
             return "none".to_string();

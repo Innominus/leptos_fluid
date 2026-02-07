@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use leptos::{html::Div, logging::warn, prelude::*};
-use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
+use web_sys::wasm_bindgen::{JsCast, prelude::Closure};
 
 use crate::utils::{get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr};
 
