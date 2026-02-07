@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
-leptos_router = { version = "0.8.11" }
+leptos_router = { version = "0.8.11", default-features = false }
 web-sys = { version = "0.3.69", features = [
     "AnimationEvent",
     "Element",

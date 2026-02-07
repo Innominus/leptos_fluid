@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
 use js_sys::Date;
+#[cfg(target_arch = "wasm32")]
+use js_sys::Number;
 use leptos::prelude::*;
 use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
 
@@ -88,19 +90,19 @@ pub fn PerfSection() -> impl IntoView {
                 <div class="perf-metrics">
                     <div>
                         <span class="label">"FPS"</span>
-                        <strong>{move || format!("{:.1}", fps.get())}</strong>
+                        <strong>{move || format_fixed(fps.get(), 1)}</strong>
                     </div>
                     <div>
                         <span class="label">"Avg"</span>
-                        <strong>{move || format!("{:.2} ms", avg_ms.get())}</strong>
+                        <strong>{move || format_ms(avg_ms.get())}</strong>
                     </div>
                     <div>
                         <span class="label">"P95"</span>
-                        <strong>{move || format!("{:.2} ms", p95_ms.get())}</strong>
+                        <strong>{move || format_ms(p95_ms.get())}</strong>
                     </div>
                     <div>
                         <span class="label">"Last"</span>
-                        <strong>{move || format!("{:.2} ms", last_ms.get())}</strong>
+                        <strong>{move || format_ms(last_ms.get())}</strong>
                     </div>
                 </div>
             </div>
@@ -213,13 +215,39 @@ fn compute_metrics(samples: &VecDeque<f64>) -> (f64, f64, f64) {
     let sum: f64 = samples.iter().sum();
     let avg = sum / count;
 
-    let mut sorted: Vec<f64> = samples.iter().copied().collect();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64) * 0.95).ceil() as usize;
-    let idx = idx.saturating_sub(1).min(sorted.len() - 1);
-    let p95 = sorted[idx];
+    let mut values: Vec<f64> = samples.iter().copied().collect();
+    let idx = ((values.len() as f64) * 0.95).ceil() as usize;
+    let idx = idx.saturating_sub(1).min(values.len() - 1);
+    let (_, p95, _) = values.select_nth_unstable_by(idx, |a, b| {
+        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let p95 = *p95;
 
     let fps = if avg > 0.0 { 1000.0 / avg } else { 0.0 };
 
     (avg, p95, fps)
+}
+
+fn format_ms(value: f64) -> String {
+    let mut out = format_fixed(value, 2);
+    out.push_str(" ms");
+    out
+}
+
+fn format_fixed(value: f64, digits: u32) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let digits = digits.min(u8::MAX as u32) as u8;
+        return Number::from(value)
+            .to_fixed(digits)
+            .ok()
+            .and_then(|value| value.as_string())
+            .unwrap_or_default();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = digits;
+        value.to_string()
+    }
 }

@@ -148,35 +148,23 @@ impl Transition {
         }
     }
 
-    pub fn exclude_properties<I, S>(mut self, props: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<Cow<'static, str>>,
-    {
+    pub fn exclude_properties(mut self, props: &[&'static str]) -> Self {
         let mut list = Vec::new();
         for prop in props {
-            push_unique_property(&mut list, prop.into());
+            push_unique_property(&mut list, Cow::Borrowed(prop));
         }
         self.excluded_properties = list;
         self
     }
 
-    pub fn add_excluded_properties<I, S>(mut self, props: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<Cow<'static, str>>,
-    {
+    pub fn add_excluded_properties(mut self, props: &[&'static str]) -> Self {
         for prop in props {
-            push_unique_property(&mut self.excluded_properties, prop.into());
+            push_unique_property(&mut self.excluded_properties, Cow::Borrowed(prop));
         }
         self
     }
 
-    pub fn without_properties<I, S>(self, props: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<Cow<'static, str>>,
-    {
+    pub fn without_properties(self, props: &[&'static str]) -> Self {
         self.exclude_properties(props)
     }
 
@@ -305,7 +293,7 @@ mod tests {
     fn excluded_properties_disable_specific_animation() {
         let transition = Transition::new()
             .duration_ms(300)
-            .exclude_properties(["height", "width"]);
+            .exclude_properties(&["height", "width"]);
         let css = transition.transition_css();
         assert!(css.contains("all 300ms"));
         assert!(css.contains(", height 0ms linear 0ms"));

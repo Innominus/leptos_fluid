@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
+use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, FluidValue, Spring, Transition};
 
 #[component]
 pub fn IslandSection() -> impl IntoView {
@@ -66,17 +66,17 @@ pub fn IslandSection() -> impl IntoView {
             .width(island_width.get())
             .height(island_height.get())
             .opacity(1.0)
-            .with("border-radius", format!("{radius}px"))
-            .with("background", background)
-            .with("border-color", border_color)
-            .with("box-shadow", shadow)
+            .with_prop("border-radius", FluidValue::from(format!("{radius}px")))
+            .with_prop("background", FluidValue::from(background))
+            .with_prop("border-color", FluidValue::from(border_color))
+            .with_prop("box-shadow", FluidValue::from(shadow))
     };
 
     let island_glow = move || {
         FluidStyle::new()
             .opacity(island_glow_opacity.get())
             .scale(island_glow_scale.get())
-            .with("filter", "blur(22px)")
+            .with_prop("filter", FluidValue::from("blur(22px)"))
     };
 
     let island_content = move || {
@@ -95,10 +95,7 @@ pub fn IslandSection() -> impl IntoView {
                     "and spring bounce to morph the shape."
                 </p>
                 <div class="button-row">
-                    <button
-                        class="alt"
-                        on:click=move |_| island_open.update(|val| *val = !*val)
-                    >
+                    <button class="alt" on:click=move |_| island_open.update(|val| *val = !*val)>
                         {move || {
                             if island_open.get() { "Collapse island" } else { "Expand island" }
                         }}

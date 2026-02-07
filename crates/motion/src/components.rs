@@ -4,8 +4,8 @@ use std::rc::Rc;
 use leptos::prelude::*;
 use leptos_fluid_web::{
     animate_with_waapi, animation_cancel, animation_commit_styles, animation_set_onfinish,
-    element_set_active_animation, html_style, keyframes_from_two, object_from_str_pairs,
-    waapi_options,
+    computed_style, element_set_active_animation, html_style, keyframes_from_two,
+    object_from_str_pairs, parse_js_f64, waapi_options,
 };
 
 use crate::{FluidSignal, FluidStyle, Transition};
@@ -132,14 +132,10 @@ fn parse_transition_override(value: &str) -> Option<TransitionRuntime> {
 fn parse_time_token(token: &str) -> Option<u32> {
     let token = token.trim();
     if let Some(raw) = token.strip_suffix("ms") {
-        return raw
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .map(|value| value.max(0.0).round() as u32);
+        return parse_js_f64(raw.trim()).map(|value| value.max(0.0).round() as u32);
     }
     if let Some(raw) = token.strip_suffix('s') {
-        return raw.trim().parse::<f64>().ok().map(|value| {
+        return parse_js_f64(raw.trim()).map(|value| {
             let ms = value.max(0.0) * 1000.0;
             ms.round() as u32
         });
@@ -154,10 +150,7 @@ fn freeze_computed_values(element: &Element, keys: &[String]) {
     let Some(style_decl) = html_style(element) else {
         return;
     };
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-    let Ok(Some(computed)) = window.get_computed_style(element) else {
+    let Some(computed) = computed_style(element) else {
         return;
     };
 
@@ -215,12 +208,7 @@ fn animate_to(
         return;
     }
 
-    let Some(window) = web_sys::window() else {
-        apply_props(element, &animated_props);
-        active_animation.set_value(None);
-        return;
-    };
-    let Ok(Some(computed)) = window.get_computed_style(element) else {
+    let Some(computed) = computed_style(element) else {
         apply_props(element, &animated_props);
         active_animation.set_value(None);
         return;

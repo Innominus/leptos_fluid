@@ -131,7 +131,7 @@ impl FluidTimeline {
     }
 
     pub fn play(&self) {
-        start_sequence(self.inner, 0, None);
+        start_sequence(self.inner, 0);
     }
 
     pub fn play_steps<I>(&self, steps: I)
@@ -200,17 +200,16 @@ impl FluidTimeline {
             }
 
             let steps = inner.steps.get_value();
-            if let Some(step) = steps.get(current_index) {
-                if let Some(callback) = step.on_complete {
-                    callback.run(());
-                }
+            if let Some(step) = steps.get(current_index)
+                && let Some(callback) = step.on_complete
+            {
+                callback.run(());
             }
 
             run_steps(
                 inner_store,
                 generation,
                 steps,
-                0,
                 current_index + 1,
                 Some(on_done),
             );
@@ -233,38 +232,13 @@ impl FluidTimeline {
     }
 }
 
-fn start_sequence(
-    inner_store: StoredValue<FluidTimelineInner>,
-    start_at: usize,
-    override_duration: Option<u32>,
-) {
+fn start_sequence(inner_store: StoredValue<FluidTimelineInner>, start_at: usize) {
     let inner = inner_store.get_value();
     let steps_source = inner.steps.get_value();
     if steps_source.is_empty() || start_at >= steps_source.len() {
         inner.running.set(false);
         return;
     }
-
-    let steps = if start_at == 0 && override_duration.is_none() {
-        steps_source
-    } else {
-        let mut built = Vec::with_capacity(steps_source.len().saturating_sub(start_at));
-        for index in start_at..steps_source.len() {
-            let mut step = steps_source[index].clone();
-            if index == start_at {
-                if let Some(remaining) = override_duration {
-                    let easing = step.easing.clone().unwrap_or_else(|| "ease".to_string());
-                    step.wait_ms = remaining;
-                    step.style = step
-                        .style
-                        .clone()
-                        .with("transition", format!("all {}ms {} 0ms", remaining, easing));
-                }
-            }
-            built.push(step);
-        }
-        Arc::new(built)
-    };
 
     let generation = inner.generation.get_value().wrapping_add(1);
     inner.generation.set_value(generation);
@@ -273,15 +247,20 @@ fn start_sequence(
     inner.step_wait_ms.set(0);
 
     let on_done = make_on_done(inner_store);
-
-    run_steps(inner_store, generation, steps, start_at, 0, Some(on_done));
+    run_steps(
+        inner_store,
+        generation,
+        steps_source,
+        start_at,
+        Some(on_done),
+    );
 }
 
 fn make_on_done(inner_store: StoredValue<FluidTimelineInner>) -> Callback<()> {
     Callback::new(move |_| {
         let inner = inner_store.get_value();
         if inner.auto_loop.get_untracked() {
-            start_sequence(inner_store, 0, None);
+            start_sequence(inner_store, 0);
         }
     })
 }
@@ -318,7 +297,6 @@ fn run_steps(
     inner_store: StoredValue<FluidTimelineInner>,
     generation: u32,
     steps: Arc<Vec<FluidStep>>,
-    base_index: usize,
     index: usize,
     on_done: Option<Callback<()>>,
 ) {
@@ -336,7 +314,8 @@ fn run_steps(
     }
 
     let step = steps[index].clone();
-    inner.step_index.set(base_index + index);
+
+    inner.step_index.set(index);
     inner.step_start.set(now_ms());
     inner.step_wait_ms.set(step.wait_ms);
     inner.value.set(step.style);
@@ -346,14 +325,7 @@ fn run_steps(
         if let Some(callback) = step.on_complete {
             callback.run(());
         }
-        run_steps(
-            inner_store,
-            generation,
-            steps,
-            base_index,
-            index + 1,
-            on_done,
-        );
+        run_steps(inner_store, generation, steps, index + 1, on_done);
         return;
     }
 
@@ -368,7 +340,6 @@ fn run_steps(
             inner_store_next,
             generation,
             steps_next.clone(),
-            base_index,
             index + 1,
             on_done,
         );

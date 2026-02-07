@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{style, FluidDiv, FluidStyle, Transition};
+use leptos_fluid::motion::{style, FluidDiv, FluidStyle, FluidValue, Transition};
 
 #[component]
 pub fn CardsSection(card_focus: RwSignal<bool>) -> impl IntoView {
@@ -8,12 +8,12 @@ pub fn CardsSection(card_focus: RwSignal<bool>) -> impl IntoView {
             FluidStyle::new()
                 .opacity(1.0)
                 .scale(1.02)
-                .with("border-color", "rgba(116, 241, 255, 0.8)")
+                .with_prop("border-color", FluidValue::from("rgba(116, 241, 255, 0.8)"))
         } else {
-            FluidStyle::new()
-                .opacity(0.9)
-                .scale(1.0)
-                .with("border-color", "rgba(255, 255, 255, 0.08)")
+            FluidStyle::new().opacity(0.9).scale(1.0).with_prop(
+                "border-color",
+                FluidValue::from("rgba(255, 255, 255, 0.08)"),
+            )
         }
     };
 

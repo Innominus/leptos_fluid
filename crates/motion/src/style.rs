@@ -1,3 +1,4 @@
+use leptos_fluid_web::js_number_to_string;
 use std::borrow::Cow;
 use web_sys::CssStyleDeclaration;
 
@@ -10,10 +11,25 @@ pub enum FluidValue {
 impl FluidValue {
     fn to_string_value(&self) -> String {
         match self {
-            FluidValue::Number(value) => value.to_string(),
+            FluidValue::Number(value) => js_number_to_string(*value),
             FluidValue::Text(value) => value.to_string(),
         }
     }
+}
+
+fn push_number(out: &mut String, value: f64) {
+    out.push_str(&js_number_to_string(value));
+}
+
+fn push_px(out: &mut String, value: f64) {
+    push_number(out, value);
+    out.push_str("px");
+}
+
+fn px_string(value: f64) -> String {
+    let mut out = js_number_to_string(value);
+    out.push_str("px");
+    out
 }
 
 impl From<f64> for FluidValue {
@@ -79,20 +95,37 @@ impl Transform {
             return None;
         }
 
-        let mut parts = Vec::with_capacity(4);
+        let mut out = String::new();
+        let mut has_part = false;
         if self.translate_x.is_some() || self.translate_y.is_some() {
             let x = self.translate_x.unwrap_or(0.0);
             let y = self.translate_y.unwrap_or(0.0);
-            parts.push(format!("translate3d({}px, {}px, 0px)", x, y));
+            out.push_str("translate3d(");
+            push_px(&mut out, x);
+            out.push_str(", ");
+            push_px(&mut out, y);
+            out.push_str(", 0px)");
+            has_part = true;
         }
         if let Some(scale) = self.scale {
-            parts.push(format!("scale({})", scale));
+            if has_part {
+                out.push(' ');
+            }
+            out.push_str("scale(");
+            push_number(&mut out, scale);
+            out.push(')');
+            has_part = true;
         }
         if let Some(rotate) = self.rotate {
-            parts.push(format!("rotate({}deg)", rotate));
+            if has_part {
+                out.push(' ');
+            }
+            out.push_str("rotate(");
+            push_number(&mut out, rotate);
+            out.push_str("deg)");
         }
 
-        Some(parts.join(" "))
+        Some(out)
     }
 }
 
@@ -111,42 +144,58 @@ impl FluidStyle {
         self.props.is_empty() && self.transform.is_empty()
     }
 
+    fn push_prop(&mut self, key: Cow<'static, str>, value: FluidValue) {
+        self.props.push((key, value));
+    }
+
+    pub fn set_prop(&mut self, key: &'static str, value: FluidValue) -> &mut Self {
+        self.push_prop(Cow::Borrowed(key), value);
+        self
+    }
+
+    pub fn with_prop(mut self, key: &'static str, value: FluidValue) -> Self {
+        self.push_prop(Cow::Borrowed(key), value);
+        self
+    }
+
+    #[inline(never)]
     pub fn set<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: Into<Cow<'static, str>>,
         V: Into<FluidValue>,
     {
-        self.props.push((key.into(), value.into()));
+        self.push_prop(key.into(), value.into());
         self
     }
 
+    #[inline(never)]
     pub fn with<K, V>(mut self, key: K, value: V) -> Self
     where
         K: Into<Cow<'static, str>>,
         V: Into<FluidValue>,
     {
-        self.set(key, value);
+        self.push_prop(key.into(), value.into());
         self
     }
 
     pub fn opacity(mut self, value: f64) -> Self {
-        self.set("opacity", value);
+        self.set_prop("opacity", FluidValue::Number(value));
         self
     }
 
     pub fn width(mut self, px: f64) -> Self {
-        self.set("width", format!("{}px", px));
+        self.set_prop("width", FluidValue::from(px_string(px)));
         self
     }
 
     pub fn height(mut self, px: f64) -> Self {
-        self.set("height", format!("{}px", px));
+        self.set_prop("height", FluidValue::from(px_string(px)));
         self
     }
 
     pub fn size(mut self, width: f64, height: f64) -> Self {
-        self.set("width", format!("{}px", width));
-        self.set("height", format!("{}px", height));
+        self.set_prop("width", FluidValue::from(px_string(width)));
+        self.set_prop("height", FluidValue::from(px_string(height)));
         self
     }
 
@@ -219,7 +268,7 @@ macro_rules! style {
     ($($key:literal => $value:expr),* $(,)?) => {{
         let mut style = $crate::FluidStyle::new();
         $(
-            style.set($key, $value);
+            style.set_prop($key, $crate::FluidValue::from($value));
         )*
         style
     }};

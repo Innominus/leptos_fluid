@@ -3,7 +3,7 @@ compile_error!("Enable the bench feature: cargo bench -p leptos_fluid_motion --f
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
-use leptos_fluid_motion::{FluidStyle, Spring, Transition};
+use leptos_fluid_motion::{FluidStyle, FluidValue, Spring, Transition};
 
 #[cfg(feature = "bench")]
 use leptos_fluid_motion::spring_step;
@@ -49,10 +49,16 @@ fn bench_fluid_style_to_props(c: &mut Criterion) {
             .y(-6.0)
             .scale(1.05)
             .rotate(8.0)
-            .with("filter", "blur(6px)")
-            .with("background", "linear-gradient(120deg, #0b0d18, #111827)")
-            .with("border-radius", "24px")
-            .with("box-shadow", "0 18px 50px rgba(6, 7, 18, 0.45)");
+            .with_prop("filter", FluidValue::from("blur(6px)"))
+            .with_prop(
+                "background",
+                FluidValue::from("linear-gradient(120deg, #0b0d18, #111827)"),
+            )
+            .with_prop("border-radius", FluidValue::from("24px"))
+            .with_prop(
+                "box-shadow",
+                FluidValue::from("0 18px 50px rgba(6, 7, 18, 0.45)"),
+            );
         b.iter(|| {
             let props = style.to_props();
             black_box(props);
@@ -63,7 +69,7 @@ fn bench_fluid_style_to_props(c: &mut Criterion) {
 fn bench_transition_css(c: &mut Criterion) {
     c.bench_function("transition_css", |b| {
         let transition = Transition::spring_with(620, 0.45)
-            .exclude_properties(["width", "height", "filter"])
+            .exclude_properties(&["width", "height", "filter"])
             .duration_ms(520)
             .delay_ms(30);
         b.iter(|| {

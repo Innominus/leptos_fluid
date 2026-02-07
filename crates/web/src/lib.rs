@@ -1,3 +1,5 @@
+#[cfg(target_arch = "wasm32")]
+use js_sys::Number;
 use js_sys::{Array, Function, Object, Reflect};
 use web_sys::wasm_bindgen::JsCast;
 use web_sys::wasm_bindgen::JsValue;
@@ -7,6 +9,11 @@ const ACTIVE_ANIMATION_KEY: &str = "__fluidActiveAnimation";
 
 pub fn html_style(element: &Element) -> Option<CssStyleDeclaration> {
     element.dyn_ref::<HtmlElement>().map(|el| el.style())
+}
+
+pub fn computed_style(element: &Element) -> Option<CssStyleDeclaration> {
+    let window = web_sys::window()?;
+    window.get_computed_style(element).ok()?
 }
 
 pub fn restore_inline_property(style: &CssStyleDeclaration, property: &str, value: &str) {
@@ -38,6 +45,39 @@ pub fn object_set_string(object: &Object, key: &str, value: &str) {
 
 pub fn object_set_f64(object: &Object, key: &str, value: f64) {
     let _ = Reflect::set(object, &JsValue::from_str(key), &JsValue::from_f64(value));
+}
+
+pub fn js_number_to_string(value: f64) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Number::from(value)
+            .to_string(10)
+            .ok()
+            .and_then(|value| value.as_string())
+            .unwrap_or_default();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        value.to_string()
+    }
+}
+
+pub fn parse_js_f64(value: &str) -> Option<f64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let parsed = js_sys::parse_float(value);
+        return if parsed.is_finite() {
+            Some(parsed)
+        } else {
+            None
+        };
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        value.trim().parse::<f64>().ok()
+    }
 }
 
 pub fn object_from_str_pairs(pairs: &[(&str, &str)]) -> Object {

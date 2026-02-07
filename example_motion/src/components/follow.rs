@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
+use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, FluidValue, Spring, Transition};
 
 #[component]
 pub fn SpringFollowSection() -> impl IntoView {
@@ -16,7 +16,10 @@ pub fn SpringFollowSection() -> impl IntoView {
                 .y(follow_y.get())
                 .scale(1.0)
                 .opacity(1.0)
-                .with("box-shadow", "0 20px 50px rgba(15, 23, 42, 0.35)")
+                .with_prop(
+                    "box-shadow",
+                    FluidValue::from("0 20px 50px rgba(15, 23, 42, 0.35)"),
+                )
         }
     };
 

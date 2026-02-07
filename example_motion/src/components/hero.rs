@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{Easing, FluidButton, FluidDiv, FluidStyle, Transition};
+use leptos_fluid::motion::{Easing, FluidButton, FluidDiv, FluidStyle, FluidValue, Transition};
 
 #[component]
 pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl IntoView {
@@ -13,7 +13,10 @@ pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl In
                 .y(0.0)
                 .scale(1.0)
                 .rotate(-1.0)
-                .with("box-shadow", "0 30px 80px rgba(6, 7, 18, 0.6)")
+                .with_prop(
+                    "box-shadow",
+                    FluidValue::from("0 30px 80px rgba(6, 7, 18, 0.6)"),
+                )
         } else {
             FluidStyle::new()
                 .opacity(0.7)
@@ -21,7 +24,10 @@ pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl In
                 .y(12.0)
                 .scale(0.96)
                 .rotate(1.5)
-                .with("box-shadow", "0 18px 50px rgba(6, 7, 18, 0.4)")
+                .with_prop(
+                    "box-shadow",
+                    FluidValue::from("0 18px 50px rgba(6, 7, 18, 0.4)"),
+                )
         }
     };
 

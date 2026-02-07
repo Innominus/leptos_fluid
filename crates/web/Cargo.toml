@@ -8,6 +8,7 @@ js-sys = "0.3.69"
 web-sys = { version = "0.3.69", features = [
     "Element",
     "Animation",
+    "Window",
     "HtmlElement",
     "CssStyleDeclaration",
     "NodeList",

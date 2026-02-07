@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{FluidDiv, FluidSpan, FluidStyle, Transition};
+use leptos_fluid::motion::{FluidDiv, FluidSpan, FluidStyle, FluidValue, Transition};
 
 fn chip_delay(index: usize) -> Transition {
     Transition::new()
@@ -70,9 +70,11 @@ pub fn StaggeredChipsSection(pulse: RwSignal<bool>) -> impl IntoView {
                         .opacity(1.0)
                         .y(0.0)
                         .scale(1.0)
-                        .with(
+                        .with_prop(
                             "background",
-                            "linear-gradient(130deg, rgba(20,24,44,0.9), rgba(255,255,255,0.04))",
+                            FluidValue::from(
+                                "linear-gradient(130deg, rgba(20,24,44,0.9), rgba(255,255,255,0.04))",
+                            ),
                         )
                 }
                 transition=Transition::spring_with(560, 0.35)
