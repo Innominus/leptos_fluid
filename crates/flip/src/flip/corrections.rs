@@ -136,6 +136,8 @@ fn apply_inline_scale_correction(
 #[inline(never)]
 pub(super) fn run_border_radius_correction(
     element: &Element,
+    from_target: Option<BorderRadiusTarget>,
+    to_target: Option<BorderRadiusTarget>,
     initial_scale_x: f64,
     initial_scale_y: f64,
 ) -> Option<BorderRadiusCorrectionAnimation> {
@@ -145,16 +147,18 @@ pub(super) fn run_border_radius_correction(
         return None;
     }
 
-    let target = read_border_radius_target(element)?;
+    let target = to_target.or_else(|| read_border_radius_target(element))?;
+    let source = from_target.unwrap_or(target);
     let inline_styles = Rc::new(capture_border_radius_inline_styles(element));
     let stop_signal = Rc::new(Cell::new(false));
     let fallback_inv_scale_x = safe_f64_ratio(1.0, initial_scale_x);
     let fallback_inv_scale_y = safe_f64_ratio(1.0, initial_scale_y);
 
-    apply_border_radius_correction(element, target, fallback_inv_scale_x, fallback_inv_scale_y);
+    apply_border_radius_correction(element, source, fallback_inv_scale_x, fallback_inv_scale_y);
     // Border radius must be corrected continuously while scale is interpolating.
     schedule_border_radius_correction_frame(
         element.clone(),
+        source,
         target,
         stop_signal.clone(),
         fallback_inv_scale_x,
@@ -170,6 +174,7 @@ pub(super) fn run_border_radius_correction(
 #[inline(never)]
 fn schedule_border_radius_correction_frame(
     element: Element,
+    source_target: BorderRadiusTarget,
     target: BorderRadiusTarget,
     stop_signal: Rc<Cell<bool>>,
     fallback_inv_scale_x: f64,
@@ -184,10 +189,16 @@ fn schedule_border_radius_correction_frame(
             .map(|(scale_x, scale_y)| (safe_f64_ratio(1.0, scale_x), safe_f64_ratio(1.0, scale_y)))
             .unwrap_or((fallback_inv_scale_x, fallback_inv_scale_y));
 
-        apply_border_radius_correction(&element, target, inv_scale_x, inv_scale_y);
+        let progress_x = progress_from_inverse_scale(inv_scale_x, fallback_inv_scale_x);
+        let progress_y = progress_from_inverse_scale(inv_scale_y, fallback_inv_scale_y);
+        let current_target =
+            interpolate_border_radius_target(source_target, target, progress_x, progress_y);
+
+        apply_border_radius_correction(&element, current_target, inv_scale_x, inv_scale_y);
 
         schedule_border_radius_correction_frame(
             element,
+            source_target,
             target,
             stop_signal,
             fallback_inv_scale_x,
@@ -263,7 +274,7 @@ fn set_corner_radius(
 }
 
 #[inline(never)]
-fn read_border_radius_target(element: &Element) -> Option<BorderRadiusTarget> {
+pub(super) fn read_border_radius_target(element: &Element) -> Option<BorderRadiusTarget> {
     let computed = computed_style(element)?;
 
     Some(BorderRadiusTarget {
@@ -284,6 +295,64 @@ fn read_border_radius_target(element: &Element) -> Option<BorderRadiusTarget> {
                 .ok()?,
         )?,
     })
+}
+
+#[inline(never)]
+fn progress_from_inverse_scale(current_inv_scale: f64, initial_inv_scale: f64) -> f64 {
+    let denominator = 1.0 - initial_inv_scale;
+    if denominator.abs() <= f64::EPSILON {
+        return 1.0;
+    }
+
+    let progress = (current_inv_scale - initial_inv_scale) / denominator;
+    if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        1.0
+    }
+}
+
+#[inline(never)]
+fn interpolate_border_radius_target(
+    from: BorderRadiusTarget,
+    to: BorderRadiusTarget,
+    progress_x: f64,
+    progress_y: f64,
+) -> BorderRadiusTarget {
+    BorderRadiusTarget {
+        top_left: interpolate_radius_pair(from.top_left, to.top_left, progress_x, progress_y),
+        top_right: interpolate_radius_pair(from.top_right, to.top_right, progress_x, progress_y),
+        bottom_right: interpolate_radius_pair(
+            from.bottom_right,
+            to.bottom_right,
+            progress_x,
+            progress_y,
+        ),
+        bottom_left: interpolate_radius_pair(
+            from.bottom_left,
+            to.bottom_left,
+            progress_x,
+            progress_y,
+        ),
+    }
+}
+
+#[inline(never)]
+fn interpolate_radius_pair(
+    from: RadiusPair,
+    to: RadiusPair,
+    progress_x: f64,
+    progress_y: f64,
+) -> RadiusPair {
+    RadiusPair {
+        x: lerp(from.x, to.x, progress_x),
+        y: lerp(from.y, to.y, progress_y),
+    }
+}
+
+#[inline(never)]
+fn lerp(from: f64, to: f64, progress: f64) -> f64 {
+    from + (to - from) * progress
 }
 
 #[inline(never)]

@@ -1,4 +1,6 @@
-use self::corrections::{run_border_radius_correction, run_scale_correction_animations};
+use self::corrections::{
+    read_border_radius_target, run_border_radius_correction, run_scale_correction_animations,
+};
 use leptos::prelude::*;
 use leptos_fluid_web::{
     animate_with_waapi, animation_cancel, animation_set_onfinish, computed_style, css_push_number,
@@ -140,6 +142,7 @@ impl Flip {
 
     pub fn rect(element: Element) -> (Element, FlipValues) {
         let rect = element.get_bounding_client_rect();
+        let border_radius = read_border_radius_target(&element);
 
         (
             element,
@@ -148,6 +151,7 @@ impl Flip {
                 top: rect.top(),
                 width: rect.width(),
                 height: rect.height(),
+                border_radius,
             },
         )
     }
@@ -160,6 +164,7 @@ pub struct FlipValues {
     top: f64,
     width: f64,
     height: f64,
+    border_radius: Option<BorderRadiusTarget>,
 }
 
 #[derive(Clone)]
@@ -207,7 +212,7 @@ struct BorderRadiusCorrectionAnimation {
     inline_styles: Rc<BorderRadiusInlineStyles>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct BorderRadiusTarget {
     top_left: RadiusPair,
     top_right: RadiusPair,
@@ -215,7 +220,7 @@ struct BorderRadiusTarget {
     bottom_left: RadiusPair,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct RadiusPair {
     x: f64,
     y: f64,
@@ -690,7 +695,13 @@ fn run_flip_animation(
     let animation = animate_with_waapi(&element, &keyframes, &animation_options);
 
     let border_radius_correction = if use_scale {
-        run_border_radius_correction(&element, scale_x, scale_y)
+        run_border_radius_correction(
+            &element,
+            from.border_radius,
+            to.border_radius,
+            scale_x,
+            scale_y,
+        )
     } else {
         None
     };

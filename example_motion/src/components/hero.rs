@@ -32,7 +32,7 @@ pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl In
     };
 
     view! {
-        <section class="hero">
+        <section class="hero" data-testid="hero-section">
             <div class="panel">
                 <span class="tag">"Leptos Fluid"</span>
                 <h1>"Fluid motion playground that actually moves."</h1>
@@ -41,9 +41,10 @@ pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl In
                     "Toggle the controls to see everything react in real time."
                 </p>
                 <div class="button-row">
-                    <button on:click=move |_| {
-                        hero_toggle.update(|val| *val = !*val)
-                    }>
+                    <button
+                        on:click=move |_| { hero_toggle.update(|val| *val = !*val) }
+                        data-testid="hero-toggle"
+                    >
                         {move || if hero_toggle.get() { "Reset hero" } else { "Throw it off" }}
                     </button>
                     <button class="alt" on:click=move |_| pulse.update(|val| *val = !*val)>

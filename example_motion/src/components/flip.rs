@@ -10,7 +10,7 @@ pub fn FlipSection() -> impl IntoView {
     let flip = Flip::new_with_options(
         "flip-pill".to_string(),
         FlipOptions {
-            duration: 5000,
+            duration: 1000,
             easing: FlipEasing::EaseInOut,
             scale_mode: FlipScaleMode::PositionAndScale,
             scale_correction_selector: Some(".flip-pill-content"),
@@ -67,10 +67,12 @@ pub fn FlipSection() -> impl IntoView {
                     "Now with resizing. Position and size changes are captured and animated via translate + scale."
                 </p>
                 <div class="button-row">
-                    <button class="alt" on:click=move_to(false)>
+                    <button class="alt" on:click=move_to(false) data-testid="flip-move-left">
                         "Left"
                     </button>
-                    <button on:click=move_to(true)>"Right"</button>
+                    <button on:click=move_to(true) data-testid="flip-move-right">
+                        "Right"
+                    </button>
                 </div>
                 <div class="button-row">
                     <button class="alt" on:click=resize_to(0)>
@@ -98,6 +100,7 @@ pub fn FlipSection() -> impl IntoView {
                 <div
                     id="flip-pill"
                     class="flip-pill"
+                    data-testid="flip-pill"
                     class:flip-size-sm=move || size.get() == 0
                     class:flip-size-md=move || size.get() == 1
                     class:flip-size-lg=move || size.get() == 2
@@ -358,7 +361,7 @@ pub fn FlipGroupSection() -> impl IntoView {
                     <code>".flip-tile-content"</code> " to keep text crisp while outer tiles scale."
                 </p>
                 <div class="button-row">
-                    <button class="alt" on:click=rotate>
+                    <button class="alt" on:click=rotate data-testid="flip-group-rotate">
                         "Rotate"
                     </button>
                     <button class="alt" on:click=reverse>
@@ -371,7 +374,7 @@ pub fn FlipGroupSection() -> impl IntoView {
                         {move || if dense.get() { "Relax spacing" } else { "Dense spacing" }}
                     </button>
                 </div>
-                <p class="flip-status">
+                <p class="flip-status" data-testid="flip-group-status">
                     {move || {
                         if is_animating.get() {
                             "Animating group (FLIP in progress)"

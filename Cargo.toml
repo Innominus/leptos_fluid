@@ -8,6 +8,7 @@ members = [
     "crates/web",
     "example",
     "example_motion",
+    "tools/playwright_regression",
 ]
 resolver = "2"
 
