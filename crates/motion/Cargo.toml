@@ -1,16 +1,25 @@
 [package]
 name = "leptos_fluid_motion"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Reactive motion primitives for Leptos components with spring and timeline support."
+readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/leptos_fluid_motion"
+keywords = ["leptos", "animation", "motion", "ui", "wasm"]
+categories = ["wasm", "web-programming", "gui"]
 
 [features]
 bench = []
 
 [dependencies]
-leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
-js-sys = "0.3.69"
-leptos_fluid_web = { path = "../web" }
-web-sys = { version = "0.3.69", features = [
+leptos = { workspace = true }
+js-sys = { workspace = true }
+leptos_fluid_web = { workspace = true }
+web-sys = { workspace = true, features = [
     "Element",
     "Animation",
     "CssStyleDeclaration",
@@ -18,8 +27,11 @@ web-sys = { version = "0.3.69", features = [
 ] }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = { workspace = true }
 
 [[bench]]
 name = "animation"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true

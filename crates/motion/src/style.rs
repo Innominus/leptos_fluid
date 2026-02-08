@@ -2,9 +2,12 @@ use leptos_fluid_web::{css_push_number, css_push_px, css_px_string, js_number_to
 use std::borrow::Cow;
 use web_sys::CssStyleDeclaration;
 
+/// A CSS property value used by `FluidStyle`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FluidValue {
+    /// Numeric value serialized via JS number formatting.
     Number(f64),
+    /// Raw text value (for example `"blur(4px)"`).
     Text(Cow<'static, str>),
 }
 
@@ -59,6 +62,7 @@ impl From<Cow<'static, str>> for FluidValue {
     }
 }
 
+/// Transform fragment composed by `FluidStyle`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Transform {
     translate_x: Option<f64>,
@@ -114,6 +118,7 @@ impl Transform {
     }
 }
 
+/// Builder-style representation of animated CSS properties.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FluidStyle {
     props: Vec<(Cow<'static, str>, FluidValue)>,

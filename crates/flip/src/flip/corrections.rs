@@ -56,6 +56,7 @@ pub(super) fn run_scale_correction_animations(
     }
 
     if !correction_targets.is_empty() {
+        // Keep correction transforms synced to root scale every frame until stop.
         schedule_scale_correction_frame(
             root.clone(),
             Rc::new(correction_targets),
@@ -78,6 +79,7 @@ fn schedule_scale_correction_frame(
 ) {
     request_animation_frame(move || {
         if stop_signal.get() {
+            // Stopped by the parent FLIP cleanup path.
             return;
         }
 
@@ -150,6 +152,7 @@ pub(super) fn run_border_radius_correction(
     let fallback_inv_scale_y = safe_f64_ratio(1.0, initial_scale_y);
 
     apply_border_radius_correction(element, target, fallback_inv_scale_x, fallback_inv_scale_y);
+    // Border radius must be corrected continuously while scale is interpolating.
     schedule_border_radius_correction_frame(
         element.clone(),
         target,
@@ -322,6 +325,7 @@ fn parse_transform_scale(transform: &str) -> Option<(f64, f64)> {
         .strip_prefix("matrix(")
         .and_then(|value| value.strip_suffix(')'))
     {
+        // matrix(a, b, c, d, tx, ty) => scaleX = a, scaleY = d
         let mut matrix = [0.0; 6];
         let mut count = 0usize;
         for value in values.split(',') {
@@ -340,6 +344,7 @@ fn parse_transform_scale(transform: &str) -> Option<(f64, f64)> {
         .strip_prefix("matrix3d(")
         .and_then(|value| value.strip_suffix(')'))
     {
+        // matrix3d uses m11 and m22 for scaleX/scaleY respectively.
         let mut matrix = [0.0; 16];
         let mut count = 0usize;
         for value in values.split(',') {

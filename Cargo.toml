@@ -2,27 +2,66 @@ cargo-features = ["panic-immediate-abort"]
 
 [workspace]
 members = [
-    "example",
-    "example_motion",
     "crates/flip",
     "crates/view_transitions",
     "crates/motion",
     "crates/web",
+    "example",
+    "example_motion",
 ]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/Innominus/leptos_fluid"
+homepage = "https://github.com/Innominus/leptos_fluid"
+
+[workspace.dependencies]
+console_error_panic_hook = "0.1"
+criterion = "0.5"
+js-sys = "0.3.69"
+leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
+leptos_meta = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8.11", default-features = false }
+web-sys = "0.3.69"
+leptos_fluid_flip = { version = "0.1.1", path = "crates/flip" }
+leptos_fluid_motion = { version = "0.1.1", path = "crates/motion" }
+leptos_fluid_view_transitions = { version = "0.1.1", path = "crates/view_transitions" }
+leptos_fluid_web = { version = "0.1.1", path = "crates/web" }
 
 [package]
 name = "leptos_fluid"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Feature-gated animation toolkit for Leptos: motion, FLIP, and nested route transitions."
+readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/leptos_fluid"
+keywords = ["leptos", "animation", "motion", "flip", "wasm"]
+categories = ["wasm", "web-programming", "gui"]
+exclude = [
+    ".DS_Store",
+    "example/**",
+    "example_motion/**",
+    "tools/**",
+    "target/**",
+    "closure_test",
+    "skills/**",
+]
 
 [dependencies]
-leptos_fluid_flip = { path = "crates/flip", optional = true, package = "leptos_fluid_flip" }
+leptos_fluid_flip = { workspace = true, optional = true }
 leptos_fluid_view_transitions = {
-    path = "crates/view_transitions",
+    workspace = true,
     optional = true,
-    package = "leptos_fluid_view_transitions",
 }
-leptos_fluid_motion = { path = "crates/motion", optional = true, package = "leptos_fluid_motion" }
+leptos_fluid_motion = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -30,3 +69,6 @@ flip = ["dep:leptos_fluid_flip"]
 view-transitions = ["dep:leptos_fluid_view_transitions"]
 motion = ["dep:leptos_fluid_motion"]
 full = ["flip", "view-transitions", "motion"]
+
+[package.metadata.docs.rs]
+all-features = true

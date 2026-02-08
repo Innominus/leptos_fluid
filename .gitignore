@@ -1,3 +1,4 @@
 **/target/
 **/dist/
 skills/
+.DS_Store

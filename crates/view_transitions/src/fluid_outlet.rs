@@ -7,6 +7,8 @@ use web_sys::{AnimationEvent, Node, wasm_bindgen::JsCast};
 
 use crate::fluid_manager::FluidManager;
 
+// Child animations are disabled on the cloned outro layer so only the route-level
+// intro/outro animations drive transition timing.
 const NO_ANIMATION_CSS: &str = r#"
     .no-animations * {
       animation-duration: 0s !important;
@@ -18,10 +20,15 @@ const NO_ANIMATION_CSS: &str = r#"
     }
 "#;
 
+/// Outlet replacement that renders incoming and outgoing route layers.
 #[component]
 pub fn FluidOutlet(
-    #[prop(into)] intro_class: Signal<&'static str>,
-    #[prop(into)] outro_class: Signal<&'static str>,
+    /// CSS animation class used for the incoming layer.
+    #[prop(into)]
+    intro_class: Signal<&'static str>,
+    /// CSS animation class used for the outgoing layer.
+    #[prop(into)]
+    outro_class: Signal<&'static str>,
 ) -> impl IntoView {
     let mut manager = FluidManager::get_manager();
 
@@ -78,6 +85,7 @@ pub fn FluidOutlet(
     let animation_classes = move || {
         if is_transitioning.get() {
             if navigate_backwards.get_untracked() {
+                // Reverse intro/outro class assignment for backward navigation.
                 (intro_class.get_untracked(), outro_class.get_untracked())
             } else {
                 (outro_class.get_untracked(), intro_class.get_untracked())
@@ -135,8 +143,7 @@ pub fn FluidOutlet(
                 class=move || animation_classes().0.to_string() + " no-animations"
                 style=move || {
                     "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
-                        .to_string()
-                        + z_index()
+                        .to_string() + z_index()
                 }
             ></div>
             <div
@@ -163,6 +170,7 @@ fn setup_animation_handlers(
 
     let cleanup_fn = move || {
         if intro_has_ended.get() && outro_has_ended.get() {
+            // Wait for both layers to finish before clearing the cloned outro DOM.
             outro_node_ref
                 .get_untracked()
                 .expect("Node ref should be mounted in outro end")
@@ -186,6 +194,7 @@ fn create_animation_handler(
     cleanup_fn: impl Fn(),
 ) -> impl Fn(AnimationEvent) {
     move |e: AnimationEvent| {
+        // Ignore bubbled child animation events; only react to the wrapper node.
         if e.target().unwrap().unchecked_ref::<Node>()
             == node.get_untracked().unwrap().unchecked_ref::<Node>()
         {

@@ -1,12 +1,21 @@
 [package]
 name = "leptos_fluid_flip"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "FLIP animations for Leptos layout transitions, movement, and reordering."
+readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/leptos_fluid_flip"
+keywords = ["leptos", "animation", "flip", "ui", "wasm"]
+categories = ["wasm", "web-programming", "gui"]
 
 [dependencies]
-leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
-leptos_fluid_web = { path = "../web" }
-web-sys = { version = "0.3.69", features = [
+leptos = { workspace = true }
+leptos_fluid_web = { workspace = true }
+web-sys = { workspace = true, features = [
     "DomRect",
     "Element",
     "Animation",

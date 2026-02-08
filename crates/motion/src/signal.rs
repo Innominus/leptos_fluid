@@ -1,5 +1,9 @@
 use leptos::prelude::{Get, Memo, RwSignal, Signal};
 
+/// A flexible signal wrapper accepted by motion component props.
+///
+/// `FluidSignal` can be created from static values, Leptos signals/memos, or
+/// closure-based derived values.
 #[derive(Clone, Copy)]
 pub struct FluidSignal<T: Clone + Send + Sync + 'static>(Signal<T>);
 

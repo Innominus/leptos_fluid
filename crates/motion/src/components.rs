@@ -10,10 +10,11 @@ use leptos_fluid_web::{
 
 use crate::{FluidSignal, FluidStyle, Transition};
 
-use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::wasm_bindgen::JsCast;
+use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::{Animation, CssStyleDeclaration, Element};
 
+/// Node reference type used by motion elements.
 pub type FluidNodeRef = NodeRef<leptos::html::Custom<&'static str>>;
 
 type StyleProps = Vec<(Cow<'static, str>, String)>;
@@ -74,6 +75,7 @@ fn keyframe_property_name(css_key: &str) -> String {
         return css_key.to_string();
     }
 
+    // WAAPI keyframe objects expect camelCase for hyphenated CSS property names.
     let mut out = String::with_capacity(css_key.len());
     let mut uppercase_next = false;
     for ch in css_key.chars() {
@@ -93,6 +95,8 @@ fn keyframe_property_name(css_key: &str) -> String {
 
 fn normalize_transform_value(value: String) -> String {
     if value.trim().is_empty() || value.trim() == "none" {
+        // Using an explicit identity matrix avoids browser-dependent interpolation
+        // quirks when animating between "none" and transform functions.
         return "matrix(1, 0, 0, 1, 0, 0)".to_string();
     }
     value
@@ -115,6 +119,7 @@ fn read_style_or_computed_value(
     computed: &CssStyleDeclaration,
     key: &str,
 ) -> String {
+    // Prefer inline styles first to preserve author intent when present.
     let inline_value = style
         .get_property_value(key)
         .ok()
@@ -142,6 +147,8 @@ fn split_animation_props(
 
     for (key, value) in style.to_props() {
         if key.as_ref() == "transition" {
+            // Allow per-style runtime overrides (for example timeline-driven styles
+            // that want one-off timing different from the component default).
             if let Some(parsed) = parse_transition_override(&value) {
                 runtime = parsed;
             }
@@ -168,6 +175,7 @@ fn parse_transition_override(value: &str) -> Option<TransitionRuntime> {
         return None;
     }
     if value == "none" {
+        // Explicitly short-circuit to "no animation" semantics.
         return Some(TransitionRuntime {
             duration_ms: 0,
             delay_ms: 0,
@@ -229,6 +237,8 @@ fn freeze_computed_values(
 
     let mut frozen = Vec::with_capacity(keys.len());
     for key in keys {
+        // On interruption we need a stable "from" frame. Reading computed values and
+        // writing them inline prevents a snap when the previous WAAPI animation is canceled.
         let mut value = if prefer_inline {
             read_style_or_computed_value(&style_decl, &computed, key)
         } else {
@@ -260,8 +270,8 @@ fn cancel_active_animation(
     let Some(active) = active_animation.get_value() else {
         return Vec::new();
     };
-    // commitStyles keeps WAAPI progress inline when available; computed fallback
-    // ensures interruption still works on engines without commitStyles support.
+    // `commitStyles()` preserves in-flight interpolated values where supported.
+    // Engines without it still work via computed-style freezing below.
     let committed = animation_commit_styles(&active.animation);
     let frozen = freeze_computed_values(element, active.keys.as_ref(), committed);
     animation_set_onfinish(&active.animation, None);
@@ -291,11 +301,13 @@ fn animate_to(
     apply_props(element, &immediate_props);
 
     if animated_props.is_empty() {
+        // Nothing to animate; immediate props are already applied above.
         active_animation.set_value(None);
         return;
     }
 
     if runtime.duration_ms == 0 && runtime.delay_ms == 0 {
+        // Fast path for "no transition" updates.
         apply_props(element, &animated_props);
         active_animation.set_value(None);
         return;
@@ -303,6 +315,8 @@ fn animate_to(
 
     let computed = computed_style(element);
     if computed.is_none() && snapshot.is_empty() {
+        // Without either a computed baseline or an interruption snapshot, we cannot
+        // construct meaningful keyframes, so apply final values directly.
         apply_props(element, &animated_props);
         active_animation.set_value(None);
         return;
@@ -321,6 +335,7 @@ fn animate_to(
         });
         let mut to_value = to_value.clone();
         if css_key == "transform" {
+            // WAAPI keyframes behave better with explicit matrix values than "none".
             from_value = normalize_transform_value(from_value);
             to_value = normalize_transform_value(to_value);
         }
@@ -350,6 +365,8 @@ fn animate_to(
         "both",
     );
     let Some(animation) = animate_with_waapi(element, &keyframes, &animation_options) else {
+        // Missing WAAPI support (or call failure): keep behavior functional by
+        // applying end-state styles immediately.
         apply_props(element, &animated_props);
         active_animation.set_value(None);
         return;
@@ -359,6 +376,7 @@ fn animate_to(
     let inner_final_props = Rc::new(final_props);
     let on_finish = Rc::new(Closure::wrap(Box::new(move || {
         if animation_generation.get_value() != generation {
+            // Ignore stale finish callbacks from superseded animations.
             return;
         }
         apply_owned_props(&inner_element, inner_final_props.as_ref());
@@ -440,6 +458,8 @@ pub(crate) fn fluid_element_view(
             };
             base_style.set_value(next_base);
             if !target.is_empty() {
+                // Defer initial animation by one frame so the browser commits initial
+                // inline styles first; this prevents mount-time jumps.
                 let transition = transition_store.get_value();
                 request_animation_frame(move || {
                     animate_to(
@@ -596,6 +616,7 @@ pub(crate) fn fluid_element_view(
         .into_any()
 }
 
+/// Motion-enabled element component for arbitrary HTML tags.
 #[component]
 pub fn FluidElement(
     /// HTML tag name for the underlying element (e.g. "div", "span").

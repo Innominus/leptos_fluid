@@ -4,6 +4,7 @@ use crate::Spring;
 use crate::spring_math::{clamp_bounce, duration_seconds};
 use crate::timing::now_ms;
 
+/// Spring-smoothed scalar value for continuously retargeted interactions.
 #[derive(Clone)]
 pub struct SpringValue {
     value: RwSignal<f64>,
@@ -81,9 +82,11 @@ fn schedule_step(
         let last = last_time.get_value().unwrap_or(now);
         let mut dt = (now - last) / 1000.0;
         if dt <= 0.0 {
+            // Guard against non-monotonic clocks or same-frame callbacks.
             dt = 0.016;
         }
         if dt > 0.05 {
+            // Clamp large frame gaps to keep the solver stable after tab throttling.
             dt = 0.05;
         }
         last_time.set_value(Some(now));
@@ -101,6 +104,7 @@ fn schedule_step(
         if (current_value - target_value).abs() < spring_cfg.rest_delta
             && current_velocity.abs() < spring_cfg.rest_delta
         {
+            // Snap to target at rest to avoid tiny perpetual oscillations.
             value.set(target_value);
             velocity.set(0.0);
             running.set(false);

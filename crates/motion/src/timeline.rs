@@ -11,6 +11,7 @@ use crate::timing::{now_ms, schedule_after};
 use crate::{FluidSignal, FluidStyle, Transition};
 use web_sys::wasm_bindgen::JsCast;
 
+/// One timeline step containing a target style, wait duration, and callback.
 #[derive(Clone, Debug)]
 pub struct FluidStep {
     style: FluidStyle,
@@ -58,6 +59,7 @@ struct FluidTimelineInner {
     node_ref: StoredValue<Option<FluidNodeRef>>,
 }
 
+/// Sequencer that drives a `FluidStyle` signal through ordered `FluidStep`s.
 #[derive(Clone, Copy, Debug)]
 pub struct FluidTimeline {
     inner: StoredValue<FluidTimelineInner>,
@@ -238,6 +240,7 @@ fn start_sequence(inner_store: StoredValue<FluidTimelineInner>, start_at: usize)
     }
 
     let generation = inner.generation.get_value().wrapping_add(1);
+    // Bumping generation invalidates previously scheduled callbacks.
     inner.generation.set_value(generation);
     inner.running.set(true);
     inner.paused.set(false);
@@ -257,6 +260,7 @@ fn make_on_done(inner_store: StoredValue<FluidTimelineInner>) -> Callback<()> {
     Callback::new(move |_| {
         let inner = inner_store.get_value();
         if inner.auto_loop.get_untracked() {
+            // Re-enter from step zero to keep loop timing deterministic.
             start_sequence(inner_store, 0);
         }
     })
@@ -292,6 +296,7 @@ fn run_steps(
 ) {
     let inner = inner_store.read_value();
     if inner.generation.get_value() != generation {
+        // A newer run replaced this one; stop quietly.
         return;
     }
 
@@ -312,6 +317,7 @@ fn run_steps(
 
     let wait_ms = step.wait_ms;
     if wait_ms == 0 {
+        // Zero-wait steps chain synchronously to support instant style stages.
         if let Some(callback) = step.on_complete {
             callback.run(());
         }

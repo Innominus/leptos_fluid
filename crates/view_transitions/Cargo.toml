@@ -1,12 +1,21 @@
 [package]
 name = "leptos_fluid_view_transitions"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Nested outlet route transition primitives for leptos_router."
+readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/leptos_fluid_view_transitions"
+keywords = ["leptos", "router", "animation", "transitions", "wasm"]
+categories = ["wasm", "web-programming", "gui"]
 
 [dependencies]
-leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
-leptos_router = { version = "0.8.11", default-features = false }
-web-sys = { version = "0.3.69", features = [
+leptos = { workspace = true }
+leptos_router = { workspace = true }
+web-sys = { workspace = true, features = [
     "AnimationEvent",
     "Element",
     "Navigator",

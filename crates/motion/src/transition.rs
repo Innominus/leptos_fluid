@@ -9,13 +9,20 @@ const SNAPPY_DURATION_MS: u32 = 150;
 const SPRING_DURATION_MS: u32 = 500;
 const SPRING_BOUNCE: f64 = 0.2;
 
+/// Easing presets used by `Transition`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Easing {
+    /// Linear easing.
     Linear,
+    /// CSS `ease-in`.
     EaseIn,
+    /// Cubic-bezier ease-out tuned for UI movement.
     EaseOut,
+    /// Cubic-bezier ease-in-out.
     EaseInOut,
+    /// Marker for spring-derived easing output.
     Spring,
+    /// Caller-provided CSS easing string.
     Custom(Cow<'static, str>),
 }
 
@@ -36,10 +43,14 @@ impl Easing {
     }
 }
 
+/// Spring configuration shared by transitions and spring values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spring {
+    /// Intended settling duration in milliseconds.
     pub duration_ms: u32,
+    /// Bounce amount in the inclusive range `[0.0, 1.0]`.
     pub bounce: f64,
+    /// Solver threshold for ending motion.
     pub rest_delta: f64,
 }
 
@@ -68,12 +79,18 @@ impl Spring {
     }
 }
 
+/// Transition configuration for motion updates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transition {
+    /// Animation duration in milliseconds.
     pub duration_ms: u32,
+    /// Animation delay in milliseconds.
     pub delay_ms: u32,
+    /// Active easing preset.
     pub easing: Easing,
+    /// Optional spring metadata used for spring easing derivation.
     pub spring: Option<Spring>,
+    /// Properties that should not animate (applied immediately).
     pub excluded_properties: Vec<Cow<'static, str>>,
 }
 

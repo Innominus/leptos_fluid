@@ -1,3 +1,5 @@
+//! Reactive motion primitives for Leptos components.
+
 mod spring_math;
 mod spring_value;
 mod style;

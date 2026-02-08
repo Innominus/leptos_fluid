@@ -1,11 +1,20 @@
 [package]
 name = "leptos_fluid_web"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Shared web and WAAPI utility functions for leptos_fluid crates."
+readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/leptos_fluid_web"
+keywords = ["leptos", "wasm", "web", "animation", "waapi"]
+categories = ["wasm", "web-programming"]
 
 [dependencies]
-js-sys = "0.3.69"
-web-sys = { version = "0.3.69", features = [
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
     "Element",
     "Animation",
     "Window",

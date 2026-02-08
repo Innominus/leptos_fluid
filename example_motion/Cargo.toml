@@ -2,9 +2,10 @@
 name = "leptos_fluid_motion_example"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [dependencies]
 leptos_fluid = { path = "../", features = ["motion", "flip"] }
-leptos = { version = "0.8", default-features = false, features = ["csr"] }
-console_error_panic_hook = { version = "0.1" }
-js-sys = "0.3.69"
+leptos = { workspace = true }
+console_error_panic_hook = { workspace = true }
+js-sys = { workspace = true }

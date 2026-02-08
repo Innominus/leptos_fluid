@@ -32,6 +32,7 @@ pub(crate) fn set_scroll_pos_to_children_with_attr(
     let selector = get_selector(attr_name);
     if let Ok(node_list) = parent.query_selector_all(&selector) {
         request_animation_frame(move || {
+            // Apply after DOM replacement so layout/scroll containers exist.
             for i in 0..node_list.length() {
                 if let Some(node) = node_list.get(i) {
                     let (top_pos, left_pos) = top_left_scroll_pos[i as usize];

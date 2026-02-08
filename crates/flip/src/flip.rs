@@ -15,6 +15,7 @@ const LINEAR: &str = "linear(\n    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.72
 
 const EASE_IN_OUT: &str = "cubic-bezier(0.83, 0, 0.17, 1)";
 
+/// Single-element FLIP animator identified by DOM id.
 #[derive(Clone, Copy)]
 pub struct Flip {
     id_selector: StoredValue<String>,
@@ -24,6 +25,7 @@ pub struct Flip {
 }
 
 impl Flip {
+    /// `id_selector` must be the raw id value (for example `"card-a"`), not `"#card-a"`.
     pub fn new(id_selector: String) -> Self {
         Self {
             id_selector: StoredValue::new(id_selector),
@@ -54,6 +56,9 @@ impl Flip {
         self.is_animating.into()
     }
 
+    /// Runs a FLIP capture around a state mutation closure.
+    ///
+    /// The closure should perform the layout-changing updates.
     pub fn animate<F>(&self, animator_fn: F)
     where
         F: FnMut() + 'static,
@@ -66,6 +71,7 @@ impl Flip {
         let mut carried_inline_styles: Option<InlineStyles> = None;
 
         if let Some(animation_state) = self.animation.get_value() {
+            // Preserve current visual progress before starting a new FLIP run.
             stop_flip_animation_state(&animation_state);
             carried_inline_styles = Some(animation_state.inline_styles);
         }
@@ -81,8 +87,10 @@ impl Flip {
 
         let inner_self = *self;
         request_animation_frame(move || {
+            // Measure on next frame so layout mutations from `animator_fn` are committed.
             let (el, _) = inner_self.measure(None);
             if let Some(inline_styles) = carried_inline_styles.as_ref() {
+                // Carry inline transform state across interruptions.
                 restore_inline_styles(&el, inline_styles);
             }
             let (el, to_values) = inner_self.measure(Some(el));
@@ -145,6 +153,7 @@ impl Flip {
     }
 }
 
+/// Opaque layout snapshot used internally by the FLIP pipeline.
 #[derive(Debug, Clone, Copy)]
 pub struct FlipValues {
     left: f64,
@@ -212,6 +221,7 @@ struct RadiusPair {
     y: f64,
 }
 
+/// Multi-element FLIP animator identified by a CSS selector.
 #[derive(Clone, Copy)]
 pub struct FlipGroup {
     selector: StoredValue<String>,
@@ -271,6 +281,7 @@ impl FlipGroup {
         let animations_store = self.animations;
 
         request_animation_frame(move || {
+            // Re-query after mutation and restore interruption styles before measuring "last".
             let elements = selector.with_value(|value| query_elements(value));
             for element in &elements {
                 if let Some(key) = element_key(element)
@@ -343,6 +354,7 @@ fn stop_group_animations(
     let mut carried_inline = Vec::new();
 
     for animation in active_animations {
+        // Stop current group animations and capture inline state keyed by element identity.
         stop_flip_animation_state(&animation);
         if let Some(key) = element_key(&animation.element) {
             carried_inline.push((key, animation.inline_styles.clone()));
@@ -354,6 +366,7 @@ fn stop_group_animations(
 }
 
 fn stop_flip_animation_state(animation: &FlipAnimation) {
+    // Lock the current computed transform inline before canceling to avoid visual jumps.
     apply_computed_transform(&animation.element);
     if let Some(active) = animation.animation.as_ref() {
         animation_cancel(active);
@@ -404,13 +417,20 @@ struct FlipItem {
     values: FlipValues,
 }
 
+/// Runtime options for both `Flip` and `FlipGroup`.
 #[derive(Clone, Copy, Default)]
 pub struct FlipOptions {
+    /// Animation duration in milliseconds.
     pub duration: usize,
+    /// Initial delay in milliseconds.
     pub delay: usize,
+    /// Per-item delay increment in milliseconds (group mode).
     pub stagger: usize,
+    /// Easing curve used by WAAPI.
     pub easing: Easing,
+    /// Whether to animate only position or position+size.
     pub scale_mode: ScaleMode,
+    /// Optional descendant selector used for inverse-scale correction.
     pub scale_correction_selector: Option<&'static str>,
 }
 
@@ -431,11 +451,15 @@ impl FlipOptions {
     }
 }
 
+/// Easing presets for FLIP animations.
 #[derive(Clone, Copy, Default)]
 pub enum Easing {
+    /// Smooth custom `linear(...)` curve tuned for FLIP movement.
     #[default]
     Linear,
+    /// Cubic-bezier ease-in-out curve.
     EaseInOut,
+    /// Caller-provided CSS easing string.
     Custom(&'static str),
 }
 
@@ -449,10 +473,13 @@ impl Easing {
     }
 }
 
+/// Controls whether size deltas participate in FLIP inversion.
 #[derive(Clone, Copy, Default)]
 pub enum ScaleMode {
+    /// Animate position changes only.
     #[default]
     PositionOnly,
+    /// Animate both position and size via scale transforms.
     PositionAndScale,
 }
 
@@ -559,6 +586,7 @@ fn apply_computed_transform(element: &Element) {
     let Some(style) = html_style(element) else {
         return;
     };
+    // Persist the current transform so an interrupted run can continue from this frame.
     let transform_value = if transform.trim().is_empty() {
         "none"
     } else {
@@ -694,10 +722,12 @@ fn run_flip_animation(
         on_finish();
     });
     if let Some(animation) = animation.as_ref() {
+        // Keep callback alive for the lifetime of the active WAAPI animation.
         let on_complete = Closure::wrap(Box::new(move || on_complete()) as Box<dyn FnMut()>);
         animation_set_onfinish(animation, Some(on_complete.as_ref()));
         on_complete.forget();
     } else {
+        // Fallback behavior if WAAPI animate call failed/unavailable.
         request_animation_frame(move || on_complete());
     }
 

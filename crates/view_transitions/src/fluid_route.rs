@@ -6,6 +6,8 @@ use leptos_router::{
 
 use crate::fluid_manager::FluidManager;
 
+/// Thin wrapper over `leptos_router::Routes` that also records route patterns
+/// for transition direction detection.
 #[component(transparent)]
 pub fn FluidRoutes<Defs, FallbackFn, Fallback>(
     /// A function that returns the view that should be shown if no route is matched.
@@ -33,6 +35,8 @@ where
                     leptos_router::PathSegment::Static(_) | leptos_router::PathSegment::Unit => {
                         seg.as_raw_str().to_string()
                     }
+                    // Dynamic/optional/wildcard segments are normalized so route-order
+                    // comparison can still infer forward/backward navigation direction.
                     _ => String::from(":"),
                 })
                 .map(|seg| seg.replace("/", ""))

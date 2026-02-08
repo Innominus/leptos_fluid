@@ -21,6 +21,7 @@ pub(crate) fn schedule_after(
         on_complete: Callback<()>,
     ) {
         request_animation_frame(move || {
+            // Abort stale timers when a newer timeline generation starts.
             if generation_store.get_value() != generation {
                 return;
             }
