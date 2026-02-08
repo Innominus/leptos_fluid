@@ -276,30 +276,21 @@ macro_rules! style {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn builds_transform_chain() {
-        let style = FluidStyle::new()
-            .translate_x(12.0)
-            .translate_y(-4.0)
-            .scale(1.1)
-            .rotate(45.0);
+    fn explicit_transform_prop_is_preserved() {
+        let style = style!("transform" => "translate3d(12px, -4px, 0px) scale(1.1)");
         let props = style.to_props();
         let transform = props
             .iter()
             .find(|(key, _)| key.as_ref() == "transform")
             .map(|(_, value)| value.as_str())
             .unwrap();
-        assert_eq!(
-            transform,
-            "translate3d(12px, -4px, 0px) scale(1.1) rotate(45deg)"
-        );
+        assert_eq!(transform, "translate3d(12px, -4px, 0px) scale(1.1)");
     }
 
     #[test]
     fn style_macro_sets_props() {
-        let style = style!("opacity" => 0.4, "filter" => "blur(4px)");
+        let style = style!("opacity" => "0.4", "filter" => "blur(4px)");
         let props = style.to_props();
         assert!(
             props

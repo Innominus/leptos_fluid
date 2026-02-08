@@ -1,4 +1,3 @@
-#[cfg(target_arch = "wasm32")]
 use js_sys::Number;
 use js_sys::{Array, Function, Object, Reflect};
 use web_sys::wasm_bindgen::JsCast;
@@ -48,35 +47,19 @@ pub fn object_set_f64(object: &Object, key: &str, value: f64) {
 }
 
 pub fn js_number_to_string(value: f64) -> String {
-    #[cfg(target_arch = "wasm32")]
-    {
-        return Number::from(value)
-            .to_string(10)
-            .ok()
-            .and_then(|value| value.as_string())
-            .unwrap_or_default();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        value.to_string()
-    }
+    Number::from(value)
+        .to_string(10)
+        .ok()
+        .and_then(|value| value.as_string())
+        .unwrap_or_default()
 }
 
 pub fn parse_js_f64(value: &str) -> Option<f64> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let parsed = js_sys::parse_float(value);
-        return if parsed.is_finite() {
-            Some(parsed)
-        } else {
-            None
-        };
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        value.trim().parse::<f64>().ok()
+    let parsed = js_sys::parse_float(value);
+    if parsed.is_finite() {
+        Some(parsed)
+    } else {
+        None
     }
 }
 

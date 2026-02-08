@@ -5,14 +5,14 @@ use leptos::prelude::*;
 use leptos_fluid_web::{
     animate_with_waapi, animation_cancel, animation_commit_styles, animation_set_onfinish,
     computed_style, element_set_active_animation, html_style, keyframes_from_two,
-    object_from_str_pairs, parse_js_f64, waapi_options,
+    object_from_str_pairs, parse_js_f64, restore_inline_property, waapi_options,
 };
 
 use crate::{FluidSignal, FluidStyle, Transition};
 
 use web_sys::wasm_bindgen::JsCast;
 use web_sys::wasm_bindgen::closure::Closure;
-use web_sys::{Animation, Element};
+use web_sys::{Animation, CssStyleDeclaration, Element};
 
 pub type FluidNodeRef = NodeRef<leptos::html::Custom<&'static str>>;
 
@@ -55,6 +55,90 @@ fn apply_owned_props(element: &Element, props: &[(String, String)]) {
     for (key, value) in props {
         let _ = style_decl.set_property(key, value);
     }
+}
+
+fn push_keyframe_prop(props: &mut Vec<(String, String)>, key: &str, value: &str) {
+    if let Some((_, existing)) = props
+        .iter_mut()
+        .find(|(existing_key, _)| existing_key == key)
+    {
+        existing.clear();
+        existing.push_str(value);
+        return;
+    }
+    props.push((key.to_string(), value.to_string()));
+}
+
+fn keyframe_property_name(css_key: &str) -> String {
+    if css_key.is_empty() || css_key.starts_with("--") || !css_key.contains('-') {
+        return css_key.to_string();
+    }
+
+    let mut out = String::with_capacity(css_key.len());
+    let mut uppercase_next = false;
+    for ch in css_key.chars() {
+        if ch == '-' {
+            uppercase_next = true;
+            continue;
+        }
+        if uppercase_next {
+            out.extend(ch.to_uppercase());
+            uppercase_next = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn normalize_transform_value(value: String) -> String {
+    if value.trim().is_empty() || value.trim() == "none" {
+        return "matrix(1, 0, 0, 1, 0, 0)".to_string();
+    }
+    value
+}
+
+fn read_computed_animation_value(computed: &CssStyleDeclaration, key: &str) -> String {
+    if key == "border-color" {
+        return computed
+            .get_property_value("border-top-color")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| computed.get_property_value(key).ok())
+            .unwrap_or_default();
+    }
+    computed.get_property_value(key).unwrap_or_default()
+}
+
+fn read_style_or_computed_value(
+    style: &CssStyleDeclaration,
+    computed: &CssStyleDeclaration,
+    key: &str,
+) -> String {
+    let inline_value = style
+        .get_property_value(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default();
+    if !inline_value.is_empty() {
+        return inline_value;
+    }
+    read_computed_animation_value(computed, key)
+}
+
+fn resolve_transform_target_value(element: &Element, target_value: &str) -> String {
+    let Some(style_decl) = html_style(element) else {
+        return normalize_transform_value(target_value.to_string());
+    };
+    let original = style_decl
+        .get_property_value("transform")
+        .unwrap_or_default();
+    let _ = style_decl.set_property("transform", target_value);
+    let resolved = computed_style(element)
+        .and_then(|computed| computed.get_property_value("transform").ok())
+        .unwrap_or_else(|| target_value.to_string());
+    restore_inline_property(&style_decl, "transform", &original);
+    normalize_transform_value(resolved)
 }
 
 fn split_animation_props(
@@ -143,39 +227,63 @@ fn parse_time_token(token: &str) -> Option<u32> {
     None
 }
 
-fn freeze_computed_values(element: &Element, keys: &[String]) {
+fn freeze_computed_values(
+    element: &Element,
+    keys: &[String],
+    prefer_inline: bool,
+) -> Vec<(String, String)> {
     if keys.is_empty() {
-        return;
+        return Vec::new();
     }
     let Some(style_decl) = html_style(element) else {
-        return;
+        return Vec::new();
     };
     let Some(computed) = computed_style(element) else {
-        return;
+        return Vec::new();
     };
 
+    let mut frozen = Vec::with_capacity(keys.len());
     for key in keys {
-        let Ok(value) = computed.get_property_value(key) else {
-            continue;
+        let mut value = if prefer_inline {
+            read_style_or_computed_value(&style_decl, &computed, key)
+        } else {
+            read_computed_animation_value(&computed, key)
         };
+        if key == "transform" {
+            value = normalize_transform_value(value);
+        }
+        if value.trim().is_empty() {
+            continue;
+        }
         let _ = style_decl.set_property(key, value.trim());
+        frozen.push((key.clone(), value));
     }
+    frozen
+}
+
+fn snapshot_value(snapshot: &[(String, String)], key: &str) -> Option<String> {
+    snapshot
+        .iter()
+        .find(|(snapshot_key, _)| snapshot_key == key)
+        .map(|(_, value)| value.clone())
 }
 
 fn cancel_active_animation(
     element: &Element,
     active_animation: StoredValue<Option<ActiveAnimation>, LocalStorage>,
-) {
+) -> Vec<(String, String)> {
     let Some(active) = active_animation.get_value() else {
-        return;
+        return Vec::new();
     };
-    if !animation_commit_styles(&active.animation) {
-        freeze_computed_values(element, active.keys.as_ref());
-    }
+    // commitStyles keeps WAAPI progress inline when available; computed fallback
+    // ensures interruption still works on engines without commitStyles support.
+    let committed = animation_commit_styles(&active.animation);
+    let frozen = freeze_computed_values(element, active.keys.as_ref(), committed);
     animation_set_onfinish(&active.animation, None);
     animation_cancel(&active.animation);
     element_set_active_animation(element, None);
     active_animation.set_value(None);
+    frozen
 }
 
 fn animate_to(
@@ -194,7 +302,7 @@ fn animate_to(
         final_props.push((key.as_ref().to_string(), value.clone()));
     }
 
-    cancel_active_animation(element, active_animation);
+    let snapshot = cancel_active_animation(element, active_animation);
     apply_props(element, &immediate_props);
 
     if animated_props.is_empty() {
@@ -208,20 +316,33 @@ fn animate_to(
         return;
     }
 
-    let Some(computed) = computed_style(element) else {
+    let computed = computed_style(element);
+    if computed.is_none() && snapshot.is_empty() {
         apply_props(element, &animated_props);
         active_animation.set_value(None);
         return;
-    };
+    }
 
     let mut from_props = Vec::with_capacity(animated_props.len());
+    let mut to_props = Vec::with_capacity(animated_props.len());
     let mut animated_keys = Vec::with_capacity(animated_props.len());
-    for (key, _) in &animated_props {
-        let from_value = computed
-            .get_property_value(key.as_ref())
-            .unwrap_or_default();
-        from_props.push((key.as_ref().to_string(), from_value));
-        animated_keys.push(key.as_ref().to_string());
+    for (css_key, to_value) in &animated_props {
+        let css_key = css_key.as_ref();
+        let mut from_value = snapshot_value(&snapshot, css_key).unwrap_or_else(|| {
+            computed
+                .as_ref()
+                .map(|style| read_computed_animation_value(style, css_key))
+                .unwrap_or_default()
+        });
+        let mut to_value = to_value.clone();
+        if css_key == "transform" {
+            from_value = normalize_transform_value(from_value);
+            to_value = resolve_transform_target_value(element, &to_value);
+        }
+        let keyframe_key = keyframe_property_name(css_key);
+        push_keyframe_prop(&mut from_props, &keyframe_key, &from_value);
+        push_keyframe_prop(&mut to_props, &keyframe_key, &to_value);
+        animated_keys.push(css_key.to_string());
     }
 
     let mut frame_from_entries = Vec::with_capacity(from_props.len());
@@ -230,9 +351,9 @@ fn animate_to(
     }
     let frame_from = object_from_str_pairs(&frame_from_entries);
 
-    let mut frame_to_entries = Vec::with_capacity(animated_props.len());
-    for (key, value) in &animated_props {
-        frame_to_entries.push((key.as_ref(), value.as_str()));
+    let mut frame_to_entries = Vec::with_capacity(to_props.len());
+    for (key, value) in &to_props {
+        frame_to_entries.push((key.as_str(), value.as_str()));
     }
     let frame_to = object_from_str_pairs(&frame_to_entries);
     let keyframes = keyframes_from_two(&frame_from, &frame_to);

@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
 use js_sys::Date;
-#[cfg(target_arch = "wasm32")]
 use js_sys::Number;
 use leptos::prelude::*;
 use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
@@ -235,19 +234,10 @@ fn format_ms(value: f64) -> String {
 }
 
 fn format_fixed(value: f64, digits: u32) -> String {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let digits = digits.min(u8::MAX as u32) as u8;
-        return Number::from(value)
-            .to_fixed(digits)
-            .ok()
-            .and_then(|value| value.as_string())
-            .unwrap_or_default();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = digits;
-        value.to_string()
-    }
+    let digits = digits.min(u8::MAX as u32) as u8;
+    Number::from(value)
+        .to_fixed(digits)
+        .ok()
+        .and_then(|value| value.as_string())
+        .unwrap_or_default()
 }

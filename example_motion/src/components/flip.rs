@@ -121,6 +121,104 @@ pub fn FlipSection() -> impl IntoView {
     }
 }
 
+fn animate_hero_modal(flip: Flip, is_open: RwSignal<bool>, next_open: bool) {
+    if is_open.get_untracked() == next_open {
+        return;
+    }
+    flip.animate(move || is_open.set(next_open));
+}
+
+#[component]
+pub fn FlipHeroSection() -> impl IntoView {
+    const HERO_IMAGE: &str =
+        "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=1400&q=80";
+
+    let is_open = RwSignal::new(false);
+    let flip = Flip::new_with_options(
+        "flip-hero-image".to_string(),
+        FlipOptions {
+            duration: 720,
+            easing: FlipEasing::EaseInOut,
+            scale_mode: FlipScaleMode::PositionAndScale,
+            ..Default::default()
+        },
+    );
+    let is_animating = flip.get_is_animating_signal();
+
+    view! {
+        <section class="flip-demo flip-hero-demo">
+            <div class="panel">
+                <h2>"FLIP: image hero transition"</h2>
+                <p>
+                    "Tap the cat image and it expands into a modal. The same node is measured in its card state, moved to modal state, then FLIP-animated."
+                </p>
+                <div class="button-row">
+                    <button on:click=move |_| animate_hero_modal(
+                        flip,
+                        is_open,
+                        true,
+                    )>"Open modal"</button>
+                    <button class="alt" on:click=move |_| animate_hero_modal(flip, is_open, false)>
+                        "Close"
+                    </button>
+                </div>
+                <p class="flip-status">
+                    {move || {
+                        if is_animating.get() {
+                            "Animating hero transition"
+                        } else if is_open.get() {
+                            "Modal open"
+                        } else {
+                            "Thumbnail state"
+                        }
+                    }}
+                </p>
+            </div>
+
+            <div class="flip-hero-stage">
+                <div
+                    class="flip-hero-backdrop"
+                    class:flip-hero-backdrop-open=move || is_open.get()
+                    on:click=move |_| animate_hero_modal(flip, is_open, false)
+                ></div>
+
+                <div
+                    id="flip-hero-image"
+                    class="flip-hero-media"
+                    class:flip-hero-media-open=move || is_open.get()
+                    on:click=move |_| animate_hero_modal(flip, is_open, true)
+                    role="button"
+                    tabindex="0"
+                    on:keydown=move |ev| {
+                        let key = ev.key();
+                        if key == "Enter" || key == " " {
+                            animate_hero_modal(flip, is_open, true);
+                        }
+                    }
+                >
+                    <img src=HERO_IMAGE alt="Orange cat laying on a blanket" loading="lazy" />
+                </div>
+
+                <button
+                    class="alt flip-hero-close"
+                    class:flip-hero-close-open=move || is_open.get()
+                    on:click=move |_| animate_hero_modal(flip, is_open, false)
+                >
+                    "Close"
+                </button>
+
+                <div class="flip-hero-modal" class:flip-hero-modal-open=move || is_open.get()>
+                    <h3>"Milo, professional nap supervisor"</h3>
+                    <p>"Same image node, new layout context. No fade swap, just FLIP."</p>
+                    <button class="alt" on:click=move |_| animate_hero_modal(flip, is_open, false)>
+                        "Close hero"
+                    </button>
+                </div>
+            </div>
+        </section>
+    }
+}
+
 #[derive(Clone, Copy)]
 struct FlipTile {
     id: &'static str,

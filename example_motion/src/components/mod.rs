@@ -11,6 +11,7 @@ mod timeline;
 
 pub use cards::CardsSection;
 pub use flip::FlipGroupSection;
+pub use flip::FlipHeroSection;
 pub use flip::FlipSection;
 pub use follow::SpringFollowSection;
 pub use footer::FooterSection;
