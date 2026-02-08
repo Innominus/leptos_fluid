@@ -15,7 +15,6 @@ use web_sys::wasm_bindgen::JsCast;
 pub struct FluidStep {
     style: FluidStyle,
     wait_ms: u32,
-    easing: Option<String>,
     on_complete: Option<Callback<()>>,
 }
 
@@ -24,7 +23,6 @@ impl FluidStep {
         Self {
             style,
             wait_ms: 0,
-            easing: None,
             on_complete: None,
         }
     }
@@ -36,7 +34,6 @@ impl FluidStep {
 
     pub fn wait_for(mut self, transition: &Transition) -> Self {
         self.wait_ms = transition.duration_ms + transition.delay_ms;
-        self.easing = Some(transition.easing_string().to_string());
         self
     }
 
@@ -266,31 +263,24 @@ fn make_on_done(inner_store: StoredValue<FluidTimelineInner>) -> Callback<()> {
 }
 
 fn pause_active_animation(inner: &FluidTimelineInner) {
-    let Some(node_ref) = inner.node_ref.get_value() else {
-        return;
-    };
-    let Some(node) = node_ref.get_untracked() else {
-        return;
-    };
-    let element: web_sys::Element = node.unchecked_into();
-    let Some(animation) = element_get_active_animation(&element) else {
+    let Some(animation) = active_timeline_animation(inner) else {
         return;
     };
     let _ = animation_pause(&animation);
 }
 
 fn resume_active_animation(inner: &FluidTimelineInner) {
-    let Some(node_ref) = inner.node_ref.get_value() else {
-        return;
-    };
-    let Some(node) = node_ref.get_untracked() else {
-        return;
-    };
-    let element: web_sys::Element = node.unchecked_into();
-    let Some(animation) = element_get_active_animation(&element) else {
+    let Some(animation) = active_timeline_animation(inner) else {
         return;
     };
     let _ = animation_play(&animation);
+}
+
+fn active_timeline_animation(inner: &FluidTimelineInner) -> Option<web_sys::Animation> {
+    let node_ref = inner.node_ref.get_value()?;
+    let node = node_ref.get_untracked()?;
+    let element: web_sys::Element = node.unchecked_into();
+    element_get_active_animation(&element)
 }
 
 fn run_steps(
@@ -330,7 +320,6 @@ fn run_steps(
     }
 
     let inner_store_next = inner_store;
-    let steps_next = steps.clone();
     let on_complete = step.on_complete;
     let on_tick = Callback::new(move |_| {
         if let Some(callback) = on_complete {
@@ -339,7 +328,7 @@ fn run_steps(
         run_steps(
             inner_store_next,
             generation,
-            steps_next.clone(),
+            steps.clone(),
             index + 1,
             on_done,
         );

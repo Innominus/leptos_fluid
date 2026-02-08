@@ -1,5 +1,5 @@
 use super::*;
-use leptos_fluid_web::parse_js_f64;
+use leptos_fluid_web::{css_push_number, css_push_px, parse_js_f64, safe_f64_ratio};
 use std::cell::Cell;
 use std::rc::Rc;
 use web_sys::{CssStyleDeclaration, Element};
@@ -17,8 +17,8 @@ pub(super) fn run_scale_correction_animations(
         return Vec::new();
     }
 
-    let fallback_inv_scale_x = safe_div(1.0, initial_scale_x);
-    let fallback_inv_scale_y = safe_div(1.0, initial_scale_y);
+    let fallback_inv_scale_x = safe_f64_ratio(1.0, initial_scale_x);
+    let fallback_inv_scale_y = safe_f64_ratio(1.0, initial_scale_y);
     let stop_signal = Rc::new(Cell::new(false));
     let root_rect = root.get_bounding_client_rect();
     let mut animations = Vec::new();
@@ -82,7 +82,7 @@ fn schedule_scale_correction_frame(
         }
 
         let (inv_scale_x, inv_scale_y) = current_inverse_scale(&root)
-            .map(|(scale_x, scale_y)| (safe_div(1.0, scale_x), safe_div(1.0, scale_y)))
+            .map(|(scale_x, scale_y)| (safe_f64_ratio(1.0, scale_x), safe_f64_ratio(1.0, scale_y)))
             .unwrap_or((fallback_inv_scale_x, fallback_inv_scale_y));
 
         for target in correction_targets.iter() {
@@ -120,13 +120,13 @@ fn apply_inline_scale_correction(
     let translate_x = offset_x * (inv_scale_x - 1.0);
     let translate_y = offset_y * (inv_scale_y - 1.0);
     let mut transform = String::from("translate3d(");
-    push_px(&mut transform, translate_x);
+    css_push_px(&mut transform, translate_x);
     transform.push_str(", ");
-    push_px(&mut transform, translate_y);
+    css_push_px(&mut transform, translate_y);
     transform.push_str(", 0px) scale(");
-    push_number(&mut transform, inv_scale_x);
+    css_push_number(&mut transform, inv_scale_x);
     transform.push_str(", ");
-    push_number(&mut transform, inv_scale_y);
+    css_push_number(&mut transform, inv_scale_y);
     transform.push(')');
     let _ = style.set_property("transform", &transform);
 }
@@ -146,8 +146,8 @@ pub(super) fn run_border_radius_correction(
     let target = read_border_radius_target(element)?;
     let inline_styles = Rc::new(capture_border_radius_inline_styles(element));
     let stop_signal = Rc::new(Cell::new(false));
-    let fallback_inv_scale_x = safe_div(1.0, initial_scale_x);
-    let fallback_inv_scale_y = safe_div(1.0, initial_scale_y);
+    let fallback_inv_scale_x = safe_f64_ratio(1.0, initial_scale_x);
+    let fallback_inv_scale_y = safe_f64_ratio(1.0, initial_scale_y);
 
     apply_border_radius_correction(element, target, fallback_inv_scale_x, fallback_inv_scale_y);
     schedule_border_radius_correction_frame(
@@ -178,7 +178,7 @@ fn schedule_border_radius_correction_frame(
         }
 
         let (inv_scale_x, inv_scale_y) = current_inverse_scale(&element)
-            .map(|(scale_x, scale_y)| (safe_div(1.0, scale_x), safe_div(1.0, scale_y)))
+            .map(|(scale_x, scale_y)| (safe_f64_ratio(1.0, scale_x), safe_f64_ratio(1.0, scale_y)))
             .unwrap_or((fallback_inv_scale_x, fallback_inv_scale_y));
 
         apply_border_radius_correction(&element, target, inv_scale_x, inv_scale_y);
@@ -247,13 +247,13 @@ fn set_corner_radius(
 
     let value = if (radius_x - radius_y).abs() <= FLIP_DELTA_EPSILON {
         let mut out = String::new();
-        push_px(&mut out, radius_x);
+        css_push_px(&mut out, radius_x);
         out
     } else {
         let mut out = String::new();
-        push_px(&mut out, radius_x);
+        css_push_px(&mut out, radius_x);
         out.push(' ');
-        push_px(&mut out, radius_y);
+        css_push_px(&mut out, radius_y);
         out
     };
     let _ = style.set_property(property, &value);

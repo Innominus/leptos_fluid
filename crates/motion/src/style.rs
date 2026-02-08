@@ -1,4 +1,4 @@
-use leptos_fluid_web::js_number_to_string;
+use leptos_fluid_web::{css_push_number, css_push_px, css_px_string, js_number_to_string};
 use std::borrow::Cow;
 use web_sys::CssStyleDeclaration;
 
@@ -15,21 +15,6 @@ impl FluidValue {
             FluidValue::Text(value) => value.to_string(),
         }
     }
-}
-
-fn push_number(out: &mut String, value: f64) {
-    out.push_str(&js_number_to_string(value));
-}
-
-fn push_px(out: &mut String, value: f64) {
-    push_number(out, value);
-    out.push_str("px");
-}
-
-fn px_string(value: f64) -> String {
-    let mut out = js_number_to_string(value);
-    out.push_str("px");
-    out
 }
 
 impl From<f64> for FluidValue {
@@ -101,9 +86,9 @@ impl Transform {
             let x = self.translate_x.unwrap_or(0.0);
             let y = self.translate_y.unwrap_or(0.0);
             out.push_str("translate3d(");
-            push_px(&mut out, x);
+            css_push_px(&mut out, x);
             out.push_str(", ");
-            push_px(&mut out, y);
+            css_push_px(&mut out, y);
             out.push_str(", 0px)");
             has_part = true;
         }
@@ -112,7 +97,7 @@ impl Transform {
                 out.push(' ');
             }
             out.push_str("scale(");
-            push_number(&mut out, scale);
+            css_push_number(&mut out, scale);
             out.push(')');
             has_part = true;
         }
@@ -121,7 +106,7 @@ impl Transform {
                 out.push(' ');
             }
             out.push_str("rotate(");
-            push_number(&mut out, rotate);
+            css_push_number(&mut out, rotate);
             out.push_str("deg)");
         }
 
@@ -184,18 +169,18 @@ impl FluidStyle {
     }
 
     pub fn width(mut self, px: f64) -> Self {
-        self.set_prop("width", FluidValue::from(px_string(px)));
+        self.set_prop("width", FluidValue::from(css_px_string(px)));
         self
     }
 
     pub fn height(mut self, px: f64) -> Self {
-        self.set_prop("height", FluidValue::from(px_string(px)));
+        self.set_prop("height", FluidValue::from(css_px_string(px)));
         self
     }
 
     pub fn size(mut self, width: f64, height: f64) -> Self {
-        self.set_prop("width", FluidValue::from(px_string(width)));
-        self.set_prop("height", FluidValue::from(px_string(height)));
+        self.set_prop("width", FluidValue::from(css_px_string(width)));
+        self.set_prop("height", FluidValue::from(css_px_string(height)));
         self
     }
 

@@ -5,13 +5,13 @@ use leptos::prelude::*;
 use leptos_fluid_web::{
     animate_with_waapi, animation_cancel, animation_commit_styles, animation_set_onfinish,
     computed_style, element_set_active_animation, html_style, keyframes_from_two,
-    object_from_str_pairs, parse_js_f64, restore_inline_property, waapi_options,
+    object_from_str_pairs, parse_js_f64, waapi_options,
 };
 
 use crate::{FluidSignal, FluidStyle, Transition};
 
-use web_sys::wasm_bindgen::JsCast;
 use web_sys::wasm_bindgen::closure::Closure;
+use web_sys::wasm_bindgen::JsCast;
 use web_sys::{Animation, CssStyleDeclaration, Element};
 
 pub type FluidNodeRef = NodeRef<leptos::html::Custom<&'static str>>;
@@ -124,21 +124,6 @@ fn read_style_or_computed_value(
         return inline_value;
     }
     read_computed_animation_value(computed, key)
-}
-
-fn resolve_transform_target_value(element: &Element, target_value: &str) -> String {
-    let Some(style_decl) = html_style(element) else {
-        return normalize_transform_value(target_value.to_string());
-    };
-    let original = style_decl
-        .get_property_value("transform")
-        .unwrap_or_default();
-    let _ = style_decl.set_property("transform", target_value);
-    let resolved = computed_style(element)
-        .and_then(|computed| computed.get_property_value("transform").ok())
-        .unwrap_or_else(|| target_value.to_string());
-    restore_inline_property(&style_decl, "transform", &original);
-    normalize_transform_value(resolved)
 }
 
 fn split_animation_props(
@@ -337,7 +322,7 @@ fn animate_to(
         let mut to_value = to_value.clone();
         if css_key == "transform" {
             from_value = normalize_transform_value(from_value);
-            to_value = resolve_transform_target_value(element, &to_value);
+            to_value = normalize_transform_value(to_value);
         }
         let keyframe_key = keyframe_property_name(css_key);
         push_keyframe_prop(&mut from_props, &keyframe_key, &from_value);
@@ -417,7 +402,6 @@ pub(crate) fn fluid_element_view(
     let last_element: StoredValue<Option<Element>, LocalStorage> = StoredValue::new_local(None);
 
     Effect::new({
-        let initial = initial.clone();
         let animate = animate.clone();
         move || {
             let reset_value = reset.get();
@@ -457,11 +441,10 @@ pub(crate) fn fluid_element_view(
             base_style.set_value(next_base);
             if !target.is_empty() {
                 let transition = transition_store.get_value();
-                let target_for_anim = target.clone();
                 request_animation_frame(move || {
                     animate_to(
                         &element,
-                        &target_for_anim,
+                        &target,
                         &transition,
                         active_animation,
                         animation_generation,
@@ -473,37 +456,34 @@ pub(crate) fn fluid_element_view(
         }
     });
 
-    Effect::new({
-        let animate = animate.clone();
-        move || {
-            let target = animate.get();
+    Effect::new(move || {
+        let target = animate.get();
 
-            if !initialized.get_value() {
-                return;
-            }
-
-            if target.is_empty() {
-                return;
-            }
-            base_style.set_value(target.clone());
-
-            if is_hovered.get_untracked() || is_pressed.get_untracked() {
-                return;
-            }
-
-            let Some(element) = node_ref.get_untracked() else {
-                return;
-            };
-            let element: Element = element.unchecked_into();
-            let transition = transition_store.get_value();
-            animate_to(
-                &element,
-                &target,
-                &transition,
-                active_animation,
-                animation_generation,
-            );
+        if !initialized.get_value() {
+            return;
         }
+
+        if target.is_empty() {
+            return;
+        }
+        base_style.set_value(target.clone());
+
+        if is_hovered.get_untracked() || is_pressed.get_untracked() {
+            return;
+        }
+
+        let Some(element) = node_ref.get_untracked() else {
+            return;
+        };
+        let element: Element = element.unchecked_into();
+        let transition = transition_store.get_value();
+        animate_to(
+            &element,
+            &target,
+            &transition,
+            active_animation,
+            animation_generation,
+        );
     });
 
     let on_pointerenter = {
@@ -552,57 +532,51 @@ pub(crate) fn fluid_element_view(
         }
     };
 
-    let on_pointerdown = {
-        let while_tap = while_tap.clone();
+    let on_pointerdown = move |_| {
+        let Some(tap_style) = while_tap.clone() else {
+            return;
+        };
+        let Some(element) = node_ref.get_untracked() else {
+            return;
+        };
+        is_pressed.set(true);
+        let element: Element = element.unchecked_into();
+        let transition = transition_store.get_value();
+        animate_to(
+            &element,
+            &tap_style,
+            &transition,
+            active_animation,
+            animation_generation,
+        );
+    };
+
+    let make_pointer_release = move || {
+        let while_hover = while_hover.clone();
         move |_| {
-            let Some(tap_style) = while_tap.clone() else {
+            if !is_pressed.get_untracked() {
                 return;
-            };
+            }
+            is_pressed.set(false);
             let Some(element) = node_ref.get_untracked() else {
                 return;
             };
-            is_pressed.set(true);
             let element: Element = element.unchecked_into();
             let transition = transition_store.get_value();
+            let target = if is_hovered.get_untracked() {
+                while_hover
+                    .clone()
+                    .unwrap_or_else(|| base_style.get_value())
+            } else {
+                base_style.get_value()
+            };
             animate_to(
                 &element,
-                &tap_style,
+                &target,
                 &transition,
                 active_animation,
                 animation_generation,
             );
-        }
-    };
-
-    let make_pointer_release = {
-        let while_hover = while_hover.clone();
-        move || {
-            let while_hover = while_hover.clone();
-            move |_| {
-                if !is_pressed.get_untracked() {
-                    return;
-                }
-                is_pressed.set(false);
-                let Some(element) = node_ref.get_untracked() else {
-                    return;
-                };
-                let element: Element = element.unchecked_into();
-                let transition = transition_store.get_value();
-                let target = if is_hovered.get_untracked() {
-                    while_hover
-                        .clone()
-                        .unwrap_or_else(|| base_style.get_value())
-                } else {
-                    base_style.get_value()
-                };
-                animate_to(
-                    &element,
-                    &target,
-                    &transition,
-                    active_animation,
-                    animation_generation,
-                );
-            }
         }
     };
 

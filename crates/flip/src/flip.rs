@@ -1,9 +1,9 @@
 use self::corrections::{run_border_radius_correction, run_scale_correction_animations};
 use leptos::prelude::*;
 use leptos_fluid_web::{
-    animate_with_waapi, animation_cancel, animation_set_onfinish, computed_style, html_style,
-    js_number_to_string, keyframes_from_two, node_list_to_elements, object_from_str_pairs,
-    restore_inline_property, waapi_options,
+    animate_with_waapi, animation_cancel, animation_set_onfinish, computed_style, css_push_number,
+    css_push_px, html_style, keyframes_from_two, node_list_to_elements, object_from_str_pairs,
+    restore_inline_property, safe_f64_ratio, waapi_options,
 };
 use std::cell::Cell;
 use std::rc::Rc;
@@ -54,32 +54,20 @@ impl Flip {
         self.is_animating.into()
     }
 
-    pub fn animate<F>(&self, mut animator_fn: F)
+    pub fn animate<F>(&self, animator_fn: F)
     where
-        F: FnMut() + Send + Sync + 'static,
+        F: FnMut() + 'static,
     {
+        self.animate_dyn(Box::new(animator_fn));
+    }
+
+    fn animate_dyn(&self, mut animator_fn: Box<dyn FnMut() + 'static>) {
         let is_animating = self.is_animating;
         let mut carried_inline_styles: Option<InlineStyles> = None;
 
-        if self.is_animating.get_untracked()
-            && let Some(animation_state) = self.animation.get_value()
-        {
-            apply_computed_transform(&animation_state.element);
-            if let Some(animation) = animation_state.animation.as_ref() {
-                animation_cancel(animation);
-            }
-            if let Some(correction) = animation_state.border_radius_correction.as_ref() {
-                correction.stop_signal.set(true);
-                restore_border_radius_inline_styles(
-                    &animation_state.element,
-                    correction.inline_styles.as_ref(),
-                );
-            }
-            for correction in animation_state.scale_corrections.iter() {
-                correction.stop_signal.set(true);
-                restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
-            }
-            carried_inline_styles = Some(animation_state.inline_styles.clone());
+        if let Some(animation_state) = self.animation.get_value() {
+            stop_flip_animation_state(&animation_state);
+            carried_inline_styles = Some(animation_state.inline_styles);
         }
 
         let (_el, from_values) = self.measure(None);
@@ -130,7 +118,7 @@ impl Flip {
         is_animating: RwSignal<bool>,
         animation_store: StoredValue<Option<FlipAnimation>, LocalStorage>,
     ) {
-        if !has_flip_delta_with_size(&from, &to, options.scale_mode.uses_size_delta()) {
+        if !has_flip_delta_with_size(&from, &to, options.scale_mode.uses_scale()) {
             is_animating.set(false);
             animation_store.set_value(None);
             return;
@@ -263,10 +251,14 @@ impl FlipGroup {
         self.is_animating.into()
     }
 
-    pub fn animate<F>(&self, mut animator_fn: F)
+    pub fn animate<F>(&self, animator_fn: F)
     where
-        F: FnMut() + Send + Sync + 'static,
+        F: FnMut() + 'static,
     {
+        self.animate_dyn(Box::new(animator_fn));
+    }
+
+    fn animate_dyn(&self, mut animator_fn: Box<dyn FnMut() + 'static>) {
         let is_animating = self.is_animating;
         let carried_inline = stop_group_animations(self.animations);
         let from_values = self.snapshot_values();
@@ -282,7 +274,7 @@ impl FlipGroup {
             let elements = selector.with_value(|value| query_elements(value));
             for element in &elements {
                 if let Some(key) = element_key(element)
-                    && let Some(inline) = find_by_key(&carried_inline, &key)
+                    && let Some(inline) = find_inline_by_key(&carried_inline, &key)
                 {
                     restore_inline_styles(element, inline);
                 }
@@ -293,13 +285,13 @@ impl FlipGroup {
             let mut new_animations = Vec::new();
 
             for (index, to_item) in to_items.into_iter().enumerate() {
-                let Some(from_item_values) = find_by_key(&from_values, &to_item.key) else {
+                let Some(from_item_values) = find_values_by_key(&from_values, &to_item.key) else {
                     continue;
                 };
                 if !has_flip_delta_with_size(
                     from_item_values,
                     &to_item.values,
-                    options.scale_mode.uses_size_delta(),
+                    options.scale_mode.uses_scale(),
                 ) {
                     continue;
                 }
@@ -351,21 +343,7 @@ fn stop_group_animations(
     let mut carried_inline = Vec::new();
 
     for animation in active_animations {
-        apply_computed_transform(&animation.element);
-        if let Some(active) = animation.animation.as_ref() {
-            animation_cancel(active);
-        }
-        if let Some(correction) = animation.border_radius_correction.as_ref() {
-            correction.stop_signal.set(true);
-            restore_border_radius_inline_styles(
-                &animation.element,
-                correction.inline_styles.as_ref(),
-            );
-        }
-        for correction in animation.scale_corrections.iter() {
-            correction.stop_signal.set(true);
-            restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
-        }
+        stop_flip_animation_state(&animation);
         if let Some(key) = element_key(&animation.element) {
             carried_inline.push((key, animation.inline_styles.clone()));
         }
@@ -375,7 +353,34 @@ fn stop_group_animations(
     carried_inline
 }
 
-fn find_by_key<'a, T>(entries: &'a [(String, T)], key: &str) -> Option<&'a T> {
+fn stop_flip_animation_state(animation: &FlipAnimation) {
+    apply_computed_transform(&animation.element);
+    if let Some(active) = animation.animation.as_ref() {
+        animation_cancel(active);
+    }
+    if let Some(correction) = animation.border_radius_correction.as_ref() {
+        correction.stop_signal.set(true);
+        restore_border_radius_inline_styles(&animation.element, correction.inline_styles.as_ref());
+    }
+    for correction in animation.scale_corrections.iter() {
+        correction.stop_signal.set(true);
+        restore_inline_styles(&correction.element, correction.inline_styles.as_ref());
+    }
+}
+
+fn find_inline_by_key<'a>(
+    entries: &'a [(String, InlineStyles)],
+    key: &str,
+) -> Option<&'a InlineStyles> {
+    entries
+        .iter()
+        .find_map(|(entry_key, value)| (entry_key == key).then_some(value))
+}
+
+fn find_values_by_key<'a>(
+    entries: &'a [(String, FlipValues)],
+    key: &str,
+) -> Option<&'a FlipValues> {
     entries
         .iter()
         .find_map(|(entry_key, value)| (entry_key == key).then_some(value))
@@ -454,10 +459,6 @@ pub enum ScaleMode {
 impl ScaleMode {
     fn uses_scale(&self) -> bool {
         matches!(self, ScaleMode::PositionAndScale)
-    }
-
-    fn uses_size_delta(&self) -> bool {
-        self.uses_scale()
     }
 }
 
@@ -591,7 +592,11 @@ fn snapshot_elements(elements: Vec<Element>) -> Vec<FlipItem> {
         .map(|(index, element)| {
             // Prefer explicit identity markers, but fall back to selector order so
             // group FLIP still works when authors forget to add data/id keys.
-            let key = element_key(&element).unwrap_or_else(|| format!("__flip-index-{}", index));
+            let key = element_key(&element).unwrap_or_else(|| {
+                let mut value = String::from("__flip-index-");
+                value.push_str(&index.to_string());
+                value
+            });
             let (_, values) = Flip::rect(element.clone());
             FlipItem {
                 key,
@@ -620,12 +625,12 @@ fn run_flip_animation(
     let dy = from.top - to.top;
     let use_scale = options.scale_mode.uses_scale();
     let scale_x = if use_scale {
-        safe_div(from.width, to.width)
+        safe_f64_ratio(from.width, to.width)
     } else {
         1.0
     };
     let scale_y = if use_scale {
-        safe_div(from.height, to.height)
+        safe_f64_ratio(from.height, to.height)
     } else {
         1.0
     };
@@ -705,20 +710,11 @@ fn run_flip_animation(
     }
 }
 
-fn push_number(out: &mut String, value: f64) {
-    out.push_str(&js_number_to_string(value));
-}
-
-fn push_px(out: &mut String, value: f64) {
-    push_number(out, value);
-    out.push_str("px");
-}
-
 fn build_translate_transform(dx: f64, dy: f64) -> String {
     let mut out = String::from("translate(");
-    push_px(&mut out, dx);
+    css_push_px(&mut out, dx);
     out.push_str(", ");
-    push_px(&mut out, dy);
+    css_push_px(&mut out, dy);
     out.push(')');
     out
 }
@@ -726,17 +722,9 @@ fn build_translate_transform(dx: f64, dy: f64) -> String {
 fn build_translate_scale_transform(dx: f64, dy: f64, scale_x: f64, scale_y: f64) -> String {
     let mut out = build_translate_transform(dx, dy);
     out.push_str(" scale(");
-    push_number(&mut out, scale_x);
+    css_push_number(&mut out, scale_x);
     out.push_str(", ");
-    push_number(&mut out, scale_y);
+    css_push_number(&mut out, scale_y);
     out.push(')');
     out
-}
-
-fn safe_div(numerator: f64, denominator: f64) -> f64 {
-    if denominator.abs() <= f64::EPSILON {
-        return 1.0;
-    }
-    let value = numerator / denominator;
-    if value.is_finite() { value } else { 1.0 }
 }

@@ -54,6 +54,29 @@ pub fn js_number_to_string(value: f64) -> String {
         .unwrap_or_default()
 }
 
+pub fn css_push_number(out: &mut String, value: f64) {
+    out.push_str(&js_number_to_string(value));
+}
+
+pub fn css_push_px(out: &mut String, value: f64) {
+    css_push_number(out, value);
+    out.push_str("px");
+}
+
+pub fn css_px_string(value: f64) -> String {
+    let mut out = js_number_to_string(value);
+    out.push_str("px");
+    out
+}
+
+pub fn safe_f64_ratio(numerator: f64, denominator: f64) -> f64 {
+    if denominator.abs() <= f64::EPSILON {
+        return 1.0;
+    }
+    let value = numerator / denominator;
+    if value.is_finite() { value } else { 1.0 }
+}
+
 pub fn parse_js_f64(value: &str) -> Option<f64> {
     let parsed = js_sys::parse_float(value);
     if parsed.is_finite() {

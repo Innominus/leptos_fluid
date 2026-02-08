@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::fmt::Write;
 
 use crate::spring_math::{clamp_bounce, duration_seconds};
 const EASE_OUT_CUBIC: &str = "cubic-bezier(0.215, 0.61, 0.355, 1)";
@@ -183,18 +182,21 @@ impl Transition {
         }
 
         let easing = self.easing_string();
-        let mut out = String::new();
-        let _ = write!(
-            out,
-            "all {}ms {} {}ms",
-            self.duration_ms, easing, self.delay_ms
-        );
+        let mut out = String::from("all ");
+        out.push_str(&self.duration_ms.to_string());
+        out.push_str("ms ");
+        out.push_str(easing.as_ref());
+        out.push(' ');
+        out.push_str(&self.delay_ms.to_string());
+        out.push_str("ms");
 
         for prop in &self.excluded_properties {
             if prop.is_empty() {
                 continue;
             }
-            let _ = write!(out, ", {} 0ms linear 0ms", prop);
+            out.push_str(", ");
+            out.push_str(prop.as_ref());
+            out.push_str(" 0ms linear 0ms");
         }
 
         out
@@ -241,16 +243,73 @@ fn spring_easing(duration_ms: u32, bounce: f64) -> String {
             value.clamp(-0.1, 1.35)
         };
 
-        if index == 0 {
-            let _ = write!(out, "{:.3}", value);
-        } else if index == 7 {
-            let _ = write!(out, ", {:.3}", value);
-        } else {
-            let _ = write!(out, ", {:.3} {:.1}%", value, t * 100.0);
+        if index > 0 {
+            out.push_str(", ");
+        }
+        push_rounded_number(&mut out, value, 3);
+        if index > 0 && index < 7 {
+            out.push(' ');
+            push_rounded_number(&mut out, t * 100.0, 1);
+            out.push('%');
         }
     }
     out.push(')');
     out
+}
+
+fn push_rounded_number(out: &mut String, value: f64, decimals: u8) {
+    let scale = match decimals {
+        1 => 10_i64,
+        2 => 100_i64,
+        3 => 1000_i64,
+        _ => 1_i64,
+    };
+
+    let mut scaled = (value * scale as f64).round();
+    if !scaled.is_finite() {
+        out.push('0');
+        return;
+    }
+    if scaled == 0.0 {
+        out.push('0');
+        return;
+    }
+
+    let negative = scaled < 0.0;
+    if negative {
+        scaled = -scaled;
+        out.push('-');
+    }
+
+    let scaled = scaled as u64;
+    let int_part = scaled / scale as u64;
+    let mut frac_part = scaled % scale as u64;
+    out.push_str(&int_part.to_string());
+
+    if decimals == 0 || frac_part == 0 {
+        return;
+    }
+
+    let mut digits = [0_u8; 3];
+    let mut index = decimals as usize;
+    while index > 0 {
+        index -= 1;
+        digits[index] = (frac_part % 10) as u8;
+        frac_part /= 10;
+    }
+
+    let mut end = decimals as usize;
+    while end > 0 && digits[end - 1] == 0 {
+        end -= 1;
+    }
+    if end == 0 {
+        return;
+    }
+
+    out.push('.');
+    for digit in &digits[..end] {
+        out.push((b'0' + *digit) as char);
+    }
 }
 
 #[cfg(test)]
