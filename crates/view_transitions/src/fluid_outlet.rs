@@ -162,6 +162,146 @@ pub fn FluidOutlet(
     }
 }
 
+/// Outlet replacement that renders incoming and outgoing route layers.
+#[component]
+pub fn FluidFlatOutlet(
+    /// CSS animation class used for the incoming layer.
+    #[prop(into)]
+    intro_class: Signal<&'static str>,
+    /// CSS animation class used for the outgoing layer.
+    #[prop(into)]
+    outro_class: Signal<&'static str>,
+    children: Children,
+) -> impl IntoView {
+    let mut manager = FluidManager::get_manager();
+
+    let intro_node_ref = NodeRef::new();
+    let outro_node_ref = NodeRef::<Div>::new();
+
+    let is_transitioning = RwSignal::new(false);
+    let navigate_backwards = manager.navigate_backwards;
+
+    let location = use_location().pathname;
+
+    let outlet_current_route = StoredValue::new(location.get_untracked());
+    let outlet_initialized = StoredValue::new(false);
+    let mut inner_manager = manager.clone();
+    Effect::new(move || {
+        if !outlet_initialized.get_value() {
+            outlet_initialized.set_value(true);
+            return;
+        }
+
+        inner_manager.update_outlet_nodes_route(outlet_current_route.get_value(), location.get());
+
+        outlet_current_route.set_value(location.get());
+    });
+
+    if !manager.initialized.get_value() {
+        let root_outlet_ran_first_time = StoredValue::new(false);
+        manager.current_location.set_value(location.get_untracked());
+        let inner_manager = manager.clone();
+        Effect::new(move || {
+            let next_location = location.get();
+            if !root_outlet_ran_first_time.get_value() {
+                root_outlet_ran_first_time.set_value(true);
+                return;
+            }
+
+            let mut inner_manager = inner_manager.clone();
+            inner_manager.transition(next_location);
+        });
+
+        manager.initialized.set_value(true);
+    }
+
+    manager.add_outlet_route_nodes(
+        location.get_untracked(),
+        intro_node_ref,
+        outro_node_ref,
+        is_transitioning,
+    );
+
+    let intro_animation_class = move || {
+        if !is_transitioning.get() {
+            return "";
+        }
+
+        if navigate_backwards.get_untracked() {
+            // Reverse intro/outro class assignment for backward navigation.
+            outro_class.get_untracked()
+        } else {
+            intro_class.get_untracked()
+        }
+    };
+
+    let (intro_handler, outro_handler) =
+        setup_animation_handlers(outro_node_ref, is_transitioning, navigate_backwards);
+
+    let outro_animation_class = move || {
+        let transition_class = if !is_transitioning.get() {
+            ""
+        } else if navigate_backwards.get_untracked() {
+            intro_class.get_untracked()
+        } else {
+            outro_class.get_untracked()
+        };
+
+        if transition_class.is_empty() {
+            "no-animations".to_string()
+        } else {
+            let mut classes = String::with_capacity(transition_class.len() + 14);
+            classes.push_str(transition_class);
+            classes.push_str(" no-animations");
+            classes
+        }
+    };
+
+    let animation_direction = move || navigate_backwards.get().then_some(true);
+
+    let section_style = move || {
+        if is_transitioning.get() {
+            SECTION_STYLE_TRANSITIONING
+        } else {
+            SECTION_STYLE
+        }
+    };
+
+    let outro_style = move || {
+        if navigate_backwards.get() {
+            OUTRO_STYLE_REVERSED
+        } else {
+            OUTRO_STYLE
+        }
+    };
+
+    on_cleanup(move || {
+        manager.remove_disposed_outlet_route(location.get_untracked());
+    });
+
+    view! {
+        <style>{NO_ANIMATION_CSS}</style>
+        <section style=section_style>
+            <div
+                data-reverse=animation_direction
+                node_ref=outro_node_ref
+                on:animationend=outro_handler
+                class=outro_animation_class
+                style=outro_style
+            ></div>
+            <div
+                data-reverse=animation_direction
+                node_ref=intro_node_ref
+                on:animationend=intro_handler
+                style=INTRO_STYLE
+                class=intro_animation_class
+            >
+                {children()}
+            </div>
+        </section>
+    }
+}
+
 fn setup_animation_handlers(
     outro_node_ref: NodeRef<Div>,
     is_transitioning: RwSignal<bool>,

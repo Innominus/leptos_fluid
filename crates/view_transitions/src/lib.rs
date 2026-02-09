@@ -7,7 +7,9 @@ mod utils;
 
 /// Transition manager shared through Leptos context.
 pub use fluid_manager::FluidManager;
+pub use fluid_outlet::FluidFlatOutlet;
 /// Outlet replacement that renders intro/outro route layers.
 pub use fluid_outlet::FluidOutlet;
+pub use fluid_route::FluidFlatRoutes;
 /// Route wrapper that captures route patterns and forwards to `Routes`.
 pub use fluid_route::FluidRoutes;
