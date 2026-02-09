@@ -71,5 +71,6 @@ Transition cleanup depends on `animationend`, so outlet classes must trigger rea
 
 - Direction is inferred from generated route ordering.
 - Mark scrollable containers with `data-scrollable` to preserve their scroll offsets during outlet transitions.
+- `FluidOutlet` sets `data-reverse` and transition classes on wrapper layers, and re-applies routed content attributes onto outro nodes by deep-cloning the intro subtree.
 
 For full workspace docs and examples, see the root `README.md`.

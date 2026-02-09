@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::{
-    MatchNestedRoutes,
     components::{RouteChildren, Routes},
+    MatchNestedRoutes,
 };
 
 use crate::fluid_manager::FluidManager;
@@ -25,28 +25,28 @@ where
     Fallback: IntoView + 'static,
 {
     let inner = children.clone().into_inner();
-    let mut routes = inner
+    let routes = inner
         .generate_routes()
         .into_iter()
         .map(|data| {
             data.segments
                 .iter()
                 .map(|seg| match seg {
-                    leptos_router::PathSegment::Static(_) | leptos_router::PathSegment::Unit => {
-                        seg.as_raw_str().to_string()
+                    leptos_router::PathSegment::Static(_) => {
+                        seg.as_raw_str().trim_matches('/').to_string()
                     }
+                    leptos_router::PathSegment::Unit => String::new(),
                     // Dynamic/optional/wildcard segments are normalized so route-order
                     // comparison can still infer forward/backward navigation direction.
                     _ => String::from(":"),
                 })
-                .map(|seg| seg.replace("/", ""))
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
     FluidManager::get_manager()
         .generated_routes
-        .update_value(|vals| vals.append(&mut routes));
+        .update_value(|vals| vals.extend(routes));
 
     Routes(leptos_router::components::RoutesProps {
         fallback,

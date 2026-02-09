@@ -3,22 +3,23 @@ use leptos_router::{
     components::Outlet,
     hooks::{use_location, use_matched},
 };
-use web_sys::{AnimationEvent, Node, wasm_bindgen::JsCast};
+use web_sys::AnimationEvent;
 
 use crate::fluid_manager::FluidManager;
 
 // Child animations are disabled on the cloned outro layer so only the route-level
 // intro/outro animations drive transition timing.
-const NO_ANIMATION_CSS: &str = r#"
-    .no-animations * {
-      animation-duration: 0s !important;
-      transition-duration: 0s !important;
-      animation-delay: 0s !important;
-      transition-delay: 0s !important;
-      animation-iteration-count: 1 !important;
-      scroll-behavior: auto !important;
-    }
-"#;
+const NO_ANIMATION_CSS: &str = ".no-animations *{animation-duration:0s!important;transition-duration:0s!important;animation-delay:0s!important;transition-delay:0s!important;animation-iteration-count:1!important;scroll-behavior:auto!important;}";
+const SECTION_STYLE: &str = "width:100%;height:100%;position:relative;isolation:isolate;";
+const SECTION_STYLE_TRANSITIONING: &str =
+    "width:100%;height:100%;position:relative;isolation:isolate;overflow:hidden;";
+const OUTRO_STYLE: &str =
+    "width:100%;height:100%;position:absolute;top:0;left:0;pointer-events:none;overflow:hidden;";
+const OUTRO_STYLE_REVERSED: &str = "width:100%;height:100%;position:absolute;top:0;left:0;pointer-events:none;overflow:hidden;z-index:1;";
+const INTRO_STYLE: &str = "width:100%;height:100%;";
+const INTRO_DONE: u8 = 0b01;
+const OUTRO_DONE: u8 = 0b10;
+const BOTH_DONE: u8 = INTRO_DONE | OUTRO_DONE;
 
 /// Outlet replacement that renders incoming and outgoing route layers.
 #[component]
@@ -58,18 +59,17 @@ pub fn FluidOutlet(
 
     if !manager.initialized.get_value() {
         let root_outlet_ran_first_time = StoredValue::new(false);
-        manager.location.set_value(location);
         manager.current_location.set_value(location.get_untracked());
         let inner_manager = manager.clone();
         Effect::new(move || {
-            location.track();
+            let next_location = location.get();
             if !root_outlet_ran_first_time.get_value() {
                 root_outlet_ran_first_time.set_value(true);
                 return;
             }
 
             let mut inner_manager = inner_manager.clone();
-            inner_manager.transition();
+            inner_manager.transition(next_location);
         });
 
         manager.initialized.set_value(true);
@@ -82,47 +82,56 @@ pub fn FluidOutlet(
         is_transitioning,
     );
 
-    let animation_classes = move || {
-        if is_transitioning.get() {
-            if navigate_backwards.get_untracked() {
-                // Reverse intro/outro class assignment for backward navigation.
-                (intro_class.get_untracked(), outro_class.get_untracked())
-            } else {
-                (outro_class.get_untracked(), intro_class.get_untracked())
-            }
+    let intro_animation_class = move || {
+        if !is_transitioning.get() {
+            return "";
+        }
+
+        if navigate_backwards.get_untracked() {
+            // Reverse intro/outro class assignment for backward navigation.
+            outro_class.get_untracked()
         } else {
-            ("", "")
+            intro_class.get_untracked()
         }
     };
 
-    let (intro_handler, outro_handler) = setup_animation_handlers(
-        intro_node_ref,
-        outro_node_ref,
-        is_transitioning,
-        navigate_backwards,
-    );
+    let (intro_handler, outro_handler) =
+        setup_animation_handlers(outro_node_ref, is_transitioning, navigate_backwards);
 
-    let animation_direction = move || {
-        if navigate_backwards.get() {
-            Some(true)
-        } else {
-            None
-        }
-    };
-
-    let z_index = move || {
-        if navigate_backwards.get() {
-            "z-index: 1;"
-        } else {
+    let outro_animation_class = move || {
+        let transition_class = if !is_transitioning.get() {
             ""
+        } else if navigate_backwards.get_untracked() {
+            intro_class.get_untracked()
+        } else {
+            outro_class.get_untracked()
+        };
+
+        if transition_class.is_empty() {
+            "no-animations".to_string()
+        } else {
+            let mut classes = String::with_capacity(transition_class.len() + 14);
+            classes.push_str(transition_class);
+            classes.push_str(" no-animations");
+            classes
         }
     };
 
-    let hide_while_animating = move || {
+    let animation_direction = move || navigate_backwards.get().then_some(true);
+
+    let section_style = move || {
         if is_transitioning.get() {
-            "overflow: hidden;"
+            SECTION_STYLE_TRANSITIONING
         } else {
-            ""
+            SECTION_STYLE
+        }
+    };
+
+    let outro_style = move || {
+        if navigate_backwards.get() {
+            OUTRO_STYLE_REVERSED
+        } else {
+            OUTRO_STYLE
         }
     };
 
@@ -132,26 +141,20 @@ pub fn FluidOutlet(
 
     view! {
         <style>{NO_ANIMATION_CSS}</style>
-        <section style=move || {
-            "width: 100%; height: 100%; position: relative; isolation: isolate;".to_string()
-                + hide_while_animating()
-        }>
+        <section style=section_style>
             <div
                 data-reverse=animation_direction
                 node_ref=outro_node_ref
                 on:animationend=outro_handler
-                class=move || animation_classes().0.to_string() + " no-animations"
-                style=move || {
-                    "width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; overflow: hidden;"
-                        .to_string() + z_index()
-                }
+                class=outro_animation_class
+                style=outro_style
             ></div>
             <div
                 data-reverse=animation_direction
                 node_ref=intro_node_ref
                 on:animationend=intro_handler
-                style=move || "width: 100%; height: 100%;".to_string()
-                class=move || animation_classes().1
+                style=INTRO_STYLE
+                class=intro_animation_class
             >
                 <Outlet />
             </div>
@@ -160,46 +163,53 @@ pub fn FluidOutlet(
 }
 
 fn setup_animation_handlers(
-    intro_node_ref: NodeRef<Div>,
     outro_node_ref: NodeRef<Div>,
     is_transitioning: RwSignal<bool>,
     navigate_backwards: RwSignal<bool>,
 ) -> (impl Fn(AnimationEvent), impl Fn(AnimationEvent)) {
-    let intro_has_ended = RwSignal::new(false);
-    let outro_has_ended = RwSignal::new(false);
-
-    let cleanup_fn = move || {
-        if intro_has_ended.get() && outro_has_ended.get() {
-            // Wait for both layers to finish before clearing the cloned outro DOM.
-            outro_node_ref
-                .get_untracked()
-                .expect("Node ref should be mounted in outro end")
-                .replace_children_with_node_0();
-            is_transitioning.set(false);
-            navigate_backwards.set(false);
-            intro_has_ended.set(false);
-            outro_has_ended.set(false);
-        }
-    };
-
-    let intro_ends = create_animation_handler(intro_node_ref, intro_has_ended, cleanup_fn);
-    let outro_ends = create_animation_handler(outro_node_ref, outro_has_ended, cleanup_fn);
+    let finished_layers = RwSignal::new(0u8);
+    let intro_ends = create_animation_handler(
+        INTRO_DONE,
+        finished_layers,
+        outro_node_ref,
+        is_transitioning,
+        navigate_backwards,
+    );
+    let outro_ends = create_animation_handler(
+        OUTRO_DONE,
+        finished_layers,
+        outro_node_ref,
+        is_transitioning,
+        navigate_backwards,
+    );
 
     (intro_ends, outro_ends)
 }
 
 fn create_animation_handler(
-    node: NodeRef<Div>,
-    has_ended: RwSignal<bool>,
-    cleanup_fn: impl Fn(),
+    done_mask: u8,
+    finished_layers: RwSignal<u8>,
+    outro_node_ref: NodeRef<Div>,
+    is_transitioning: RwSignal<bool>,
+    navigate_backwards: RwSignal<bool>,
 ) -> impl Fn(AnimationEvent) {
     move |e: AnimationEvent| {
         // Ignore bubbled child animation events; only react to the wrapper node.
-        if e.target().unwrap().unchecked_ref::<Node>()
-            == node.get_untracked().unwrap().unchecked_ref::<Node>()
-        {
-            has_ended.set(true);
-            cleanup_fn();
+        if e.target() != e.current_target() {
+            return;
         }
+
+        finished_layers.update(|state| *state |= done_mask);
+        if finished_layers.get_untracked() != BOTH_DONE {
+            return;
+        }
+
+        // Wait for both layers to finish before clearing the cloned outro DOM.
+        if let Some(outro_node) = outro_node_ref.get_untracked() {
+            outro_node.replace_children_with_node_0();
+        }
+        is_transitioning.set(false);
+        navigate_backwards.set(false);
+        finished_layers.set(0);
     }
 }

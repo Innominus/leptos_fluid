@@ -27,7 +27,7 @@ This allows nested route transitions without changing route component internals.
 
 - route-to-node mappings (`outlet_nodes`)
 - cached outlet route hierarchy (`outlet_route_cache`)
-- current pathname signal memo (`location`)
+- current location snapshot (`current_location`)
 - generated route patterns from `FluidRoutes` (`generated_routes`)
 - transition direction (`navigate_backwards`)
 - compatibility fallback switch (`skip_transition`)
@@ -64,9 +64,19 @@ Each `FluidOutlet` instance registers two nodes with manager:
 
 1. keeps route registration updated when the matched route changes
 2. computes class assignment based on direction
-3. applies `no-animations` to the cloned outro subtree
+3. applies wrapper attributes/classes (`data-reverse`, transition class, `no-animations`)
 4. listens for `animationend` on intro and outro wrappers
 5. clears clone and resets flags after both wrappers report completion
+
+### Attributes applied and re-applied to outro nodes
+
+At runtime, `FluidOutlet` applies these attributes to wrapper nodes:
+
+- `data-reverse` on both wrappers during backward navigation
+- transition class from `intro_class` / `outro_class` (swapped when navigating backward)
+- `no-animations` on the outro wrapper to suppress nested child animations
+
+During `FluidManager::transition()`, the intro subtree is deep-cloned into the outro wrapper. That clone carries the routed content attributes (including `data-scrollable` and other `data-*` attributes), so they are re-applied to outgoing/outro nodes on every transition.
 
 ### Why wrapper-level event filtering exists
 

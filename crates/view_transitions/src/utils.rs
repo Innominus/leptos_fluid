@@ -1,5 +1,5 @@
 use leptos::prelude::request_animation_frame;
-use web_sys::{Element, wasm_bindgen::JsCast};
+use web_sys::{wasm_bindgen::JsCast, Element, NodeList};
 
 pub(crate) fn get_scroll_pos_of_attr_children(
     parent: &Element,
@@ -31,20 +31,25 @@ pub(crate) fn set_scroll_pos_to_children_with_attr(
 
     let selector = get_selector(attr_name);
     if let Ok(node_list) = parent.query_selector_all(&selector) {
+        apply_scroll_positions(&node_list, &top_left_scroll_pos);
         request_animation_frame(move || {
             // Apply after DOM replacement so layout/scroll containers exist.
-            for i in 0..node_list.length() {
-                if let Some(node) = node_list.get(i) {
-                    let (top_pos, left_pos) = top_left_scroll_pos[i as usize];
-                    let el = node.unchecked_into::<Element>();
-                    el.set_scroll_top(top_pos);
-                    el.set_scroll_left(left_pos);
-                }
-            }
+            apply_scroll_positions(&node_list, &top_left_scroll_pos);
         });
     }
 }
 
 pub(crate) fn get_selector(attr_name: &str) -> String {
     "[".to_string() + attr_name + "]"
+}
+
+fn apply_scroll_positions(node_list: &NodeList, top_left_scroll_pos: &[(i32, i32)]) {
+    for i in 0..node_list.length() {
+        if let Some(node) = node_list.get(i) {
+            let (top_pos, left_pos) = top_left_scroll_pos[i as usize];
+            let el = node.unchecked_into::<Element>();
+            el.set_scroll_top(top_pos);
+            el.set_scroll_left(left_pos);
+        }
+    }
 }

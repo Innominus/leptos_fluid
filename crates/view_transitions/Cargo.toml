@@ -19,7 +19,6 @@ web-sys = { workspace = true, features = [
     "AnimationEvent",
     "Element",
     "Navigator",
-    "Node",
     "NodeList",
     "PopStateEvent",
     "Window",
