@@ -8,7 +8,9 @@ members = [
     "crates/web",
     "example",
     "example_motion",
+    "example_motion_controller",
     "tools/playwright_regression",
+    "tools/playwright_regression_controller",
 ]
 resolver = "2"
 
@@ -50,6 +52,7 @@ exclude = [
     ".DS_Store",
     "example/**",
     "example_motion/**",
+    "example_motion_controller/**",
     "tools/**",
     "target/**",
     "closure_test",

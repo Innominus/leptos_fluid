@@ -369,6 +369,7 @@ FlipOptions {
 
 `motion` exports:
 
+- controller: `AnimationController`
 - components: `FluidElement`, `FluidDiv`, `FluidSpan`, `FluidButton`
 - styles: `FluidStyle`, `FluidValue`, `style!`
 - transitions: `Transition`, `Spring`, `Easing`
@@ -557,7 +558,7 @@ This is what keeps repeated tab clicks, toggle spam, and hover/tap interruptions
 | Cursor-follow or continuous target smoothing | `motion` + `use_spring` |
 | Sequenced multi-step UI choreography | `motion` + `FluidTimeline` |
 
-You can combine modules safely. Example in this repo: `example_motion` uses both `motion` and `flip`.
+You can combine modules safely. Example in this repo: `example_motion` uses both `motion` and `flip`, while `example_motion_controller` focuses on controller-only motion wiring.
 
 ## Examples in this repo
 
@@ -573,6 +574,37 @@ trunk serve --open
 ```bash
 cd example_motion
 trunk serve --open
+```
+
+### Controller-only motion playground
+
+```bash
+cd example_motion_controller
+trunk serve --open
+```
+
+### React + Motion parity playground
+
+```bash
+cd example_motion_controller_react
+npm install
+npm run dev
+```
+
+Build both React variants (`motion/react-m` and `motion/react-mini`) and compare output size against the Leptos controller demo:
+
+```bash
+cd example_motion_controller_react
+npm run build:size
+```
+
+### Controller regression checks (Playwright)
+
+```bash
+cd example_motion_controller
+trunk build
+cd ..
+cargo run -p playwright_regression_controller --
 ```
 
 ## Benchmarks

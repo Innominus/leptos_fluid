@@ -1,0 +1,5 @@
+[build]
+# Trunk's JS minifier currently fails to parse wasm-bindgen's
+# `export { ..., __wbg_init as default }` output.
+# Disable JS minification until Trunk's parser catches up.
+minify = "never"

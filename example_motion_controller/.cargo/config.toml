@@ -1,0 +1,23 @@
+[unstable]
+build-std = ["std", "panic_abort", "core", "alloc"]
+
+# [build]
+# target = "wasm32-unknown-unknown"
+# rustflags = ["--cfg=web_sys_unstable_apis"]
+
+# [profile.dev]
+# opt-level = 1
+
+# [profile.dev.package."*"]
+# opt-level = 3
+
+[profile.release]
+# Do not perform backtrace for panic on release builds.
+panic = 'immediate-abort'
+# Perform optimizations on all codegen units.
+codegen-units = 1
+# Optimize for size.
+opt-level = 'z' # 's' for speed or 'z' to optimize "aggressively" for size
+# Enable link time optimization.
+lto = true
+strip = "debuginfo"

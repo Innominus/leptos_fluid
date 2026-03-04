@@ -5,7 +5,9 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 ## Module map
 
 - `src/lib.rs`: export surface and prelude
-- `src/components.rs`: motion components and runtime animation orchestration
+- `src/controller.rs`: element-agnostic animation controller API
+- `src/animator.rs`: shared WAAPI animation runtime used by controllers/components
+- `src/components.rs`: motion components built on top of `AnimationController`
 - `src/style.rs`: style builder and transform composition
 - `src/transition.rs`: transition/spring configuration and easing generation
 - `src/spring_value.rs`: spring solver for continuously retargeted scalar values
@@ -16,7 +18,7 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 
 ## Core runtime model
 
-`FluidElement` and wrapper components (`FluidDiv`, `FluidSpan`, `FluidButton`) are declarative wrappers around an imperative runtime in `components.rs`.
+`AnimationController` is the core runtime handle. `FluidElement` and wrappers (`FluidDiv`, `FluidSpan`, `FluidButton`) are declarative adapters over that controller.
 
 Each motion update follows this shape:
 
@@ -25,6 +27,15 @@ Each motion update follows this shape:
 3. cancel/freeze previous animation if present
 4. build WAAPI keyframes from current frame to next frame
 5. run animation and commit final inline props on finish
+
+### Controller target model
+
+`AnimationController` can target:
+
+- a concrete DOM `Element`
+- a resolver closure returning `Option<Element>` (for ref-driven attachment)
+
+If the target is unresolved, the controller stores only the latest pending command and replays it when a target becomes available.
 
 ### Why interruption logic exists
 

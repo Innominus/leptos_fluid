@@ -1,5 +1,5 @@
 use leptos::prelude::request_animation_frame;
-use web_sys::{wasm_bindgen::JsCast, Element, NodeList};
+use web_sys::{Element, NodeList, wasm_bindgen::JsCast};
 
 pub(crate) fn get_scroll_pos_of_attr_children(
     parent: &Element,

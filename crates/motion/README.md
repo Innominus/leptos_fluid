@@ -21,6 +21,7 @@ leptos_fluid_motion = "0.1"
 ## What this crate provides
 
 - motion components: `FluidElement`, `FluidDiv`, `FluidSpan`, `FluidButton`
+- element-agnostic controller: `AnimationController`
 - style primitives: `FluidStyle`, `FluidValue`, `Transform`, `style!`
 - transition primitives: `Transition`, `Spring`, `Easing`
 - sequencing: `FluidTimeline`, `FluidStep`
@@ -90,6 +91,44 @@ view! {
 ```
 
 `animate`, `class`, and `style` props accept static values, signals, memos, and closures via `FluidSignal`.
+
+## `AnimationController` (without motion elements)
+
+Use `AnimationController` when you want to animate a plain element/ref without `FluidElement` wrappers:
+
+```rust
+use leptos::prelude::*;
+use leptos::wasm_bindgen::JsCast;
+use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
+
+#[component]
+fn ControllerDemo() -> impl IntoView {
+    let expanded = RwSignal::new(false);
+    let node_ref = NodeRef::<leptos::html::Div>::new();
+    let controller = AnimationController::with_transition(Transition::spring());
+
+    controller.attach_resolver({
+        let node_ref = node_ref.clone();
+        move || node_ref.get_untracked().map(|node| node.unchecked_into())
+    });
+
+    Effect::new(move || {
+        let style = if expanded.get() {
+            FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+        } else {
+            FluidStyle::new().opacity(0.65).y(20.0).scale(0.96)
+        };
+        controller.animate(style);
+    });
+
+    view! {
+        <button on:click=move |_| expanded.update(|v| *v = !*v)>
+            "Toggle"
+        </button>
+        <div node_ref=node_ref class="card">"Animated by controller"</div>
+    }
+}
+```
 
 ## `FluidStyle` and `style!`
 

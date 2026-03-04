@@ -27,6 +27,7 @@ It is used to validate:
 
 - `hero.rs` (`HeroSection`): state-driven `FluidStyle` and hover/tap variants.
 - `cards.rs` (`CardsSection`): mixed transition presets and `style!` macro usage.
+- `controller.rs` (`ControllerSection`): plain `NodeRef` animation via `AnimationController` (no `FluidElement`).
 - `tabs.rs` (`TabsSection`): interruptible spring underline with geometry measurement + retargeting.
 - `timeline.rs` (`TimelineSection`): `FluidTimeline` setup, node attachment, loop/pause/resume/reset.
 - `flip.rs` (`FlipSection`, `FlipHeroSection`, `FlipGroupSection`): FLIP move/resize, shared-element style modal transition, and keyed group reorder with scale correction.

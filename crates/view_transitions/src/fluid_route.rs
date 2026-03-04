@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::{
-    components::{FlatRoutes, RouteChildren, Routes},
     MatchNestedRoutes,
+    components::{FlatRoutes, RouteChildren, Routes},
 };
 
 use crate::fluid_manager::FluidManager;

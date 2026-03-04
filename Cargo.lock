@@ -1536,6 +1536,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "leptos_fluid_motion_controller_example"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "leptos_fluid",
+ "web-sys",
+]
+
+[[package]]
 name = "leptos_fluid_motion_example"
 version = "0.1.0"
 dependencies = [
@@ -2064,6 +2074,16 @@ dependencies = [
 
 [[package]]
 name = "playwright_regression"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "playwright-rs",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "playwright_regression_controller"
 version = "0.1.1"
 dependencies = [
  "anyhow",

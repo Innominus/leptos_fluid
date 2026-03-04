@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use leptos::{html::Div, prelude::*};
-use web_sys::wasm_bindgen::{prelude::Closure, JsCast};
+use web_sys::wasm_bindgen::{JsCast, prelude::Closure};
 
 use crate::utils::{get_scroll_pos_of_attr_children, set_scroll_pos_to_children_with_attr};
 
@@ -210,11 +210,7 @@ fn route_index(incoming_route: &str, generated_routes: &[Vec<String>]) -> Option
                 .zip(route.iter())
                 .all(|(token, pattern)| pattern.starts_with(':') || pattern == token);
 
-            if is_match {
-                Some(index)
-            } else {
-                None
-            }
+            if is_match { Some(index) } else { None }
         })
 }
 

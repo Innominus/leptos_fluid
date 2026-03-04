@@ -1,4 +1,5 @@
 mod cards;
+mod controller;
 mod flip;
 mod follow;
 mod footer;
@@ -10,6 +11,7 @@ mod tabs;
 mod timeline;
 
 pub use cards::CardsSection;
+pub use controller::ControllerSection;
 pub use flip::FlipGroupSection;
 pub use flip::FlipHeroSection;
 pub use flip::FlipSection;

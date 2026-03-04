@@ -139,6 +139,7 @@ button.alt {
 }
 
 .tab-button {
+    flex: 0 0 auto;
     background: transparent;
     border: 0;
     color: var(--muted);
@@ -147,6 +148,7 @@ button.alt {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     font-size: 0.72rem;
+    white-space: nowrap;
     cursor: pointer;
     transition: color 0.2s ease;
 }

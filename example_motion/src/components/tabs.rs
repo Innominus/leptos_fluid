@@ -4,6 +4,7 @@ use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition}
 #[component]
 pub fn TabsSection() -> impl IntoView {
     let active_tab = RwSignal::new(0usize);
+    let hovered_tab = RwSignal::new(None::<usize>);
     let tabs_ref = NodeRef::<leptos::html::Div>::new();
     let tab_refs = (0..4)
         .map(|_| NodeRef::<leptos::html::Button>::new())
@@ -19,7 +20,7 @@ pub fn TabsSection() -> impl IntoView {
         let underline_x = underline_x.clone();
         let underline_w = underline_w.clone();
         move || {
-            let index = active_tab.get();
+            let index = hovered_tab.get().unwrap_or_else(|| active_tab.get());
             let tabs_ref = tabs_ref.clone();
             let tab_refs_effect = tab_refs_effect.clone();
             let underline_x = underline_x.clone();
@@ -65,11 +66,12 @@ pub fn TabsSection() -> impl IntoView {
             </div>
 
             <div class="tabs-card">
-                <div class="tab-list" node_ref=tabs_ref>
+                <div class="tab-list" node_ref=tabs_ref on:pointerleave=move |_| hovered_tab.set(None)>
                     <button
                         node_ref=tab_refs[0]
                         class="tab-button"
                         class:active=move || active_tab.get() == 0
+                        on:pointerenter=move |_| hovered_tab.set(Some(0))
                         on:click=move |_| active_tab.set(0)
                     >
                         "Overview"
@@ -78,25 +80,28 @@ pub fn TabsSection() -> impl IntoView {
                         node_ref=tab_refs[1]
                         class="tab-button"
                         class:active=move || active_tab.get() == 1
+                        on:pointerenter=move |_| hovered_tab.set(Some(1))
                         on:click=move |_| active_tab.set(1)
                     >
-                        "Fluid"
+                        "Fluid Motion"
                     </button>
                     <button
                         node_ref=tab_refs[2]
                         class="tab-button"
                         class:active=move || active_tab.get() == 2
+                        on:pointerenter=move |_| hovered_tab.set(Some(2))
                         on:click=move |_| active_tab.set(2)
                     >
-                        "Tokens"
+                        "Design Tokens"
                     </button>
                     <button
                         node_ref=tab_refs[3]
                         class="tab-button"
                         class:active=move || active_tab.get() == 3
+                        on:pointerenter=move |_| hovered_tab.set(Some(3))
                         on:click=move |_| active_tab.set(3)
                     >
-                        "Notes"
+                        "Engineering Notes"
                     </button>
                     <FluidDiv
                         class="tab-underline"
