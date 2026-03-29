@@ -1528,6 +1528,7 @@ dependencies = [
 name = "leptos_fluid_motion"
 version = "0.1.1"
 dependencies = [
+ "any_spawner",
  "criterion",
  "js-sys",
  "leptos",
@@ -1541,7 +1542,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
- "leptos_fluid",
+ "leptos_fluid_motion",
  "web-sys",
 ]
 
@@ -1550,9 +1551,9 @@ name = "leptos_fluid_motion_example"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "js-sys",
  "leptos",
- "leptos_fluid",
+ "leptos_fluid_flip",
+ "leptos_fluid_motion",
 ]
 
 [[package]]

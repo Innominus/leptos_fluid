@@ -14,7 +14,7 @@ categories = ["wasm", "web-programming", "gui"]
 
 [dependencies]
 leptos = { workspace = true }
-leptos_fluid_web = { workspace = true }
+leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false, features = ["waapi", "dom-query"] }
 web-sys = { workspace = true, features = [
     "DomRect",
     "Element",

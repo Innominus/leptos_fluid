@@ -7,7 +7,178 @@ use crate::{AnimationController, FluidSignal, FluidStyle, Transition};
 /// Node reference type used by motion elements.
 pub type FluidNodeRef = NodeRef<leptos::html::Custom<&'static str>>;
 
+#[derive(Clone, Copy)]
+struct FluidElementLifecycle {
+    initialized: StoredValue<bool>,
+    reset_last: StoredValue<u32>,
+    init_generation: StoredValue<u32>,
+    mounted_element: StoredValue<Option<Element>, LocalStorage>,
+}
+
+impl FluidElementLifecycle {
+    fn new(reset_value: u32) -> Self {
+        Self {
+            initialized: StoredValue::new(false),
+            reset_last: StoredValue::new(reset_value),
+            init_generation: StoredValue::new(0),
+            mounted_element: StoredValue::new_local(None),
+        }
+    }
+
+    fn prepare_mount(&self, reset_value: u32, element: &Element) -> bool {
+        let mut needs_init = !self.initialized.get_value();
+
+        if reset_value != self.reset_last.get_value() {
+            self.reset_last.set_value(reset_value);
+            self.invalidate();
+            needs_init = true;
+        }
+
+        let element_changed = match self.mounted_element.get_value() {
+            Some(previous) => previous != *element,
+            None => true,
+        };
+        if element_changed {
+            self.mounted_element.set_value(Some(element.clone()));
+            self.invalidate();
+            needs_init = true;
+        }
+
+        needs_init
+    }
+
+    fn mark_unmounted(&self) {
+        if self.mounted_element.get_value().is_none() {
+            return;
+        }
+
+        self.mounted_element.set_value(None);
+        self.invalidate();
+    }
+
+    fn current_generation(&self) -> u32 {
+        self.init_generation.get_value()
+    }
+
+    fn finish_initialization(&self) {
+        self.initialized.set_value(true);
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.initialized.get_value()
+    }
+
+    fn invalidate(&self) {
+        let next_generation = self.init_generation.get_value().wrapping_add(1);
+        self.init_generation.set_value(next_generation);
+        self.initialized.set_value(false);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct InteractionState {
+    hovered: RwSignal<bool>,
+    pressed: RwSignal<bool>,
+}
+
+impl InteractionState {
+    fn new() -> Self {
+        Self {
+            hovered: RwSignal::new(false),
+            pressed: RwSignal::new(false),
+        }
+    }
+
+    fn is_interacting(&self) -> bool {
+        self.hovered.get_untracked() || self.pressed.get_untracked()
+    }
+
+    fn set_hovered(&self, hovered: bool) {
+        self.hovered.set(hovered);
+        if !hovered {
+            self.pressed.set(false);
+        }
+    }
+
+    fn press(&self) {
+        self.pressed.set(true);
+    }
+
+    fn release(&self) -> bool {
+        if !self.pressed.get_untracked() {
+            return false;
+        }
+
+        self.pressed.set(false);
+        true
+    }
+
+    fn target(
+        &self,
+        base: &FluidStyle,
+        while_hover: Option<&FluidStyle>,
+        while_tap: Option<&FluidStyle>,
+    ) -> FluidStyle {
+        resolve_interaction_target(
+            base,
+            while_hover,
+            while_tap,
+            self.hovered.get_untracked(),
+            self.pressed.get_untracked(),
+        )
+    }
+}
+
+fn resolve_interaction_target(
+    base: &FluidStyle,
+    while_hover: Option<&FluidStyle>,
+    while_tap: Option<&FluidStyle>,
+    hovered: bool,
+    pressed: bool,
+) -> FluidStyle {
+    if pressed {
+        if let Some(tap) = while_tap {
+            return tap.clone();
+        }
+        if hovered && let Some(hover) = while_hover {
+            return hover.clone();
+        }
+        return base.clone();
+    }
+
+    if hovered && let Some(hover) = while_hover {
+        return hover.clone();
+    }
+
+    base.clone()
+}
+
+fn plan_mount_targets(
+    initial: &FluidStyle,
+    animate: &FluidStyle,
+) -> (FluidStyle, Option<FluidStyle>) {
+    if animate.is_empty() {
+        (initial.clone(), None)
+    } else {
+        (animate.clone(), Some(animate.clone()))
+    }
+}
+
+fn animate_interaction_target(
+    controller: AnimationController,
+    transition_store: StoredValue<Transition>,
+    base_style: StoredValue<FluidStyle>,
+    interactions: InteractionState,
+    while_hover: Option<FluidStyle>,
+    while_tap: Option<FluidStyle>,
+) {
+    let base = base_style.get_value();
+    let target = interactions.target(&base, while_hover.as_ref(), while_tap.as_ref());
+    controller.animate_with(target, transition_store.get_value());
+}
+
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 pub(crate) fn fluid_element_view(
     tag: &'static str,
     initial: FluidStyle,
@@ -21,41 +192,25 @@ pub(crate) fn fluid_element_view(
     node_ref: FluidNodeRef,
     content: AnyView,
 ) -> AnyView {
-    let is_hovered = RwSignal::new(false);
-    let is_pressed = RwSignal::new(false);
-
+    let interactions = InteractionState::new();
     let controller = AnimationController::with_transition(transition.clone());
     let base_style = StoredValue::new(initial.clone());
     let transition_store = StoredValue::new(transition);
-    let initialized = StoredValue::new(false);
-    let reset_last = StoredValue::new(reset.get_untracked());
-    let last_element: StoredValue<Option<Element>, LocalStorage> = StoredValue::new_local(None);
+    let lifecycle = FluidElementLifecycle::new(reset.get_untracked());
+
+    controller.attach_node_ref(node_ref);
 
     Effect::new({
         let animate = animate.clone();
         move || {
             let reset_value = reset.get();
-            if reset_value != reset_last.get_value() {
-                reset_last.set_value(reset_value);
-                initialized.set_value(false);
-            }
-
             let Some(element) = node_ref.get() else {
+                lifecycle.mark_unmounted();
                 return;
             };
             let element: Element = element.unchecked_into();
-            let element_changed = match last_element.get_value() {
-                Some(previous) => previous != element,
-                None => true,
-            };
-            controller.attach_element(element.clone());
 
-            if element_changed {
-                last_element.set_value(Some(element));
-                initialized.set_value(false);
-            }
-
-            if initialized.get_value() {
+            if !lifecycle.prepare_mount(reset_value, &element) {
                 return;
             }
 
@@ -65,28 +220,29 @@ pub(crate) fn fluid_element_view(
             }
 
             let target = animate.get();
-            let next_base = if target.is_empty() {
-                initial.clone()
-            } else {
-                target.clone()
-            };
+            let (next_base, scheduled_target) = plan_mount_targets(&initial, &target);
             base_style.set_value(next_base);
 
-            if !target.is_empty() {
+            if let Some(target) = scheduled_target {
                 let transition = transition_store.get_value();
+                let generation = lifecycle.current_generation();
+                let init_generation = lifecycle.init_generation;
                 request_animation_frame(move || {
+                    if init_generation.get_value() != generation {
+                        return;
+                    }
                     controller.animate_with(target, transition);
                 });
             }
 
-            initialized.set_value(true);
+            lifecycle.finish_initialization();
         }
     });
 
     Effect::new(move || {
         let target = animate.get();
 
-        if !initialized.get_value() {
+        if !lifecycle.is_initialized() {
             return;
         }
 
@@ -95,7 +251,7 @@ pub(crate) fn fluid_element_view(
         }
         base_style.set_value(target.clone());
 
-        if is_hovered.get_untracked() || is_pressed.get_untracked() {
+        if interactions.is_interacting() {
             return;
         }
 
@@ -105,64 +261,85 @@ pub(crate) fn fluid_element_view(
 
     let on_pointerenter = {
         let while_hover = while_hover.clone();
+        let while_tap = while_tap.clone();
         move |_| {
-            let Some(hover_style) = while_hover.clone() else {
+            if while_hover.is_none() {
                 return;
-            };
-            is_hovered.set(true);
-            let transition = transition_store.get_value();
-            controller.animate_with(hover_style, transition);
+            }
+
+            interactions.set_hovered(true);
+            animate_interaction_target(
+                controller,
+                transition_store,
+                base_style,
+                interactions,
+                while_hover.clone(),
+                while_tap.clone(),
+            );
         }
     };
 
     let on_pointerleave = {
+        let while_hover = while_hover.clone();
+        let while_tap = while_tap.clone();
         move |_| {
-            is_hovered.set(false);
-            if is_pressed.get_untracked() {
-                is_pressed.set(false);
-            }
-
-            let transition = transition_store.get_value();
-            let target = base_style.get_value();
-
-            controller.animate_with(target, transition);
+            interactions.set_hovered(false);
+            animate_interaction_target(
+                controller,
+                transition_store,
+                base_style,
+                interactions,
+                while_hover.clone(),
+                while_tap.clone(),
+            );
         }
     };
 
     let on_pointerdown = {
+        let while_hover = while_hover.clone();
         let while_tap = while_tap.clone();
         move |_| {
-            let Some(tap_style) = while_tap.clone() else {
+            if while_tap.is_none() {
                 return;
-            };
-            is_pressed.set(true);
-            let transition = transition_store.get_value();
-            controller.animate_with(tap_style, transition);
+            }
+
+            interactions.press();
+            animate_interaction_target(
+                controller,
+                transition_store,
+                base_style,
+                interactions,
+                while_hover.clone(),
+                while_tap.clone(),
+            );
         }
     };
 
     let make_pointer_release = move || {
         let while_hover = while_hover.clone();
+        let while_tap = while_tap.clone();
         move |_| {
-            if !is_pressed.get_untracked() {
+            if !interactions.release() {
                 return;
             }
-            is_pressed.set(false);
 
-            let transition = transition_store.get_value();
-            let target = if is_hovered.get_untracked() {
-                while_hover
-                    .clone()
-                    .unwrap_or_else(|| base_style.get_value())
-            } else {
-                base_style.get_value()
-            };
-            controller.animate_with(target, transition);
+            animate_interaction_target(
+                controller,
+                transition_store,
+                base_style,
+                interactions,
+                while_hover.clone(),
+                while_tap.clone(),
+            );
         }
     };
 
     let on_pointerup = make_pointer_release();
     let on_pointercancel = make_pointer_release();
+
+    on_cleanup(move || {
+        controller.clear_target();
+    });
 
     leptos::html::custom(tag)
         .node_ref(node_ref)
@@ -175,6 +352,71 @@ pub(crate) fn fluid_element_view(
         .on(leptos::ev::pointercancel, on_pointercancel)
         .child(content)
         .into_any()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{plan_mount_targets, resolve_interaction_target};
+    use crate::FluidStyle;
+
+    fn named_style(name: &'static str) -> FluidStyle {
+        FluidStyle::new().with("background", name)
+    }
+
+    #[test]
+    fn interaction_target_prefers_press_over_hover() {
+        let base = named_style("base");
+        let hover = named_style("hover");
+        let tap = named_style("tap");
+
+        assert_eq!(
+            resolve_interaction_target(&base, Some(&hover), Some(&tap), false, false),
+            base
+        );
+        assert_eq!(
+            resolve_interaction_target(&base, Some(&hover), Some(&tap), true, false),
+            hover
+        );
+        assert_eq!(
+            resolve_interaction_target(&base, Some(&hover), Some(&tap), true, true),
+            tap
+        );
+    }
+
+    #[test]
+    fn interaction_target_falls_back_when_variants_are_missing() {
+        let base = named_style("base");
+        let hover = named_style("hover");
+
+        assert_eq!(
+            resolve_interaction_target(&base, Some(&hover), None, true, true),
+            hover
+        );
+        assert_eq!(
+            resolve_interaction_target(&base, None, None, true, true),
+            base
+        );
+    }
+
+    #[test]
+    fn mount_plan_uses_initial_when_animate_is_empty() {
+        let initial = named_style("initial");
+        let animate = FluidStyle::new();
+
+        let (base, scheduled) = plan_mount_targets(&initial, &animate);
+        assert_eq!(base, initial);
+        assert_eq!(scheduled, None);
+    }
+
+    #[test]
+    fn mount_plan_schedules_non_empty_target() {
+        let initial = named_style("initial");
+        let animate = named_style("animate");
+
+        let (base, scheduled) = plan_mount_targets(&initial, &animate);
+        assert_eq!(base, animate);
+        assert_eq!(scheduled, Some(animate));
+    }
 }
 
 /// Motion-enabled element component for arbitrary HTML tags.
@@ -231,6 +473,7 @@ pub fn FluidElement(
     )
 }
 
+#[cfg(feature = "wrappers")]
 macro_rules! fluid_wrapper {
     ($name:ident, $tag:literal) => {
         #[component]
@@ -285,6 +528,9 @@ macro_rules! fluid_wrapper {
     };
 }
 
+#[cfg(feature = "wrappers")]
 fluid_wrapper!(FluidDiv, "div");
+#[cfg(feature = "wrappers")]
 fluid_wrapper!(FluidSpan, "span");
+#[cfg(feature = "wrappers")]
 fluid_wrapper!(FluidButton, "button");

@@ -1,0 +1,9 @@
+[package]
+name = "motion_builder_ui_fail_missing_attachment"
+version = "0.0.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+leptos_fluid_motion = { path = "../../../../", default-features = false, features = ["builders"] }

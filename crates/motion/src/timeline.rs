@@ -1,14 +1,16 @@
+use std::rc::Rc;
 use std::sync::Arc;
 
 use leptos::prelude::{
-    Callable, Callback, GetUntracked, GetValue, ReadValue, RwSignal, Set, SetValue, Signal,
-    StoredValue, Update, WriteValue,
+    Callable, Callback, Effect, GetUntracked, GetValue, LocalStorage, NodeRef, ReadValue, RwSignal,
+    Set, SetValue, Signal, StoredValue, Update, WriteValue,
 };
 use leptos_fluid_web::{animation_pause, animation_play, element_get_active_animation};
 
-use crate::components::FluidNodeRef;
 use crate::timing::{now_ms, schedule_after};
-use crate::{FluidSignal, FluidStyle, Transition};
+use crate::{AnimationController, FluidSignal, FluidStyle, Transition};
+use leptos::html::ElementType;
+use web_sys::Element;
 use web_sys::wasm_bindgen::JsCast;
 
 /// One timeline step containing a target style, wait duration, and callback.
@@ -16,30 +18,57 @@ use web_sys::wasm_bindgen::JsCast;
 pub struct FluidStep {
     style: FluidStyle,
     wait_ms: u32,
+    wait_defined: bool,
     on_complete: Option<Callback<()>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TimelineBindingMode {
+    Animate,
+    Immediate,
+}
+
 impl FluidStep {
+    #[inline]
     pub fn new(style: FluidStyle) -> Self {
         Self {
             style,
             wait_ms: 0,
+            wait_defined: false,
             on_complete: None,
         }
     }
 
+    #[inline]
+    pub fn to(style: FluidStyle) -> Self {
+        Self::new(style)
+    }
+
+    #[inline]
     pub fn wait_ms(mut self, ms: u32) -> Self {
         self.wait_ms = ms;
+        self.wait_defined = true;
         self
     }
 
+    #[inline]
     pub fn wait_for(mut self, transition: &Transition) -> Self {
         self.wait_ms = transition.duration_ms + transition.delay_ms;
+        self.wait_defined = true;
         self
     }
 
+    #[inline]
     pub fn on_complete(mut self, callback: Callback<()>) -> Self {
         self.on_complete = Some(callback);
+        self
+    }
+
+    #[inline]
+    pub fn inherit_wait_from(mut self, transition: &Transition) -> Self {
+        if !self.wait_defined {
+            self.wait_ms = transition.duration_ms + transition.delay_ms;
+        }
         self
     }
 }
@@ -47,6 +76,7 @@ impl FluidStep {
 #[derive(Debug, Clone)]
 struct FluidTimelineInner {
     value: RwSignal<FluidStyle>,
+    update_mode: StoredValue<TimelineBindingMode, LocalStorage>,
     generation: StoredValue<u32>,
     running: RwSignal<bool>,
     paused: RwSignal<bool>,
@@ -55,8 +85,9 @@ struct FluidTimelineInner {
     step_wait_ms: RwSignal<u32>,
     remaining_ms: RwSignal<u32>,
     auto_loop: RwSignal<bool>,
-    steps: StoredValue<Arc<Vec<FluidStep>>>,
-    node_ref: StoredValue<Option<FluidNodeRef>>,
+    steps: StoredValue<Arc<[FluidStep]>>,
+    pause_target: StoredValue<Option<Rc<dyn Fn() -> Option<Element>>>, LocalStorage>,
+    bound_controller: StoredValue<Option<AnimationController>, LocalStorage>,
 }
 
 /// Sequencer that drives a `FluidStyle` signal through ordered `FluidStep`s.
@@ -69,6 +100,7 @@ impl FluidTimeline {
     pub fn new(initial: FluidStyle) -> Self {
         let inner = FluidTimelineInner {
             value: RwSignal::new(initial),
+            update_mode: StoredValue::new_local(TimelineBindingMode::Animate),
             generation: StoredValue::new(0u32),
             running: RwSignal::new(false),
             paused: RwSignal::new(false),
@@ -77,8 +109,9 @@ impl FluidTimeline {
             step_wait_ms: RwSignal::new(0),
             remaining_ms: RwSignal::new(0),
             auto_loop: RwSignal::new(false),
-            steps: StoredValue::new(Arc::new(Vec::new())),
-            node_ref: StoredValue::new(None),
+            steps: StoredValue::new(Arc::from(Vec::<FluidStep>::new())),
+            pause_target: StoredValue::new_local(None),
+            bound_controller: StoredValue::new_local(None),
         };
 
         Self {
@@ -90,16 +123,48 @@ impl FluidTimeline {
         self.inner.write_value().value.into()
     }
 
-    pub fn set_steps<I>(&self, steps: I)
-    where
-        I: IntoIterator<Item = FluidStep>,
-    {
-        let steps: Vec<FluidStep> = steps.into_iter().collect();
-        self.inner.write_value().steps.set_value(Arc::new(steps));
+    pub fn set_steps(&self, steps: Vec<FluidStep>) {
+        self.inner.write_value().steps.set_value(Arc::from(steps));
     }
 
-    pub fn attach_node_ref(&self, node_ref: FluidNodeRef) {
-        self.inner.write_value().node_ref.set_value(Some(node_ref));
+    pub fn attach_node_ref<E>(&self, node_ref: NodeRef<E>)
+    where
+        E: ElementType,
+        E::Output: JsCast + Clone + 'static,
+    {
+        self.attach_resolver(move || node_ref.get_untracked().map(|node| node.unchecked_into()));
+    }
+
+    pub fn attach_resolver<F>(&self, resolver: F)
+    where
+        F: Fn() -> Option<Element> + 'static,
+    {
+        self.inner
+            .write_value()
+            .pause_target
+            .set_value(Some(Rc::new(resolver)));
+    }
+
+    pub fn bind(&self, controller: AnimationController) {
+        self.inner
+            .write_value()
+            .bound_controller
+            .set_value(Some(controller));
+
+        let value = self.signal();
+        let update_mode = self.inner.read_value().update_mode;
+        let initialized: StoredValue<bool, LocalStorage> = StoredValue::new_local(false);
+        Effect::new(move || {
+            let next = value.get();
+            let mode = update_mode.get_value();
+            if !initialized.get_value() || mode == TimelineBindingMode::Immediate {
+                controller.set_immediate(next);
+                initialized.set_value(true);
+            } else {
+                controller.animate(next);
+            }
+            update_mode.set_value(TimelineBindingMode::Animate);
+        });
     }
 
     pub fn set_auto_loop(&self, value: bool) {
@@ -133,10 +198,12 @@ impl FluidTimeline {
         start_sequence(self.inner, 0);
     }
 
-    pub fn play_steps<I>(&self, steps: I)
-    where
-        I: IntoIterator<Item = FluidStep>,
-    {
+    #[inline]
+    pub fn restart(&self) {
+        self.play();
+    }
+
+    pub fn play_steps(&self, steps: Vec<FluidStep>) {
         self.set_steps(steps);
         self.play();
     }
@@ -165,7 +232,7 @@ impl FluidTimeline {
         let remaining = wait_ms.saturating_sub(elapsed).max(1);
         inner.remaining_ms.set(remaining);
 
-        pause_active_animation(&inner);
+        pause_timeline_animation(&inner);
     }
 
     pub fn resume(&self) {
@@ -188,7 +255,7 @@ impl FluidTimeline {
         inner.step_start.set(now_ms());
         inner.step_wait_ms.set(remaining);
 
-        resume_active_animation(&inner);
+        resume_timeline_animation(&inner);
 
         let inner_store = self.inner;
         let on_done = make_on_done(inner_store);
@@ -223,11 +290,19 @@ impl FluidTimeline {
         inner.step_wait_ms.set(0);
         let generation = inner.generation.get_value().wrapping_add(1);
         inner.generation.set_value(generation);
+
+        if let Some(controller) = inner.bound_controller.get_value() {
+            controller.stop();
+        } else if let Some(animation) = active_timeline_animation(&inner) {
+            let _ = animation_pause(&animation);
+        }
     }
 
     pub fn set_immediate(&self, style: FluidStyle) {
         self.stop();
-        self.inner.write_value().value.set(style);
+        let inner = self.inner.write_value();
+        inner.update_mode.set_value(TimelineBindingMode::Immediate);
+        inner.value.set(style);
     }
 }
 
@@ -266,14 +341,24 @@ fn make_on_done(inner_store: StoredValue<FluidTimelineInner>) -> Callback<()> {
     })
 }
 
-fn pause_active_animation(inner: &FluidTimelineInner) {
+fn pause_timeline_animation(inner: &FluidTimelineInner) {
+    if let Some(controller) = inner.bound_controller.get_value() {
+        let _ = controller.pause();
+        return;
+    }
+
     let Some(animation) = active_timeline_animation(inner) else {
         return;
     };
     let _ = animation_pause(&animation);
 }
 
-fn resume_active_animation(inner: &FluidTimelineInner) {
+fn resume_timeline_animation(inner: &FluidTimelineInner) {
+    if let Some(controller) = inner.bound_controller.get_value() {
+        let _ = controller.resume();
+        return;
+    }
+
     let Some(animation) = active_timeline_animation(inner) else {
         return;
     };
@@ -281,16 +366,15 @@ fn resume_active_animation(inner: &FluidTimelineInner) {
 }
 
 fn active_timeline_animation(inner: &FluidTimelineInner) -> Option<web_sys::Animation> {
-    let node_ref = inner.node_ref.get_value()?;
-    let node = node_ref.get_untracked()?;
-    let element: web_sys::Element = node.unchecked_into();
+    let element = inner.pause_target.get_value()?.as_ref()()?;
     element_get_active_animation(&element)
 }
 
+#[inline(never)]
 fn run_steps(
     inner_store: StoredValue<FluidTimelineInner>,
     generation: u32,
-    steps: Arc<Vec<FluidStep>>,
+    steps: Arc<[FluidStep]>,
     index: usize,
     on_done: Option<Callback<()>>,
 ) {
@@ -313,6 +397,7 @@ fn run_steps(
     inner.step_index.set(index);
     inner.step_start.set(now_ms());
     inner.step_wait_ms.set(step.wait_ms);
+    inner.update_mode.set_value(TimelineBindingMode::Animate);
     inner.value.set(step.style);
 
     let wait_ms = step.wait_ms;
@@ -340,4 +425,28 @@ fn run_steps(
         );
     });
     schedule_after(generation, inner.generation, wait_ms, on_tick);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FluidStep;
+    use crate::{FluidStyle, Transition};
+
+    #[test]
+    fn inherited_wait_uses_transition_when_unset() {
+        let transition = Transition::new().duration_ms(320).delay_ms(40);
+        let step = FluidStep::new(FluidStyle::new()).inherit_wait_from(&transition);
+
+        assert_eq!(step.wait_ms, 360);
+    }
+
+    #[test]
+    fn inherited_wait_preserves_explicit_zero_wait() {
+        let transition = Transition::new().duration_ms(320).delay_ms(40);
+        let step = FluidStep::new(FluidStyle::new())
+            .wait_ms(0)
+            .inherit_wait_from(&transition);
+
+        assert_eq!(step.wait_ms, 0);
+    }
 }

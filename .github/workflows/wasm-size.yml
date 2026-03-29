@@ -1,0 +1,77 @@
+name: Wasm Size
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base branch or ref to compare against
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install nightly Rust with wasm support
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+          components: rust-src
+
+      - name: Install twiggy
+        run: cargo install twiggy --locked
+
+      - name: Create base worktree
+        run: |
+          git fetch origin "${{ steps.base.outputs.ref }}" --depth=1
+          git worktree add "$RUNNER_TEMP/base-ref" "origin/${{ steps.base.outputs.ref }}"
+
+      - name: Capture current wasm size snapshot
+        run: |
+          python3 tools/wasm_size_report.py capture \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --target-dir "$RUNNER_TEMP/wasm-size/current-target" \
+            --output "$RUNNER_TEMP/current-size.json"
+
+      - name: Capture base wasm size snapshot
+        run: |
+          python3 tools/wasm_size_report.py capture \
+            --repo-root "$RUNNER_TEMP/base-ref" \
+            --target-dir "$RUNNER_TEMP/wasm-size/base-target" \
+            --output "$RUNNER_TEMP/base-size.json"
+
+      - name: Compare snapshots
+        run: |
+          python3 tools/wasm_size_report.py compare \
+            --baseline "$RUNNER_TEMP/base-size.json" \
+            --current "$RUNNER_TEMP/current-size.json" \
+            --output "$RUNNER_TEMP/wasm-size-summary.md"
+          cat "$RUNNER_TEMP/wasm-size-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload wasm size artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-size-report
+          path: |
+            ${{ runner.temp }}/base-size.json
+            ${{ runner.temp }}/current-size.json
+            ${{ runner.temp }}/wasm-size-summary.md

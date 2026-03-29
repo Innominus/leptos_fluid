@@ -12,13 +12,19 @@ documentation = "https://docs.rs/leptos_fluid_web"
 keywords = ["leptos", "wasm", "web", "animation", "waapi"]
 categories = ["wasm", "web-programming"]
 
+[features]
+default = []
+full = ["style", "waapi", "dom-query", "resize-observer"]
+style = [
+    "web-sys/Element",
+    "web-sys/HtmlElement",
+    "web-sys/CssStyleDeclaration",
+    "web-sys/Window",
+]
+waapi = ["style", "web-sys/Animation"]
+dom-query = ["style", "web-sys/NodeList"]
+resize-observer = ["style", "web-sys/ResizeObserver", "web-sys/ResizeObserverEntry"]
+
 [dependencies]
 js-sys = { workspace = true }
-web-sys = { workspace = true, features = [
-    "Element",
-    "Animation",
-    "Window",
-    "HtmlElement",
-    "CssStyleDeclaration",
-    "NodeList",
-] }
+web-sys = { workspace = true }

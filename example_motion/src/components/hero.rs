@@ -1,86 +1,114 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{Easing, FluidButton, FluidDiv, FluidStyle, FluidValue, Transition};
+use leptos_fluid_motion::{FluidButton, FluidDiv, FluidStyle, FluidValue, Transition};
+
+const HERO_PILLARS: [(&str, &str); 4] = [
+    (
+        "Wrapper components",
+        "FluidDiv, FluidButton, and FluidSpan for expressive markup.",
+    ),
+    (
+        "Raw styling",
+        "style! plus FluidStyle builders for intentional surfaces.",
+    ),
+    (
+        "Sequencing",
+        "Timeline and spring-driven motion for continuous interaction.",
+    ),
+    (
+        "Layout transitions",
+        "FLIP primitives for move, resize, and reorder cases.",
+    ),
+];
 
 #[component]
-pub fn HeroSection(pulse: RwSignal<bool>, card_focus: RwSignal<bool>) -> impl IntoView {
-    let hero_toggle = RwSignal::new(false);
+pub fn HeroSection() -> impl IntoView {
+    let energized = RwSignal::new(false);
 
-    let hero_style = move || {
-        if hero_toggle.get() {
-            FluidStyle::new()
-                .opacity(1.0)
-                .x(0.0)
-                .y(0.0)
-                .scale(1.0)
-                .rotate(-1.0)
-                .with_prop(
-                    "box-shadow",
-                    FluidValue::from("0 30px 80px rgba(6, 7, 18, 0.6)"),
-                )
-        } else {
-            FluidStyle::new()
-                .opacity(0.7)
-                .x(-12.0)
-                .y(12.0)
-                .scale(0.96)
-                .rotate(1.5)
-                .with_prop(
-                    "box-shadow",
-                    FluidValue::from("0 18px 50px rgba(6, 7, 18, 0.4)"),
-                )
-        }
-    };
+    let pillars = HERO_PILLARS
+        .into_iter()
+        .map(|(label, body)| {
+            view! {
+                <div class="summary-item">
+                    <p class="summary-kicker">{label}</p>
+                    <p class="summary-body">{body}</p>
+                </div>
+            }
+        })
+        .collect_view();
 
     view! {
-        <section class="hero" data-testid="hero-section">
-            <div class="panel">
-                <span class="tag">"Leptos Fluid"</span>
-                <h1>"Fluid motion playground that actually moves."</h1>
-                <p>
-                    "Each panel showcases a different combination of FluidStyle, transitions, and hover/tap variants. "
-                    "Toggle the controls to see everything react in real time."
+        <section class="hero-grid">
+            <div class="panel hero-copy">
+                <p class="kicker">"Leptos Fluid"</p>
+                <h1>"A rebuilt motion showroom for the whole stack."</h1>
+                <p class="lead-copy">
+                    "This example focuses on the full motion surface: wrapper components, style composition, timelines, springs, and FLIP layout animation."
                 </p>
+
                 <div class="button-row">
-                    <button
-                        on:click=move |_| { hero_toggle.update(|val| *val = !*val) }
-                        data-testid="hero-toggle"
-                    >
-                        {move || if hero_toggle.get() { "Reset hero" } else { "Throw it off" }}
+                    <button on:click=move |_| energized.update(|value| *value = !*value)>
+                        {move || if energized.get() { "Return to dock" } else { "Energize showcase" }}
                     </button>
-                    <button class="alt" on:click=move |_| pulse.update(|val| *val = !*val)>
-                        {move || if pulse.get() { "Dim pulse" } else { "Wake pulse" }}
-                    </button>
-                    <button class="alt" on:click=move |_| card_focus.update(|val| *val = !*val)>
-                        {move || { if card_focus.get() { "Unfocus cards" } else { "Focus cards" } }}
+                    <button class="alt" on:click=move |_| energized.set(false)>
+                        "Reset"
                     </button>
                 </div>
+
+                <div class="summary-grid">{pillars}</div>
             </div>
 
             <FluidDiv
-                class="glass"
-                initial=FluidStyle::new().opacity(0.0).y(30.0)
-                animate=hero_style
-                transition=Transition::spring_with(620, 0.45)
-                while_hover=FluidStyle::new().scale(1.02)
-                while_tap=FluidStyle::new().scale(0.98)
+                class="hero-showcase"
+                initial=hero_card_style(false)
+                animate=move || hero_card_style(energized.get())
+                transition=Transition::spring_with(620, 0.32)
+                while_hover=FluidStyle::new().scale(1.01).y(-6.0)
+                while_tap=FluidStyle::new().scale(0.99)
             >
-                <div class="orb one"></div>
-                <div class="orb two"></div>
-                <h2>"Hero card"</h2>
+                <div class="hero-orb hero-orb-left"></div>
+                <div class="hero-orb hero-orb-right"></div>
+                <p class="chip">"Motion stack"</p>
+                <h2>"One surface, multiple layers"</h2>
                 <p>
-                    "Animated with a spring, rotated transforms, and dynamic shadows. Uses while_hover and while_tap for micro interactions."
+                    "Wrapper components read beautifully, builders keep plain elements ergonomic, and FLIP handles layout changes without losing continuity."
                 </p>
                 <FluidButton
-                    class="alt"
+                    class="hero-cta"
                     initial=FluidStyle::new().opacity(0.0).y(10.0)
-                    animate=move || FluidStyle::new().opacity(1.0).y(0.0)
-                    transition=Transition::new().duration_ms(360).easing(Easing::EaseOut)
+                    animate=FluidStyle::new().opacity(1.0).y(0.0)
+                    transition=Transition::spring_with(460, 0.18)
                     while_hover=FluidStyle::new().scale(1.04)
                     while_tap=FluidStyle::new().scale(0.96)
                 >
-                    "FluidButton"
+                    "FluidButton in the hero"
                 </FluidButton>
             </FluidDiv>
         </section>
+    }
+}
+
+fn hero_card_style(energized: bool) -> FluidStyle {
+    if energized {
+        FluidStyle::new()
+            .opacity(1.0)
+            .x(8.0)
+            .y(-10.0)
+            .scale(1.02)
+            .rotate(-1.2)
+            .with_prop(
+                "box-shadow",
+                FluidValue::from("0 34px 84px rgba(6, 7, 18, 0.56)"),
+            )
+    } else {
+        FluidStyle::new()
+            .opacity(0.86)
+            .x(-12.0)
+            .y(14.0)
+            .scale(0.96)
+            .rotate(1.4)
+            .with_prop(
+                "box-shadow",
+                FluidValue::from("0 22px 54px rgba(6, 7, 18, 0.4)"),
+            )
     }
 }

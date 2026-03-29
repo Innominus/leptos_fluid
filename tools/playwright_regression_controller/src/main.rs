@@ -16,15 +16,19 @@ const DEFAULT_DIST_DIR: &str = "example_motion_controller/dist";
 const DEFAULT_PORT: u16 = 4174;
 const REQUEST_BUFFER_LEN: usize = 16 * 1024;
 
-const BIND_MID_WAIT: Duration = Duration::from_millis(180);
-const BIND_SETTLE_WAIT: Duration = Duration::from_millis(1300);
+const BUILDER_CARD_MID_WAIT: Duration = Duration::from_millis(180);
+const BUILDER_CARD_SETTLE_WAIT: Duration = Duration::from_millis(1300);
 
-const POINTER_STEP_WAIT: Duration = Duration::from_millis(220);
+const MACRO_STATE_SETTLE_WAIT: Duration = Duration::from_millis(1400);
 
-const QUEUE_SETTLE_WAIT: Duration = Duration::from_millis(1200);
+const RESOLVER_MID_WAIT: Duration = Duration::from_millis(220);
+const RESOLVER_SETTLE_WAIT: Duration = Duration::from_millis(1800);
 
-const TABS_MID_WAIT: Duration = Duration::from_millis(180);
-const TABS_SETTLE_WAIT: Duration = Duration::from_millis(2200);
+const TIMELINE_MID_WAIT: Duration = Duration::from_millis(260);
+const TIMELINE_PAUSE_WAIT: Duration = Duration::from_millis(560);
+const TIMELINE_RESUME_WAIT: Duration = Duration::from_millis(520);
+
+const AUTO_SIZE_SETTLE_WAIT: Duration = Duration::from_millis(900);
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -271,12 +275,8 @@ struct StyleSnapshot {
     transform: String,
     opacity: f64,
     background_color: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct RectSnapshot {
-    left: f64,
     width: f64,
+    height: f64,
 }
 
 #[tokio::main]
@@ -311,10 +311,12 @@ async fn main() -> Result<()> {
 }
 
 async fn run_regression_suite(browser: &Browser, base_url: &str) -> Result<()> {
-    run_bind_transition_check(browser, base_url).await?;
-    run_tabs_underline_check(browser, base_url).await?;
-    run_pointer_state_check(browser, base_url).await?;
-    run_queue_latest_check(browser, base_url).await?;
+    run_builder_card_check(browser, base_url).await?;
+    run_macro_state_check(browser, base_url).await?;
+    run_resolver_deck_check(browser, base_url).await?;
+    run_timeline_builder_check(browser, base_url).await?;
+    run_timeline_macro_check(browser, base_url).await?;
+    run_auto_size_check(browser, base_url).await?;
     Ok(())
 }
 
@@ -334,7 +336,7 @@ async fn open_demo_page(browser: &Browser, base_url: &str) -> Result<Page> {
 
     wait_for_visible(
         &page,
-        "[data-testid='controller-bind-toggle']",
+        "[data-testid='builder-card-toggle']",
         Duration::from_secs(12),
     )
     .await?;
@@ -351,327 +353,293 @@ async fn wait_for_visible(page: &Page, selector: &str, timeout: Duration) -> Res
             Ok(false) | Err(_) => {}
         }
         if tokio::time::Instant::now() >= deadline {
-            bail!("Timed out waiting for visible selector: {selector}");
+            let body = page.content().await.unwrap_or_default();
+            bail!("Timed out waiting for visible selector: {selector}\n\nPage content:\n{body}");
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
 
-async fn run_bind_transition_check(browser: &Browser, base_url: &str) -> Result<()> {
-    println!("[playwright_regression_controller] Running bind transition check");
+async fn run_builder_card_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running builder card check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let selector = "[data-testid='controller-bind-card']";
+    let selector = "[data-testid='builder-card-preview']";
     let start = read_style(&page, selector).await?;
 
-    page.locator("[data-testid='controller-bind-toggle']")
+    page.locator("[data-testid='builder-card-toggle']")
         .await
         .click(None)
         .await?;
 
-    tokio::time::sleep(BIND_MID_WAIT).await;
+    tokio::time::sleep(BUILDER_CARD_MID_WAIT).await;
     let mid = read_style(&page, selector).await?;
 
-    tokio::time::sleep(BIND_SETTLE_WAIT).await;
+    tokio::time::sleep(BUILDER_CARD_SETTLE_WAIT).await;
     let end = read_style(&page, selector).await?;
+    let status = read_text(&page, "[data-testid='builder-card-status']").await?;
 
     ensure!(
         style_delta(&start, &end) > 0.05,
-        "Bind transition did not reach a different settled state"
+        "Builder card did not reach a different settled state"
     );
     ensure!(
         style_delta(&start, &mid) > 0.05,
-        "Bind transition never moved away from the starting style"
+        "Builder card never moved away from the starting style"
     );
     ensure!(
         style_delta(&mid, &end) > 0.01,
-        "Bind transition appears to jump directly to the end"
+        "Builder card appears to jump directly to the end"
     );
     ensure!(
-        end.opacity > start.opacity,
-        "Expected expanded state to have higher opacity: start={:.3}, end={:.3}",
-        start.opacity,
-        end.opacity
+        status.to_lowercase().contains("lifted"),
+        "Builder card status did not reflect the lifted state: {status:?}"
     );
 
     page.close().await?;
     Ok(())
 }
 
-async fn run_tabs_underline_check(browser: &Browser, base_url: &str) -> Result<()> {
-    println!("[playwright_regression_controller] Running tabs underline check");
+async fn run_macro_state_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running macro state check");
     let page = open_demo_page(browser, base_url).await?;
 
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-tab-button-0']",
-        Duration::from_secs(8),
-    )
-    .await?;
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-tab-underline']",
-        Duration::from_secs(8),
-    )
-    .await?;
+    let selector = "[data-testid='macro-state-preview']";
+    let start = read_style(&page, selector).await?;
 
-    tokio::time::sleep(Duration::from_millis(140)).await;
-
-    let start_underline = read_rect(&page, "[data-testid='controller-tab-underline']").await?;
-    let tab0_rect = read_rect(&page, "[data-testid='controller-tab-button-0']").await?;
-    ensure!(
-        approx_eq(rect_center(&start_underline), rect_center(&tab0_rect), 12.0),
-        "Underline did not initialize near first tab: underline_left={:.2}, tab_left={:.2}",
-        start_underline.left,
-        tab0_rect.left
-    );
-
-    page.locator("[data-testid='controller-tab-button-3']")
+    page.locator("[data-testid='macro-state-review']")
         .await
         .click(None)
         .await?;
-
-    tokio::time::sleep(TABS_MID_WAIT).await;
-    let mid_underline = read_rect(&page, "[data-testid='controller-tab-underline']").await?;
-
-    tokio::time::sleep(TABS_SETTLE_WAIT).await;
-    let end_underline = read_rect(&page, "[data-testid='controller-tab-underline']").await?;
-    let tab3_rect = read_rect(&page, "[data-testid='controller-tab-button-3']").await?;
-
-    ensure!(
-        rect_delta(&start_underline, &mid_underline) > 4.0,
-        "Underline never moved away from initial tab"
-    );
-    ensure!(
-        rect_delta(&mid_underline, &end_underline) > 1.0,
-        "Underline appears to jump straight to final tab"
-    );
-    ensure!(
-        approx_eq(rect_center(&end_underline), rect_center(&tab3_rect), 20.0),
-        "Underline did not settle near tab 3 center: underline={:.2}, tab={:.2}",
-        rect_center(&end_underline),
-        rect_center(&tab3_rect)
-    );
-    ensure!(
-        approx_eq(end_underline.width, tab3_rect.width, 24.0),
-        "Underline width did not settle near tab 3 width: underline={:.2}, tab={:.2}",
-        end_underline.width,
-        tab3_rect.width
-    );
-
-    page.locator("[data-testid='controller-tab-button-1']")
+    page.locator("[data-testid='macro-state-live']")
         .await
         .click(None)
         .await?;
-    page.locator("[data-testid='controller-tab-button-2']")
-        .await
-        .click(None)
-        .await?;
+    tokio::time::sleep(MACRO_STATE_SETTLE_WAIT).await;
 
-    tokio::time::sleep(TABS_SETTLE_WAIT).await;
-    let final_underline = read_rect(&page, "[data-testid='controller-tab-underline']").await?;
-    let tab2_rect = read_rect(&page, "[data-testid='controller-tab-button-2']").await?;
-    let tab_content = read_text(&page, "[data-testid='controller-tab-content']").await?;
+    let end = read_style(&page, selector).await?;
+    let status = read_text(&page, "[data-testid='macro-state-status']").await?;
 
     ensure!(
-        approx_eq(rect_center(&final_underline), rect_center(&tab2_rect), 20.0),
-        "Rapid retarget did not settle on last clicked tab center: underline={:.2}, tab={:.2}",
-        rect_center(&final_underline),
-        rect_center(&tab2_rect)
+        style_delta(&start, &end) > 0.05,
+        "Macro state preview did not reach a different settled state"
     );
     ensure!(
-        approx_eq(final_underline.width, tab2_rect.width, 24.0),
-        "Rapid retarget did not settle on last clicked tab width: underline={:.2}, tab={:.2}",
-        final_underline.width,
-        tab2_rect.width
-    );
-    ensure!(
-        tab_content.to_lowercase().contains("retargeting"),
-        "Tab content did not update to final selected tab: {tab_content:?}"
+        status.to_lowercase().contains("live"),
+        "Macro state status did not settle on live mode: {status:?}"
     );
 
     page.close().await?;
     Ok(())
 }
 
-async fn run_pointer_state_check(browser: &Browser, base_url: &str) -> Result<()> {
-    println!("[playwright_regression_controller] Running pointer state check");
+async fn run_resolver_deck_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running resolver deck check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let pill_selector = "[data-testid='controller-pointer-pill']";
-    let idle_style = read_style(&page, pill_selector).await?;
+    let first_selector = "[data-testid='resolver-card-0']";
+    let second_selector = "[data-testid='resolver-card-1']";
 
-    page.locator("[data-testid='controller-pointer-arm-toggle']")
+    let first_start = read_style(&page, first_selector).await?;
+    let second_start = read_style(&page, second_selector).await?;
+
+    page.locator("[data-testid='resolver-pulse']")
         .await
         .click(None)
         .await?;
-    tokio::time::sleep(POINTER_STEP_WAIT).await;
-    let armed_style = read_style(&page, pill_selector).await?;
+    tokio::time::sleep(RESOLVER_MID_WAIT).await;
+    let first_mid = read_style(&page, first_selector).await?;
 
     ensure!(
-        normalize_color(&idle_style.background_color)
-            != normalize_color(&armed_style.background_color),
-        "Pointer arm toggle did not change base visual state"
+        style_delta(&first_start, &first_mid) > 0.08,
+        "Active resolver card never moved away from its starting state"
     );
 
-    dispatch_pointer_event(&page, pill_selector, "pointerenter").await?;
-    tokio::time::sleep(POINTER_STEP_WAIT).await;
-    let hover_style = read_style(&page, pill_selector).await?;
-    ensure!(
-        !is_identity_transform(&hover_style.transform),
-        "Hover state did not enter a transformed style"
-    );
+    page.locator("[data-testid='resolver-next']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(RESOLVER_SETTLE_WAIT).await;
 
-    dispatch_pointer_event(&page, pill_selector, "pointerdown").await?;
-    tokio::time::sleep(POINTER_STEP_WAIT).await;
-    let pressed_style = read_style(&page, pill_selector).await?;
-    ensure!(
-        normalize_transform(&pressed_style.transform)
-            != normalize_transform(&hover_style.transform),
-        "Press state did not diverge from hover style"
-    );
+    let first_end = read_style(&page, first_selector).await?;
+    let second_end = read_style(&page, second_selector).await?;
 
-    dispatch_pointer_event(&page, pill_selector, "pointerup").await?;
-    tokio::time::sleep(POINTER_STEP_WAIT).await;
-    let released_style = read_style(&page, pill_selector).await?;
     ensure!(
-        !is_identity_transform(&released_style.transform),
-        "Release while hovered should return to hover style, not base"
-    );
-
-    dispatch_pointer_event(&page, pill_selector, "pointerleave").await?;
-    tokio::time::sleep(POINTER_STEP_WAIT).await;
-    let settled_style = read_style(&page, pill_selector).await?;
-    ensure!(
-        is_identity_transform(&settled_style.transform),
-        "Pointer leave should settle back to base transform"
+        style_delta(&second_start, &second_end) > 0.12,
+        "Replacement resolver card never animated after retargeting"
     );
     ensure!(
-        normalize_color(&settled_style.background_color)
-            == normalize_color(&armed_style.background_color),
-        "Pointer leave should keep the armed base background"
+        second_end.opacity > first_end.opacity + 0.04,
+        "Resolver retargeting did not leave the new card more energized than the old one: first={:.3}, second={:.3}",
+        first_end.opacity,
+        second_end.opacity
     );
 
     page.close().await?;
     Ok(())
 }
 
-async fn run_queue_latest_check(browser: &Browser, base_url: &str) -> Result<()> {
-    println!("[playwright_regression_controller] Running queue-latest check");
+async fn run_timeline_builder_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running timeline builder check");
     let page = open_demo_page(browser, base_url).await?;
 
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-queue-detached']",
-        Duration::from_secs(8),
-    )
-    .await?;
+    let selector = "[data-testid='timeline-builder-glyph']";
+    let start = read_style(&page, selector).await?;
 
-    for _ in 0..3 {
-        page.locator("[data-testid='controller-queue-next']")
-            .await
-            .click(None)
-            .await?;
-    }
-
-    page.locator("[data-testid='controller-queue-mount']")
+    page.locator("[data-testid='timeline-builder-restart']")
         .await
         .click(None)
         .await?;
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-queue-chip']",
-        Duration::from_secs(6),
-    )
-    .await?;
-    tokio::time::sleep(QUEUE_SETTLE_WAIT).await;
-
-    let first_label = read_text(&page, "[data-testid='controller-queue-label']").await?;
-    let first_style = read_style(&page, "[data-testid='controller-queue-chip']").await?;
+    tokio::time::sleep(TIMELINE_MID_WAIT).await;
+    let mid = read_style(&page, selector).await?;
 
     ensure!(
-        first_label.contains("flare"),
-        "Expected queued step label to settle at flare, got: {first_label:?}"
-    );
-    ensure!(
-        approx_eq(first_style.opacity, 0.92, 0.08),
-        "Expected first mounted opacity near 0.92, got {:.3}",
-        first_style.opacity
+        style_delta(&start, &mid) > 0.08,
+        "Timeline builder glyph never left its starting state"
     );
 
-    page.locator("[data-testid='controller-queue-mount']")
+    page.locator("[data-testid='timeline-builder-pause']")
         .await
         .click(None)
         .await?;
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-queue-detached']",
-        Duration::from_secs(6),
-    )
-    .await?;
+    tokio::time::sleep(Duration::from_millis(180)).await;
+    let paused = read_style(&page, selector).await?;
+    let paused_status = read_text(&page, "[data-testid='timeline-builder-status']").await?;
 
-    for _ in 0..2 {
-        page.locator("[data-testid='controller-queue-next']")
-            .await
-            .click(None)
-            .await?;
-    }
+    ensure!(
+        paused_status.to_lowercase().contains("paused"),
+        "Timeline builder status did not report a paused state: {paused_status:?}"
+    );
 
-    page.locator("[data-testid='controller-queue-mount']")
+    page.locator("[data-testid='timeline-builder-pause']")
         .await
         .click(None)
         .await?;
-    wait_for_visible(
-        &page,
-        "[data-testid='controller-queue-chip']",
-        Duration::from_secs(6),
-    )
-    .await?;
-    tokio::time::sleep(QUEUE_SETTLE_WAIT).await;
-
-    let second_label = read_text(&page, "[data-testid='controller-queue-label']").await?;
-    let second_style = read_style(&page, "[data-testid='controller-queue-chip']").await?;
+    tokio::time::sleep(TIMELINE_RESUME_WAIT).await;
+    let resumed = read_style(&page, selector).await?;
 
     ensure!(
-        second_label.contains("anchor"),
-        "Expected queued step label to settle at anchor, got: {second_label:?}"
-    );
-    ensure!(
-        approx_eq(second_style.opacity, 1.0, 0.08),
-        "Expected second mounted opacity near 1.0, got {:.3}",
-        second_style.opacity
-    );
-    ensure!(
-        (first_style.opacity - second_style.opacity).abs() > 0.04,
-        "Queue replay did not produce distinct settled states across mounts"
+        style_delta(&paused, &resumed) > 0.04,
+        "Timeline builder glyph did not resume after unpausing"
     );
 
     page.close().await?;
     Ok(())
 }
 
-async fn dispatch_pointer_event(page: &Page, selector: &str, event_type: &str) -> Result<()> {
-    let payload = [selector, event_type];
-    page.evaluate::<[&str; 2], ()>(
-        r#"([selector, eventType]) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const event = new PointerEvent(eventType, {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                pointerId: 1,
-                isPrimary: true,
-                pointerType: "mouse"
-            });
-            element.dispatchEvent(event);
-        }"#,
-        Some(&payload),
-    )
-    .await
-    .with_context(|| format!("Failed to dispatch pointer event `{event_type}` for `{selector}`"))
+async fn run_timeline_macro_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running timeline macro check");
+    let page = open_demo_page(browser, base_url).await?;
+
+    let selector = "[data-testid='timeline-macro-glyph']";
+    let start = read_style(&page, selector).await?;
+
+    page.locator("[data-testid='timeline-macro-toggle']")
+        .await
+        .click(None)
+        .await?;
+
+    tokio::time::sleep(TIMELINE_MID_WAIT).await;
+    let mid = read_style(&page, selector).await?;
+    ensure!(
+        style_delta(&start, &mid) > 0.08,
+        "Timeline macro glyph never left its starting state"
+    );
+
+    page.locator("[data-testid='timeline-macro-pause']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(Duration::from_millis(180)).await;
+    let paused = read_style(&page, selector).await?;
+    let paused_status = read_text(&page, "[data-testid='timeline-macro-status']").await?;
+
+    ensure!(
+        paused_status.to_lowercase().contains("paused"),
+        "Timeline macro status did not report a paused state: {paused_status:?}"
+    );
+
+    page.locator("[data-testid='timeline-macro-pause']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(TIMELINE_RESUME_WAIT).await;
+    let resumed = read_style(&page, selector).await?;
+
+    ensure!(
+        style_delta(&paused, &resumed) > 0.04,
+        "Timeline macro glyph did not resume after unpausing"
+    );
+
+    page.locator("[data-testid='timeline-macro-toggle']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(TIMELINE_PAUSE_WAIT).await;
+    let stopped = read_style(&page, selector).await?;
+    let stopped_status = read_text(&page, "[data-testid='timeline-macro-status']").await?;
+
+    ensure!(
+        style_delta(&start, &stopped) < 0.08,
+        "Stopping the macro timeline did not reset the glyph close to its resting state"
+    );
+    ensure!(
+        stopped_status.to_lowercase().contains("stopped"),
+        "Timeline macro status did not report a stopped state: {stopped_status:?}"
+    );
+
+    page.close().await?;
+    Ok(())
+}
+
+async fn run_auto_size_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression_controller] Running auto size check");
+    let page = open_demo_page(browser, base_url).await?;
+
+    let height_selector = "[data-testid='auto-height-shell']";
+    let width_selector = "[data-testid='auto-width-shell']";
+
+    let height_start = read_style(&page, height_selector).await?;
+    page.locator("[data-testid='auto-height-next']")
+        .await
+        .click(None)
+        .await?;
+    page.locator("[data-testid='auto-height-next']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(AUTO_SIZE_SETTLE_WAIT).await;
+    let height_end = read_style(&page, height_selector).await?;
+
+    ensure!(
+        height_end.height > height_start.height + 24.0,
+        "Auto height shell did not grow as expected: start={:.2}, end={:.2}",
+        height_start.height,
+        height_end.height
+    );
+
+    let width_start = read_style(&page, width_selector).await?;
+    page.locator("[data-testid='auto-width-next']")
+        .await
+        .click(None)
+        .await?;
+    tokio::time::sleep(AUTO_SIZE_SETTLE_WAIT).await;
+    let width_end = read_style(&page, width_selector).await?;
+    let width_label = read_text(&page, "[data-testid='auto-width-label']").await?;
+
+    ensure!(
+        width_end.width > width_start.width + 40.0,
+        "Auto width shell did not grow as expected: start={:.2}, end={:.2}",
+        width_start.width,
+        width_end.width
+    );
+    ensure!(
+        width_label.to_lowercase().contains("prep"),
+        "Auto width label did not advance to the next state: {width_label:?}"
+    );
+
+    page.close().await?;
+    Ok(())
 }
 
 async fn read_style(page: &Page, selector: &str) -> Result<StyleSnapshot> {
@@ -683,36 +651,19 @@ async fn read_style(page: &Page, selector: &str) -> Result<StyleSnapshot> {
                 throw new Error(`Missing element: ${selector}`);
             }
             const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
             return {
                 transform: style.transform,
                 opacity: Number.parseFloat(style.opacity || "1"),
-                background_color: style.backgroundColor || ""
+                background_color: style.backgroundColor || "",
+                width: rect.width,
+                height: rect.height
             };
         }"#,
         Some(&selector),
     )
     .await
     .with_context(|| format!("Failed to read style for selector `{selector}`"))
-}
-
-async fn read_rect(page: &Page, selector: &str) -> Result<RectSnapshot> {
-    let selector = selector.to_string();
-    page.evaluate(
-        r#"(selector) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const rect = element.getBoundingClientRect();
-            return {
-                left: rect.left,
-                width: rect.width
-            };
-        }"#,
-        Some(&selector),
-    )
-    .await
-    .with_context(|| format!("Failed to read rect for selector `{selector}`"))
 }
 
 async fn read_text(page: &Page, selector: &str) -> Result<String> {
@@ -736,14 +687,6 @@ fn style_delta(a: &StyleSnapshot, b: &StyleSnapshot) -> f64 {
     transform_score + color_changed + (a.opacity - b.opacity).abs()
 }
 
-fn rect_delta(a: &RectSnapshot, b: &RectSnapshot) -> f64 {
-    (a.left - b.left).abs() + (a.width - b.width).abs()
-}
-
-fn rect_center(rect: &RectSnapshot) -> f64 {
-    rect.left + (rect.width / 2.0)
-}
-
 fn normalize_transform(value: &str) -> String {
     value.split_whitespace().collect::<String>()
 }
@@ -754,19 +697,6 @@ fn normalize_color(value: &str) -> String {
         .filter(|ch| !ch.is_whitespace())
         .collect::<String>()
         .to_lowercase()
-}
-
-fn is_identity_transform(value: &str) -> bool {
-    let normalized = normalize_transform(value);
-    if normalized.is_empty() || normalized == "none" {
-        return true;
-    }
-
-    normalized == "matrix(1,0,0,1,0,0)" || normalized == "matrix3d(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1)"
-}
-
-fn approx_eq(value: f64, expected: f64, tolerance: f64) -> bool {
-    (value - expected).abs() <= tolerance
 }
 
 fn print_help() {

@@ -3,6 +3,7 @@ use leptos::mount;
 use crate::app::App;
 
 mod app;
+mod examples;
 
 pub fn main() {
     #[cfg(debug_assertions)]

@@ -1,243 +1,99 @@
-use std::collections::VecDeque;
-
-use js_sys::Date;
-use js_sys::Number;
 use leptos::prelude::*;
-use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
-
-const SAMPLE_WINDOW: usize = 120;
-const UPDATE_EVERY: u32 = 10;
+use leptos_fluid_motion::{FluidDiv, FluidStyle, Transition};
 
 #[component]
 pub fn PerfSection() -> impl IntoView {
     let running = RwSignal::new(false);
-    let dot_count = RwSignal::new(80usize);
+    let dot_count = RwSignal::new(120usize);
     let tick = RwSignal::new(0.0);
 
-    let avg_ms = RwSignal::new(0.0);
-    let p95_ms = RwSignal::new(0.0);
-    let fps = RwSignal::new(0.0);
-    let last_ms = RwSignal::new(0.0);
-
-    let samples = StoredValue::new(VecDeque::with_capacity(SAMPLE_WINDOW));
-    let last_time = StoredValue::new(None::<f64>);
-    let frame_count = StoredValue::new(0u32);
-
-    Effect::new({
-        let running = running.clone();
-        let samples = samples.clone();
-        let last_time = last_time.clone();
-        let frame_count = frame_count.clone();
-        let avg_ms = avg_ms.clone();
-        let p95_ms = p95_ms.clone();
-        let fps = fps.clone();
-        let last_ms = last_ms.clone();
-        let tick = tick.clone();
-        move || {
-            if !running.get() {
-                return;
-            }
-            samples.set_value(VecDeque::with_capacity(SAMPLE_WINDOW));
-            last_time.set_value(None);
-            frame_count.set_value(0);
-            schedule_perf_loop(
-                running,
-                samples,
-                last_time,
-                frame_count,
-                avg_ms,
-                p95_ms,
-                fps,
-                last_ms,
-                tick,
-            );
+    Effect::new(move || {
+        if !running.get() {
+            return;
         }
+        schedule_tick(running, tick);
     });
 
     let dots = move || (0..dot_count.get()).collect::<Vec<_>>();
 
     view! {
-        <section class="perf-section">
+        <section class="section-grid">
             <div class="panel">
-                <h2>"Performance"</h2>
+                <p class="section-kicker">"Perf field"</p>
+                <h2>"A simple stress scene"</h2>
                 <p>
-                    "A lightweight benchmark loop to sample frame times while driving a small FluidDiv swarm. "
-                    "Use it to compare changes and spot regressions."
+                    "This keeps a dense field of tiny FluidDiv nodes moving so you can sanity-check visual smoothness while iterating on the runtime."
                 </p>
                 <div class="button-row">
-                    <button on:click=move |_| {
-                        running.update(|value| *value = !*value)
-                    }>
-                        {move || if running.get() { "Stop benchmark" } else { "Start benchmark" }}
+                    <button on:click=move |_| running.update(|value| *value = !*value)>
+                        {move || if running.get() { "Pause field" } else { "Start field" }}
                     </button>
                     <label class="perf-control">
                         <span>"Dots"</span>
                         <input
                             type="range"
-                            min="20"
-                            max="10000"
-                            step="10"
+                            min="24"
+                            max="720"
+                            step="12"
                             prop:value=move || dot_count.get() as i32
-                            on:input=move |ev| {
-                                let value = event_target_value(&ev).parse::<usize>().unwrap_or(80);
+                            on:input=move |event| {
+                                let value = event_target_value(&event).parse::<usize>().unwrap_or(120);
                                 dot_count.set(value);
                             }
                         />
                         <span class="perf-value">{move || dot_count.get()}</span>
                     </label>
                 </div>
-                <div class="perf-metrics">
-                    <div>
-                        <span class="label">"FPS"</span>
-                        <strong>{move || format_fixed(fps.get(), 1)}</strong>
-                    </div>
-                    <div>
-                        <span class="label">"Avg"</span>
-                        <strong>{move || format_ms(avg_ms.get())}</strong>
-                    </div>
-                    <div>
-                        <span class="label">"P95"</span>
-                        <strong>{move || format_ms(p95_ms.get())}</strong>
-                    </div>
-                    <div>
-                        <span class="label">"Last"</span>
-                        <strong>{move || format_ms(last_ms.get())}</strong>
-                    </div>
-                </div>
+                <p class="panel-note">
+                    {move || if running.get() { "Running the field" } else { "Field paused" }}
+                </p>
             </div>
 
             <div class="perf-stage">
-                <For
-                    each=dots
-                    key=|index| *index
-                    children=move |index| {
-                        let tick = tick.clone();
-                        let index_f = index as f64;
-                        view! {
-                            <FluidDiv
-                                class="perf-dot"
-                                initial=FluidStyle::new().opacity(0.9)
-                                animate=move || {
-                                    let t = tick.get();
-                                    let angle = t * 1.2 + index_f * 0.42;
-                                    let radius = 28.0 + (index_f % 10.0) * 6.0;
-                                    let wobble = (t + index_f * 0.2).sin() * 6.0;
-                                    let x = angle.cos() * (radius + wobble);
-                                    let y = angle.sin() * (radius + wobble);
-                                    let scale = 0.7 + ((t + index_f * 0.15).sin() * 0.5).abs();
-                                    FluidStyle::new()
-                                        .x(x)
-                                        .y(y)
-                                        .scale(scale)
-                                        .opacity(0.6 + scale * 0.4)
-                                }
-                                transition=Transition::new().duration_ms(0)
-                            ></FluidDiv>
-                        }
-                    }
-                />
-                <div class="perf-hint">
-                    {move || if running.get() { "Sampling" } else { "Idle" }}
-                </div>
+                {move || {
+                    dots()
+                        .into_iter()
+                        .map(|index| {
+                            let tick = tick;
+                            let index_f = index as f64;
+
+                            view! {
+                                <FluidDiv
+                                    class="perf-dot"
+                                    initial=FluidStyle::new().opacity(0.85)
+                                    animate=move || perf_dot_style(tick.get(), index_f)
+                                    transition=Transition::new().duration_ms(0)
+                                ></FluidDiv>
+                            }
+                        })
+                        .collect_view()
+                }}
+                <p class="perf-hint">{move || if running.get() { "Sampling the field" } else { "Idle" }}</p>
             </div>
         </section>
     }
 }
 
-fn schedule_perf_loop(
-    running: RwSignal<bool>,
-    samples: StoredValue<VecDeque<f64>>,
-    last_time: StoredValue<Option<f64>>,
-    frame_count: StoredValue<u32>,
-    avg_ms: RwSignal<f64>,
-    p95_ms: RwSignal<f64>,
-    fps: RwSignal<f64>,
-    last_ms: RwSignal<f64>,
-    tick: RwSignal<f64>,
-) {
+fn schedule_tick(running: RwSignal<bool>, tick: RwSignal<f64>) {
     request_animation_frame(move || {
         if !running.get_untracked() {
             return;
         }
 
-        let now = Date::now();
-        let last = last_time.get_value().unwrap_or(now);
-        let mut dt = now - last;
-        if dt <= 0.0 {
-            dt = 16.0;
-        }
-        last_time.set_value(Some(now));
-        last_ms.set(dt);
-
-        let mut buffer = samples.get_value();
-        buffer.push_back(dt);
-        if buffer.len() > SAMPLE_WINDOW {
-            buffer.pop_front();
-        }
-        samples.set_value(buffer);
-
-        let mut frames = frame_count.get_value();
-        frames += 1;
-        frame_count.set_value(frames);
-
-        let delta_seconds = dt / 1000.0;
-        tick.set(tick.get_untracked() + delta_seconds);
-
-        if frames % UPDATE_EVERY == 0 {
-            let buffer = samples.get_value();
-            let (avg, p95, fps_value) = compute_metrics(&buffer);
-            avg_ms.set(avg);
-            p95_ms.set(p95);
-            fps.set(fps_value);
-        }
-
-        schedule_perf_loop(
-            running,
-            samples,
-            last_time,
-            frame_count,
-            avg_ms,
-            p95_ms,
-            fps,
-            last_ms,
-            tick,
-        );
+        tick.update(|value| *value += 0.016);
+        schedule_tick(running, tick);
     });
 }
 
-fn compute_metrics(samples: &VecDeque<f64>) -> (f64, f64, f64) {
-    if samples.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
+fn perf_dot_style(tick: f64, index: f64) -> FluidStyle {
+    let angle = tick * 1.1 + index * 0.28;
+    let radius = 34.0 + (index % 14.0) * 5.2;
+    let wobble = (tick * 1.35 + index * 0.21).sin() * 7.0;
+    let scale = 0.66 + ((tick + index * 0.18).sin() * 0.4).abs();
 
-    let count = samples.len() as f64;
-    let sum: f64 = samples.iter().sum();
-    let avg = sum / count;
-
-    let mut values: Vec<f64> = samples.iter().copied().collect();
-    let idx = ((values.len() as f64) * 0.95).ceil() as usize;
-    let idx = idx.saturating_sub(1).min(values.len() - 1);
-    let (_, p95, _) = values.select_nth_unstable_by(idx, |a, b| {
-        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-    });
-    let p95 = *p95;
-
-    let fps = if avg > 0.0 { 1000.0 / avg } else { 0.0 };
-
-    (avg, p95, fps)
-}
-
-fn format_ms(value: f64) -> String {
-    let mut out = format_fixed(value, 2);
-    out.push_str(" ms");
-    out
-}
-
-fn format_fixed(value: f64, digits: u32) -> String {
-    let digits = digits.min(u8::MAX as u32) as u8;
-    Number::from(value)
-        .to_fixed(digits)
-        .ok()
-        .and_then(|value| value.as_string())
-        .unwrap_or_default()
+    FluidStyle::new()
+        .x(angle.cos() * (radius + wobble))
+        .y(angle.sin() * (radius + wobble))
+        .scale(scale)
+        .opacity(0.5 + scale * 0.45)
 }

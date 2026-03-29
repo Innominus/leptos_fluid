@@ -1,0 +1,10 @@
+[package]
+name = "motion_builder_ui_fail_timeline_missing_step"
+version = "0.0.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
+leptos_fluid_motion = { path = "../../../../", default-features = false, features = ["builders", "timeline"] }

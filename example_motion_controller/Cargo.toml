@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-leptos_fluid = { path = "../", features = ["motion"] }
+leptos_fluid_motion = { path = "../crates/motion", default-features = false, features = ["controller", "builders", "macros", "timeline", "auto-size"] }
 leptos = { workspace = true }
 console_error_panic_hook = { workspace = true }
-web-sys = { workspace = true, features = ["DomRect", "Element", "HtmlButtonElement", "HtmlDivElement", "HtmlElement"] }
+web-sys = { workspace = true, features = ["Element"] }

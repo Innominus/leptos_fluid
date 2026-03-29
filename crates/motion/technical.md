@@ -8,6 +8,10 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 - `src/controller.rs`: element-agnostic animation controller API
 - `src/animator.rs`: shared WAAPI animation runtime used by controllers/components
 - `src/components.rs`: motion components built on top of `AnimationController`
+- `src/macros.rs`: controller-first declarative macros (`controller!`, `when!`, `timeline!`)
+- `src/macro_support.rs`: helper runtime used by macro-generated effects
+- `src/builders.rs`: typed builder layer over controllers and timelines
+- `src/auto_size.rs`: ResizeObserver-backed helpers that animate width/height changes through controllers
 - `src/style.rs`: style builder and transform composition
 - `src/transition.rs`: transition/spring configuration and easing generation
 - `src/spring_value.rs`: spring solver for continuously retargeted scalar values
@@ -19,6 +23,33 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 ## Core runtime model
 
 `AnimationController` is the core runtime handle. `FluidElement` and wrappers (`FluidDiv`, `FluidSpan`, `FluidButton`) are declarative adapters over that controller.
+
+Controller-first macros also lower into this runtime:
+
+- `controller!` creates/attaches a controller and optionally installs bindings
+- `when!` creates on-change effects and dispatches controller or timeline actions
+- `timeline!` builds a `FluidTimeline`, binds it to a controller, supports `autoplay`/`triggers`, and inherits step wait timing from the controller transition by default
+
+`controller!` and `timeline!` intentionally delegate through the typed builder/runtime layer so syntax sugar does not duplicate installation semantics.
+
+The typed builder layer sits alongside the macros:
+
+- `AnimationController::builder()` for method-discoverable controller setup
+- `FluidTimeline::builder(controller)` for method-discoverable timeline setup
+- `on_change(...)` helpers on both types for typed trigger wiring without macro syntax
+
+The crate is also feature-split for wasm-size-sensitive builds:
+
+- `controller`
+- `auto-size`
+- `timeline`
+- `components`
+- `wrappers`
+- `builders`
+- `macros`
+- `spring`
+
+`full` keeps the previous all-in surface available as an explicit opt-in, while the crate defaults to a minimal feature set.
 
 Each motion update follows this shape:
 
@@ -33,9 +64,15 @@ Each motion update follows this shape:
 `AnimationController` can target:
 
 - a concrete DOM `Element`
-- a resolver closure returning `Option<Element>` (for ref-driven attachment)
+- a stable `NodeRef`/`Element` target
+- a resolver closure returning `Option<Element>` (for dynamic retargeting)
 
 If the target is unresolved, the controller stores only the latest pending command and replays it when a target becomes available.
+
+Macro grammar mirrors this split deliberately:
+
+- `target:` for stable element identity
+- `resolver:` for state-dependent lookup
 
 ### Why interruption logic exists
 
@@ -103,7 +140,7 @@ Internal controls:
 
 - `generation` counter invalidates stale scheduled callbacks
 - running/paused signals expose external state
-- optional attached `node_ref` allows pausing/resuming the active WAAPI animation
+- optional attached resolver or bound controller allows pausing/resuming the active WAAPI animation
 
 Step execution model:
 
@@ -113,6 +150,16 @@ Step execution model:
 4. proceed to next step
 
 `auto_loop` restarts from step `0` when a run completes.
+
+When a timeline is bound to a controller, the first bound style is applied with `set_immediate` and later step updates animate normally. Timeline `set_immediate(...)` also forces the next bound controller update to apply immediately instead of tweening.
+
+The declarative `timeline!` macro intentionally uses structured step blocks:
+
+- `{ to: ... }`
+- optional `wait_ms: ...`
+- optional `on_complete: ...`
+
+and an optional `triggers: [ on(signal) { ... } ]` field that lowers to `when! { timeline: ... }` rules.
 
 ## Signal adaptation (`FluidSignal<T>`)
 

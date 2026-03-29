@@ -15,8 +15,21 @@ Or depend on this crate directly:
 
 ```toml
 [dependencies]
-leptos_fluid_motion = "0.1"
+leptos_fluid_motion = { version = "0.1", default-features = false, features = ["controller", "builders"] }
 ```
+
+Feature split:
+
+- `spring`: `use_spring`, `SpringValue`
+- `controller`: `AnimationController`
+- `auto-size`: ResizeObserver-backed `bind_auto_height`, `bind_auto_width`, `bind_auto_size`
+- `timeline`: `FluidTimeline`, `FluidStep`
+- `components`: `FluidElement`
+- `wrappers`: `FluidDiv`, `FluidSpan`, `FluidButton`
+- `builders`: typed builder APIs
+- `macros`: `controller!`, `when!`, `timeline!`
+
+`leptos_fluid_motion` now defaults to no features. Opt into `full` if you want the old all-in surface.
 
 ## What this crate provides
 
@@ -98,27 +111,24 @@ Use `AnimationController` when you want to animate a plain element/ref without `
 
 ```rust
 use leptos::prelude::*;
-use leptos::wasm_bindgen::JsCast;
 use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
 
 #[component]
 fn ControllerDemo() -> impl IntoView {
     let expanded = RwSignal::new(false);
     let node_ref = NodeRef::<leptos::html::Div>::new();
-    let controller = AnimationController::with_transition(Transition::spring());
+    let controller = AnimationController::builder()
+        .target(node_ref)
+        .transition(Transition::spring())
+        .initial(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96))
+        .install();
 
-    controller.attach_resolver({
-        let node_ref = node_ref.clone();
-        move || node_ref.get_untracked().map(|node| node.unchecked_into())
-    });
-
-    Effect::new(move || {
-        let style = if expanded.get() {
-            FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+    controller.on_change(move || expanded.get(), move |expanded, controller| {
+        if expanded {
+            controller.animate(FluidStyle::new().opacity(1.0).y(0.0).scale(1.0));
         } else {
-            FluidStyle::new().opacity(0.65).y(20.0).scale(0.96)
-        };
-        controller.animate(style);
+            controller.animate(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96));
+        }
     });
 
     view! {
@@ -129,6 +139,12 @@ fn ControllerDemo() -> impl IntoView {
     }
 }
 ```
+
+The typed builder gives IDE-friendly method completion and keeps `install()` unavailable until you call `target(...)` or `resolver(...)`.
+
+Use `target(...)`/`target:` for a stable `NodeRef` or `Element`, and `resolver(...)`/`resolver:` for dynamic lookup when the active element can change over time.
+
+If you prefer declarative sugar, `controller!` and `when!` lower to the same runtime.
 
 ## `FluidStyle` and `style!`
 
@@ -199,24 +215,40 @@ Using `duration_ms(0)` avoids double interpolation when the spring already contr
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{FluidDiv, FluidStep, FluidStyle, FluidTimeline, Transition};
+use leptos_fluid_motion::{AnimationController, FluidStep, FluidStyle, FluidTimeline, Transition};
 
+let node_ref = NodeRef::<leptos::html::Div>::new();
 let transition = Transition::spring_with(520, 0.35);
-let timeline = FluidTimeline::new(FluidStyle::new().opacity(0.45).y(18.0).scale(0.94));
-let animate = timeline.signal();
-
-timeline.set_steps([
-    FluidStep::new(FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)).wait_for(&transition),
-    FluidStep::new(FluidStyle::new().opacity(0.95).x(22.0).rotate(3.0)).wait_for(&transition),
-]);
-timeline.play();
+let paused = RwSignal::new(false);
+let controller = AnimationController::builder()
+    .target(node_ref)
+    .transition(transition.clone())
+    .initial(FluidStyle::new().opacity(0.45).y(18.0).scale(0.94))
+    .install();
+let timeline = FluidTimeline::builder(controller)
+    .initial(FluidStyle::new().opacity(0.45).y(18.0).scale(0.94))
+    .autoplay(true)
+    .auto_loop(true)
+    .step(FluidStep::to(FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)))
+    .step(FluidStep::to(FluidStyle::new().opacity(0.95).x(22.0).rotate(3.0)))
+    .step(FluidStep::to(FluidStyle::new().opacity(0.5).y(12.0).scale(0.92)).wait_ms(180))
+    .on_change(move || paused.get(), move |paused, timeline| {
+        if paused {
+            timeline.pause();
+        } else {
+            timeline.resume();
+        }
+    })
+    .install();
 
 view! {
-    <FluidDiv initial=FluidStyle::new().opacity(0.0) animate=animate transition=transition />
+    <div node_ref=node_ref class="card">"Timeline-driven controller target"</div>
 }
 ```
 
-`FluidTimeline` supports play/pause/resume/stop, immediate set, and optional auto-loop.
+`FluidTimeline` supports play/pause/resume/restart/stop, immediate set, and optional auto-loop. The typed builder keeps `install()` unavailable until you add at least one `.step(...)`.
+
+If you prefer declarative syntax, `timeline!` offers the same behavior with structured steps and `triggers:` sugar.
 
 ## Benchmarks
 

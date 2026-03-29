@@ -1,32 +1,47 @@
 [package]
 name = "leptos_fluid_motion"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
 description = "Reactive motion primitives for Leptos components with spring and timeline support."
 readme = "README.md"
-repository.workspace = true
-homepage.workspace = true
+repository = "https://github.com/Innominus/leptos_fluid"
+homepage = "https://github.com/Innominus/leptos_fluid"
 documentation = "https://docs.rs/leptos_fluid_motion"
 keywords = ["leptos", "animation", "motion", "ui", "wasm"]
 categories = ["wasm", "web-programming", "gui"]
 
 [features]
+default = []
+full = [
+    "spring",
+    "controller",
+    "auto-size",
+    "timeline",
+    "components",
+    "wrappers",
+    "builders",
+    "macros",
+]
+spring = []
+controller = ["leptos_fluid_web/style", "leptos_fluid_web/waapi"]
+auto-size = ["controller", "leptos_fluid_web/resize-observer", "web-sys/HtmlElement", "web-sys/DomRect"]
+timeline = ["controller"]
+components = ["controller"]
+wrappers = ["components"]
+builders = ["controller"]
+macros = ["builders"]
 bench = []
 
 [dependencies]
 leptos = { workspace = true }
 js-sys = { workspace = true }
-leptos_fluid_web = { workspace = true }
-web-sys = { workspace = true, features = [
-    "Element",
-    "Animation",
-    "CssStyleDeclaration",
-    "Window",
-] }
+leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false }
+web-sys = { workspace = true }
 
 [dev-dependencies]
+any_spawner = "0.3.0"
 criterion = { workspace = true }
 
 [[bench]]

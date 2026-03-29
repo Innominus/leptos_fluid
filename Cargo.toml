@@ -65,14 +65,24 @@ leptos_fluid_view_transitions = {
     workspace = true,
     optional = true,
 }
-leptos_fluid_motion = { workspace = true, optional = true }
+leptos_fluid_motion = { version = "0.1.1", path = "crates/motion", optional = true, default-features = false }
 
 [features]
 default = []
 flip = ["dep:leptos_fluid_flip"]
 view-transitions = ["dep:leptos_fluid_view_transitions"]
-motion = ["dep:leptos_fluid_motion"]
-full = ["flip", "view-transitions", "motion"]
+motion-core = ["dep:leptos_fluid_motion"]
+motion-spring = ["motion-core", "leptos_fluid_motion/spring"]
+motion-controller = ["motion-core", "leptos_fluid_motion/controller"]
+motion-auto-size = ["motion-controller", "leptos_fluid_motion/auto-size"]
+motion-timeline = ["motion-controller", "leptos_fluid_motion/timeline"]
+motion-components = ["motion-controller", "leptos_fluid_motion/components"]
+motion-wrappers = ["motion-components", "leptos_fluid_motion/wrappers"]
+motion-builders = ["motion-controller", "leptos_fluid_motion/builders"]
+motion-macros = ["motion-controller", "leptos_fluid_motion/macros"]
+motion-full = ["motion-spring", "motion-auto-size", "motion-timeline", "motion-wrappers", "motion-builders", "motion-macros"]
+motion = ["motion-controller", "motion-components", "motion-wrappers"]
+full = ["flip", "view-transitions", "motion-full"]
 
 [package.metadata.docs.rs]
 all-features = true

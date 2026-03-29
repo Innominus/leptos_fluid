@@ -5,9 +5,9 @@ use leptos::prelude::{GetValue, LocalStorage, RwSignal, Set, SetValue, StoredVal
 #[cfg(target_arch = "wasm32")]
 use leptos_fluid_web::parse_js_f64;
 use leptos_fluid_web::{
-    animate_with_waapi, animation_cancel, animation_commit_styles, animation_set_onfinish,
-    computed_style, element_set_active_animation, html_style, keyframes_from_two,
-    object_from_str_pairs, waapi_options,
+    animate_with_waapi, animation_cancel, animation_commit_styles, animation_pause, animation_play,
+    animation_set_onfinish, computed_style, element_set_active_animation, html_style,
+    keyframes_from_two, object_from_str_pairs, waapi_options,
 };
 use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::{Animation, CssStyleDeclaration, Element};
@@ -124,6 +124,7 @@ fn read_style_or_computed_value(
     read_computed_animation_value(computed, key)
 }
 
+#[inline(never)]
 fn split_animation_props(
     style: &FluidStyle,
     transition: &Transition,
@@ -222,6 +223,7 @@ fn parse_f64_token(token: &str) -> Option<f64> {
     }
 }
 
+#[inline(never)]
 fn freeze_computed_values(
     element: &Element,
     keys: &[String],
@@ -263,6 +265,7 @@ fn snapshot_value(snapshot: &[(String, String)], key: &str) -> Option<String> {
         .map(|(_, value)| value.clone())
 }
 
+#[inline(never)]
 pub(crate) fn cancel_active_animation(
     element: &Element,
     active_animation: StoredValue<Option<ActiveAnimation>, LocalStorage>,
@@ -277,6 +280,24 @@ pub(crate) fn cancel_active_animation(
     element_set_active_animation(element, None);
     active_animation.set_value(None);
     frozen
+}
+
+pub(crate) fn pause_active_animation(
+    active_animation: StoredValue<Option<ActiveAnimation>, LocalStorage>,
+) -> bool {
+    let Some(active) = active_animation.get_value() else {
+        return false;
+    };
+    animation_pause(&active.animation)
+}
+
+pub(crate) fn resume_active_animation(
+    active_animation: StoredValue<Option<ActiveAnimation>, LocalStorage>,
+) -> bool {
+    let Some(active) = active_animation.get_value() else {
+        return false;
+    };
+    animation_play(&active.animation)
 }
 
 pub(crate) fn set_immediate(
@@ -298,6 +319,7 @@ pub(crate) fn set_immediate(
     }
 }
 
+#[inline(never)]
 pub(crate) fn animate_to(
     element: &Element,
     to: &FluidStyle,

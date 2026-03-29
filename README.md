@@ -32,7 +32,17 @@ The crate is intentionally modular. You enable only what you need.
 | --- | --- | --- |
 | `view-transitions` | `leptos_fluid::view_transitions::*` | Nested route outlet transitions using intro/outro CSS animation classes |
 | `flip` | `leptos_fluid::flip::*` | FLIP capture/invert/play for layout changes |
-| `motion` | `leptos_fluid::motion::*` | Reactive element-level motion (styles, transitions, timelines, springs) |
+| `motion` | `leptos_fluid::motion::*` | Common motion surface (`AnimationController`, `FluidElement`, wrappers) |
+| `motion-core` | `leptos_fluid::motion::*` | Core motion types like `FluidStyle`, `Transition`, and `style!` |
+| `motion-controller` | `leptos_fluid::motion::*` | `AnimationController` runtime |
+| `motion-auto-size` | `leptos_fluid::motion::*` | ResizeObserver-backed height/width helpers |
+| `motion-timeline` | `leptos_fluid::motion::*` | `FluidTimeline` and `FluidStep` |
+| `motion-components` | `leptos_fluid::motion::*` | `FluidElement` |
+| `motion-wrappers` | `leptos_fluid::motion::*` | `FluidDiv`, `FluidSpan`, `FluidButton` |
+| `motion-builders` | `leptos_fluid::motion::*` | typed builder APIs |
+| `motion-macros` | `leptos_fluid::motion::*` | `controller!`, `when!`, `timeline!` |
+| `motion-spring` | `leptos_fluid::motion::*` | `use_spring`, `SpringValue` |
+| `motion-full` | `leptos_fluid::motion::*` | Full motion surface without flip/view-transitions |
 | `full` | all above | Convenience feature to enable everything |
 
 This repository also includes internal helper crates:
@@ -48,6 +58,11 @@ This repository also includes internal helper crates:
 leptos_fluid = { path = "../leptos_fluid", features = ["motion"] }
 # or: features = ["view-transitions", "flip", "motion"]
 # or: features = ["full"]
+
+# narrower motion builds via the umbrella crate:
+# features = ["motion-core", "motion-controller", "motion-macros"]
+# features = ["motion-core", "motion-controller", "motion-auto-size", "motion-timeline", "motion-builders"]
+# features = ["motion-full"]
 ```
 
 ### Direct subcrate dependencies
@@ -60,6 +75,10 @@ leptos_fluid_motion = { path = "../leptos_fluid/crates/motion" }
 leptos_fluid_flip = { path = "../leptos_fluid/crates/flip" }
 leptos_fluid_view_transitions = { path = "../leptos_fluid/crates/view_transitions" }
 ```
+
+For smaller wasm builds, depend on `leptos_fluid_motion` directly with `default-features = false` and only the pieces you need, for example `features = ["controller", "builders"]`.
+
+The umbrella crate now forwards those fine-grained motion features too, so you can stay on `leptos_fluid` without paying for the entire motion surface.
 
 ## Quick start
 
@@ -370,6 +389,8 @@ FlipOptions {
 `motion` exports:
 
 - controller: `AnimationController`
+- builders: `AnimationController::builder()`, `FluidTimeline::builder(...)`
+- macros: `controller!`, `when!`, `timeline!`, `style!`
 - components: `FluidElement`, `FluidDiv`, `FluidSpan`, `FluidButton`
 - styles: `FluidStyle`, `FluidValue`, `style!`
 - transitions: `Transition`, `Spring`, `Easing`
@@ -512,25 +533,96 @@ For spring-driven transforms, use `Transition::new().duration_ms(0)` on the moti
 Use timelines when you want sequenced state independent of component internals.
 
 ```rust
-let transition = Transition::spring_with(520, 0.35);
-let timeline = FluidTimeline::new(FluidStyle::new().opacity(0.4));
-timeline.set_steps([
-    FluidStep::new(FluidStyle::new().opacity(1.0)).wait_for(&transition),
-    FluidStep::new(FluidStyle::new().x(20.0)).wait_ms(200),
-]);
-timeline.play();
+let paused = RwSignal::new(false);
+let controller = controller! {
+    target: node_ref,
+    transition: Transition::spring_with(520, 0.35),
+    initial: FluidStyle::new().opacity(0.4),
+};
+let timeline = timeline! {
+    controller: controller,
+    initial: FluidStyle::new().opacity(0.4),
+    autoplay: true,
+    steps: [
+        { to: FluidStyle::new().opacity(1.0) },
+        { to: FluidStyle::new().x(20.0), wait_ms: 200 },
+    ],
+    triggers: [
+        on(paused.get()) {
+            true => pause(),
+            false => resume(),
+        },
+    ],
+};
 ```
 
 Key API:
 
 - `FluidStep::new(style)`
+- `FluidStep::to(style)`
 - `wait_ms`, `wait_for`, `on_complete`
 - `FluidTimeline::new(initial)`
-- `set_steps`, `play_steps`, `play`, `pause`, `resume`, `stop`, `set_immediate`
+- `set_steps`, `bind`, `play_steps`, `play`, `restart`, `pause`, `resume`, `stop`, `set_immediate`
 - `set_auto_loop`, `toggle_auto_loop`, `auto_loop`
 - state signals: `is_running`, `is_paused`, `step_index`
 - `signal()` for direct binding to `animate`
-- `attach_node_ref(node_ref)` for best pause/resume behavior with active element animation
+- `attach_node_ref(node_ref)` or `bind(controller)` for pause/resume behavior
+
+### Controller-first macros
+
+Use macros when you want controller-first motion wiring with minimal effect boilerplate.
+
+```rust
+let card = controller! {
+    target: node_ref,
+    transition: Transition::spring_with(560, 0.22),
+    initial: collapsed_style(),
+};
+
+when! {
+    controller: card,
+    on(open.get()) {
+        true => animate(open_style()),
+        false => animate(closed_style()),
+    },
+}
+```
+
+`when!` only runs after the watched value changes; the initial sample is recorded but does not trigger an action.
+
+Use `target:` for stable elements or `NodeRef`s, and `resolver:` when the active element needs to be looked up dynamically.
+
+### Typed builders
+
+Use builders when you want IDE-friendly method completion and compile-time install guarantees without macro syntax.
+
+```rust
+let card = AnimationController::builder()
+    .target(node_ref)
+    .transition(Transition::spring_with(560, 0.22))
+    .initial(collapsed_style())
+    .install();
+
+card.on_change(move || open.get(), move |open, controller| {
+    if open {
+        controller.animate(open_style());
+    } else {
+        controller.animate(closed_style());
+    }
+});
+
+let intro = FluidTimeline::builder(card)
+    .initial(collapsed_style())
+    .autoplay(true)
+    .step(FluidStep::to(open_style()))
+    .step(FluidStep::to(closed_style()).wait_ms(180))
+    .install();
+```
+
+Builder install is intentionally typed:
+
+- controller builders cannot `install()` until you call `target(...)` or `resolver(...)`
+- timeline builders cannot `install()` until you add at least one `.step(...)`
 
 When to use timeline:
 
@@ -616,6 +708,17 @@ cargo bench -p leptos_fluid_motion --features bench
 ```
 
 Covers spring stepping, `FluidStyle` prop generation, and transition CSS generation.
+
+Release wasm size snapshots can be captured and compared with:
+
+```bash
+python3 tools/wasm_size_report.py capture \
+  --repo-root . \
+  --target-dir /tmp/leptos_fluid_wasm/current \
+  --output /tmp/leptos_fluid_wasm/current.json
+```
+
+There is also a PR workflow in `.github/workflows/wasm-size.yml` that builds the two wasm examples with `twiggy`, compares them against the base branch, and writes the markdown table to the GitHub step summary.
 
 ## Known constraints and gotchas
 

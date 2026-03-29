@@ -3,7 +3,7 @@
 //! Enable one or more feature modules:
 //! - `flip`
 //! - `view-transitions`
-//! - `motion`
+//! - `motion` or fine-grained `motion-*` features
 
 #[cfg(feature = "flip")]
 pub mod flip {
@@ -17,7 +17,7 @@ pub mod view_transitions {
     pub use leptos_fluid_view_transitions::*;
 }
 
-#[cfg(feature = "motion")]
+#[cfg(feature = "motion-core")]
 pub mod motion {
     //! Element-level reactive motion primitives.
     pub use leptos_fluid_motion::*;
