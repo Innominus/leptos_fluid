@@ -188,6 +188,8 @@ let no_blur = Transition::new().without_properties(&["filter"]);
 
 Excluded properties are applied immediately while other properties animate.
 
+Spring transitions use a live rAF-driven solver. Unsupported properties are applied immediately and do not interpolate in spring mode; use tween transitions for colors, filters, shadows, and other text-valued CSS properties.
+
 ## `use_spring` for continuously retargeted values
 
 Use `use_spring` for pointer-follow/drag-like interactions:

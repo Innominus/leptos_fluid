@@ -91,6 +91,18 @@ impl AutoSizeBinding {
             return;
         }
 
+        if self.is_pinned
+            && let (Some(previous_container), Some(snapshot)) =
+                (self.container.as_ref(), self.inline_snapshot.as_ref())
+        {
+            restore_snapshot(
+                previous_container,
+                snapshot,
+                self.axis,
+                self.options.hide_overflow,
+            );
+        }
+
         if let Some(mut observer) = cleanup_observer
             .lock()
             .expect("auto-size observer lock poisoned")
@@ -105,6 +117,13 @@ impl AutoSizeBinding {
         self.is_pinned = false;
         self.raf_scheduled = false;
         self.generation = self.generation.wrapping_add(1);
+
+        if axis_includes_width(self.axis)
+            && let (Some(container), Some(size)) = (self.container.as_ref(), self.last_measured)
+        {
+            apply_temporary_size(container, self, size);
+            self.is_pinned = true;
+        }
 
         let Some(content) = content else {
             return;
@@ -314,7 +333,7 @@ fn process_resize(binding: Rc<RefCell<AutoSizeBinding>>) {
         binding_ref.is_pinned = true;
         binding_ref.generation = binding_ref.generation.wrapping_add(1);
 
-        if !binding_ref.options.clear_inline_size {
+        if !should_schedule_cleanup(binding_ref.axis, &binding_ref.options) {
             None
         } else {
             Some((
@@ -392,11 +411,34 @@ fn finalize_cleanup(binding: Rc<RefCell<AutoSizeBinding>>, generation: u32) {
         return;
     };
 
-    let Some(style) = html_style(&container) else {
+    restore_snapshot(
+        &container,
+        &snapshot,
+        binding_ref.axis,
+        binding_ref.options.hide_overflow,
+    );
+    binding_ref.is_pinned = false;
+}
+
+fn axis_includes_width(axis: AutoSizeAxis) -> bool {
+    matches!(axis, AutoSizeAxis::Width | AutoSizeAxis::Both)
+}
+
+fn should_schedule_cleanup(axis: AutoSizeAxis, options: &AutoSizeOptions) -> bool {
+    options.clear_inline_size && !axis_includes_width(axis)
+}
+
+fn restore_snapshot(
+    container: &Element,
+    snapshot: &InlineSnapshot,
+    axis: AutoSizeAxis,
+    hide_overflow: bool,
+) {
+    let Some(style) = html_style(container) else {
         return;
     };
 
-    match binding_ref.axis {
+    match axis {
         AutoSizeAxis::Height => restore_inline_property(&style, "height", &snapshot.height),
         AutoSizeAxis::Width => restore_inline_property(&style, "width", &snapshot.width),
         AutoSizeAxis::Both => {
@@ -405,10 +447,9 @@ fn finalize_cleanup(binding: Rc<RefCell<AutoSizeBinding>>, generation: u32) {
         }
     }
 
-    if binding_ref.options.hide_overflow {
+    if hide_overflow {
         restore_inline_property(&style, "overflow", &snapshot.overflow);
     }
-    binding_ref.is_pinned = false;
 }
 
 fn capture_inline_snapshot(container: &Element) -> InlineSnapshot {
@@ -455,7 +496,10 @@ fn size_style(axis: AutoSizeAxis, size: MeasuredSize) -> FluidStyle {
 
 #[cfg(test)]
 mod tests {
-    use super::{AutoSizeAxis, MeasuredSize, size_changed};
+    use super::{
+        AutoSizeAxis, AutoSizeOptions, MeasuredSize, axis_includes_width, should_schedule_cleanup,
+        size_changed,
+    };
 
     #[test]
     fn size_change_respects_axis() {
@@ -471,5 +515,17 @@ mod tests {
         assert!(size_changed(previous, next, AutoSizeAxis::Height));
         assert!(!size_changed(previous, next, AutoSizeAxis::Width));
         assert!(size_changed(previous, next, AutoSizeAxis::Both));
+    }
+
+    #[test]
+    fn width_axes_stay_pinned_between_updates() {
+        let options = AutoSizeOptions::default();
+
+        assert!(!axis_includes_width(AutoSizeAxis::Height));
+        assert!(axis_includes_width(AutoSizeAxis::Width));
+        assert!(axis_includes_width(AutoSizeAxis::Both));
+        assert!(should_schedule_cleanup(AutoSizeAxis::Height, &options));
+        assert!(!should_schedule_cleanup(AutoSizeAxis::Width, &options));
+        assert!(!should_schedule_cleanup(AutoSizeAxis::Both, &options));
     }
 }

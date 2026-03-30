@@ -5,7 +5,7 @@ fn main() {
     let node_ref = NodeRef::<leptos::html::Div>::new();
     let controller = AnimationController::builder()
         .target(node_ref)
-        .transition(Transition::spring())
+        .transition(Transition::new())
         .install();
 
     let _ = FluidTimeline::builder(controller).install();

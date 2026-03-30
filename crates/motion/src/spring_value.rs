@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::Spring;
-use crate::spring_math::{clamp_bounce, duration_seconds};
+use crate::spring_solver::{SpringState, normalized_dt, step_spring};
 use crate::timing::now_ms;
 
 /// Spring-smoothed scalar value for continuously retargeted interactions.
@@ -80,30 +80,17 @@ fn schedule_step(
 
         let now = now_ms();
         let last = last_time.get_value().unwrap_or(now);
-        let mut dt = (now - last) / 1000.0;
-        if dt <= 0.0 {
-            // Guard against non-monotonic clocks or same-frame callbacks.
-            dt = 0.016;
-        }
-        if dt > 0.05 {
-            // Clamp large frame gaps to keep the solver stable after tab throttling.
-            dt = 0.05;
-        }
+        let dt = normalized_dt((now - last) / 1000.0);
         last_time.set_value(Some(now));
 
         let spring_cfg = spring.get_value();
         let target_value = target.get_untracked();
-        let mut current_value = value.get_untracked();
-        let mut current_velocity = velocity.get_untracked();
+        let mut state = SpringState {
+            value: value.get_untracked(),
+            velocity: velocity.get_untracked(),
+        };
 
-        let (stiffness, damping) = spring_constants(spring_cfg.duration_ms, spring_cfg.bounce);
-        let acceleration = -stiffness * (current_value - target_value) - damping * current_velocity;
-        current_velocity += acceleration * dt;
-        current_value += current_velocity * dt;
-
-        if (current_value - target_value).abs() < spring_cfg.rest_delta
-            && current_velocity.abs() < spring_cfg.rest_delta
-        {
+        if step_spring(&mut state, target_value, spring_cfg, dt) {
             // Snap to target at rest to avoid tiny perpetual oscillations.
             value.set(target_value);
             velocity.set(0.0);
@@ -112,20 +99,11 @@ fn schedule_step(
             return;
         }
 
-        value.set(current_value);
-        velocity.set(current_velocity);
+        value.set(state.value);
+        velocity.set(state.velocity);
 
         schedule_step(value, target, velocity, spring, running, last_time);
     });
-}
-
-fn spring_constants(duration_ms: u32, bounce: f64) -> (f64, f64) {
-    let duration = duration_seconds(duration_ms);
-    let damping_ratio = (1.0 - clamp_bounce(bounce)).clamp(0.05, 1.0);
-    let angular = 4.0 / (duration * damping_ratio);
-    let stiffness = angular * angular;
-    let damping = 2.0 * damping_ratio * angular;
-    (stiffness, damping)
 }
 
 pub fn use_spring(initial: f64, spring: Spring) -> SpringValue {
@@ -140,9 +118,7 @@ pub fn spring_step(
     spring_cfg: Spring,
     dt: f64,
 ) -> (f64, f64) {
-    let (stiffness, damping) = spring_constants(spring_cfg.duration_ms, spring_cfg.bounce);
-    let acceleration = -stiffness * (value - target) - damping * velocity;
-    let next_velocity = velocity + acceleration * dt;
-    let next_value = value + next_velocity * dt;
-    (next_value, next_velocity)
+    let mut state = SpringState { value, velocity };
+    let _ = step_spring(&mut state, target, spring_cfg, normalized_dt(dt));
+    (state.value, state.velocity)
 }

@@ -432,6 +432,10 @@ pub fn FluidElement(
     #[prop(default = FluidSignal::static_value(FluidStyle::default()), into)]
     animate: FluidSignal<FluidStyle>,
     /// Transition settings for animated properties (duration/easing/spring).
+    ///
+    /// Spring transitions only interpolate supported numeric properties.
+    /// Unsupported properties are applied immediately and do not interpolate in
+    /// spring mode.
     #[prop(default = Transition::default())]
     transition: Transition,
     /// Forces the initial animation to re-run when this counter changes.
@@ -485,6 +489,10 @@ macro_rules! fluid_wrapper {
             #[prop(default = FluidSignal::static_value(FluidStyle::default()), into)]
             animate: FluidSignal<FluidStyle>,
             /// Transition settings for animated properties (duration/easing/spring).
+            ///
+            /// Spring transitions only interpolate supported numeric properties.
+            /// Unsupported properties are applied immediately and do not interpolate in
+            /// spring mode.
             #[prop(default = Transition::default())]
             transition: Transition,
             /// Forces the initial animation to re-run when this counter changes.

@@ -1,51 +1,25 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
-
-use crate::components::spring_utils::lerp;
+use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
 
 #[component]
 pub fn Motion() -> impl IntoView {
     let expanded = RwSignal::new(false);
     let highlight = RwSignal::new(false);
-    let card_progress = use_spring(0.0, Spring::new(560, 0.32));
-    let glow_progress = use_spring(0.0, Spring::new(520, 0.24));
-
-    Effect::new({
-        let card_progress = card_progress.clone();
-        move || card_progress.set(if expanded.get() { 1.0 } else { 0.0 })
-    });
-
-    Effect::new({
-        let glow_progress = glow_progress.clone();
-        move || glow_progress.set(if highlight.get() { 1.0 } else { 0.0 })
-    });
 
     let card_style = move || {
-        let progress = card_progress.get();
-        let shadow_y = lerp(10.0, 24.0, progress);
-        let shadow_blur = lerp(30.0, 60.0, progress);
-        let shadow_alpha = lerp(0.12, 0.18, progress);
-
-        FluidStyle::new()
-            .opacity(lerp(0.6, 1.0, progress))
-            .y(lerp(26.0, 0.0, progress))
-            .scale(lerp(0.96, 1.0, progress))
-            .with(
-                "box-shadow",
-                format!("0 {shadow_y:.1}px {shadow_blur:.1}px rgba(15, 23, 42, {shadow_alpha:.3})"),
-            )
+        if expanded.get() {
+            FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+        } else {
+            FluidStyle::new().opacity(0.72).y(18.0).scale(0.98)
+        }
     };
 
     let glow_style = move || {
-        let progress = glow_progress.get();
-
-        FluidStyle::new()
-            .opacity(progress)
-            .scale(lerp(0.94, 1.0, progress))
-            .with(
-                "filter",
-                format!("blur({:.1}px)", lerp(16.0, 0.0, progress)),
-            )
+        if highlight.get() {
+            FluidStyle::new().opacity(1.0).scale(1.0)
+        } else {
+            FluidStyle::new().opacity(0.0).scale(0.96)
+        }
     };
 
     view! {
@@ -92,17 +66,17 @@ pub fn Motion() -> impl IntoView {
 
                         <div class="relative mt-8">
                             <FluidDiv
-                                class="absolute inset-0 rounded-2xl bg-emerald-200/60"
-                                initial=FluidStyle::new().opacity(0.0).scale(0.94).with("filter", "blur(16px)")
+                                class="absolute inset-0 rounded-2xl bg-emerald-200/60 blur-2xl"
+                                initial=FluidStyle::new().opacity(0.0).scale(0.96)
                                 animate=glow_style
-                                transition=Transition::new().duration_ms(0)
+                                transition=Transition::spring_with(420, 0.1)
                             ></FluidDiv>
 
                             <FluidDiv
-                                class="relative p-6 bg-white rounded-2xl border border-slate-200"
-                                initial=FluidStyle::new().opacity(0.6).y(26.0).scale(0.96)
+                                class="relative p-6 bg-white rounded-2xl border border-slate-200 shadow-xl"
+                                initial=FluidStyle::new().opacity(0.72).y(18.0).scale(0.98)
                                 animate=card_style
-                                transition=Transition::new().duration_ms(0)
+                                transition=Transition::spring_with(440, 0.12)
                                 while_hover=FluidStyle::new().scale(1.02)
                                 while_tap=FluidStyle::new().scale(0.98)
                             >
@@ -120,7 +94,7 @@ pub fn Motion() -> impl IntoView {
                                 <div class="grid gap-3 mt-6 text-sm text-slate-600">
                                     <p>"• initial → animate transitions"</p>
                                     <p>"• hover/tap variants"</p>
-                                    <p>"• spring-driven retargeting via rAF"</p>
+                                    <p>"• live spring transitions via rAF"</p>
                                 </div>
                             </FluidDiv>
                         </div>
@@ -143,7 +117,7 @@ pub fn Motion() -> impl IntoView {
                             </li>
                             <li>
                                 <span class="font-semibold text-slate-900">"Live spring"</span>
-                                " — use_spring(...) + Transition::new().duration_ms(0)"
+                                " — Transition::spring_with(...)"
                             </li>
                         </ul>
                     </div>

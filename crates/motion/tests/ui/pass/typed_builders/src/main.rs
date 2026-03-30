@@ -16,7 +16,7 @@ fn main() {
 
     let controller = AnimationController::builder()
         .target(node_ref)
-        .transition(Transition::spring())
+        .transition(Transition::new())
         .initial(style(false))
         .animate(move || style(active.get()))
         .install();

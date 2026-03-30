@@ -1,12 +1,14 @@
 use std::borrow::Cow;
 
-use crate::spring_math::{clamp_bounce, duration_seconds};
+#[cfg(feature = "spring")]
+use crate::spring_math::clamp_bounce;
 const EASE_OUT_CUBIC: &str = "cubic-bezier(0.215, 0.61, 0.355, 1)";
 const EASE_IN_OUT_CUBIC: &str = "cubic-bezier(0.645, 0.045, 0.355, 1)";
-const SPRING_EASING: &str = EASE_OUT_CUBIC;
 const DEFAULT_DURATION_MS: u32 = 200;
 const SNAPPY_DURATION_MS: u32 = 150;
+#[cfg(feature = "spring")]
 const SPRING_DURATION_MS: u32 = 500;
+#[cfg(feature = "spring")]
 const SPRING_BOUNCE: f64 = 0.2;
 
 /// Easing presets used by `Transition`.
@@ -20,8 +22,6 @@ pub enum Easing {
     EaseOut,
     /// Cubic-bezier ease-in-out.
     EaseInOut,
-    /// Marker for spring-derived easing output.
-    Spring,
     /// Caller-provided CSS easing string.
     Custom(Cow<'static, str>),
 }
@@ -37,13 +37,13 @@ impl Easing {
             Easing::EaseIn => "ease-in",
             Easing::EaseOut => EASE_OUT_CUBIC,
             Easing::EaseInOut => EASE_IN_OUT_CUBIC,
-            Easing::Spring => SPRING_EASING,
             Easing::Custom(value) => value.as_ref(),
         }
     }
 }
 
 /// Spring configuration shared by transitions and spring values.
+#[cfg(feature = "spring")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spring {
     /// Intended settling duration in milliseconds.
@@ -54,6 +54,7 @@ pub struct Spring {
     pub rest_delta: f64,
 }
 
+#[cfg(feature = "spring")]
 impl Spring {
     pub fn new(duration_ms: u32, bounce: f64) -> Self {
         Self {
@@ -88,7 +89,8 @@ pub struct Transition {
     pub delay_ms: u32,
     /// Active easing preset.
     pub easing: Easing,
-    /// Optional spring metadata used for spring easing derivation.
+    /// Optional live spring configuration used by `Transition::spring*`.
+    #[cfg(feature = "spring")]
     pub spring: Option<Spring>,
     /// Properties that should not animate (applied immediately).
     pub excluded_properties: Vec<Cow<'static, str>>,
@@ -100,6 +102,7 @@ impl Default for Transition {
             duration_ms: DEFAULT_DURATION_MS,
             delay_ms: 0,
             easing: Easing::EaseOut,
+            #[cfg(feature = "spring")]
             spring: None,
             excluded_properties: Vec::new(),
         }
@@ -113,9 +116,7 @@ impl Transition {
 
     pub fn duration_ms(mut self, value: u32) -> Self {
         self.duration_ms = value;
-        if let Some(spring) = &mut self.spring {
-            spring.duration_ms = value;
-        }
+        self.sync_spring_duration(value);
         self
     }
 
@@ -126,25 +127,43 @@ impl Transition {
 
     pub fn easing(mut self, easing: Easing) -> Self {
         self.easing = easing;
-        self.spring = None;
+        self.clear_spring();
         self
     }
 
+    /// Creates a live rAF spring transition.
+    ///
+    /// Unsupported properties are applied immediately and do not interpolate in
+    /// spring mode. Use tween transitions for colors, filters, shadows, and
+    /// other text-valued CSS properties.
+    #[cfg(feature = "spring")]
     pub fn spring() -> Self {
         Self::spring_with(SPRING_DURATION_MS, SPRING_BOUNCE)
     }
 
+    /// Creates a live rAF spring transition with a custom duration and bounce.
+    ///
+    /// Unsupported properties are applied immediately and do not interpolate in
+    /// spring mode. Use tween transitions for colors, filters, shadows, and
+    /// other text-valued CSS properties.
+    #[cfg(feature = "spring")]
     pub fn spring_with(duration_ms: u32, bounce: f64) -> Self {
         let spring = Spring::new(duration_ms, bounce);
         Self {
             duration_ms,
             delay_ms: 0,
-            easing: Easing::Spring,
+            easing: Easing::EaseOut,
             spring: Some(spring),
             excluded_properties: Vec::new(),
         }
     }
 
+    /// Adjusts the bounce amount of the live spring transition.
+    ///
+    /// Unsupported properties are applied immediately and do not interpolate in
+    /// spring mode. Use tween transitions for colors, filters, shadows, and
+    /// other text-valued CSS properties.
+    #[cfg(feature = "spring")]
     pub fn bounce(mut self, bounce: f64) -> Self {
         let value = clamp_bounce(bounce);
         match &mut self.spring {
@@ -159,11 +178,16 @@ impl Transition {
             duration_ms: SNAPPY_DURATION_MS,
             delay_ms: 0,
             easing: Easing::EaseOut,
+            #[cfg(feature = "spring")]
             spring: None,
             excluded_properties: Vec::new(),
         }
     }
 
+    /// Excludes properties from animation so they apply immediately.
+    ///
+    /// When using a spring transition, unsupported properties are already
+    /// applied immediately and do not interpolate in spring mode.
     pub fn exclude_properties(mut self, props: &[&'static str]) -> Self {
         let mut list = Vec::new();
         for prop in props {
@@ -184,13 +208,32 @@ impl Transition {
         self.exclude_properties(props)
     }
 
+    #[cfg(feature = "spring")]
+    pub(crate) fn spring_config(&self) -> Option<Spring> {
+        self.spring
+    }
+
     pub fn easing_string(&self) -> Cow<'_, str> {
-        if let Some(spring) = self.spring {
-            Cow::Owned(spring_easing(spring.duration_ms, spring.bounce))
-        } else {
-            Cow::Borrowed(self.easing.as_str())
+        Cow::Borrowed(self.easing.as_str())
+    }
+
+    #[cfg(feature = "spring")]
+    fn sync_spring_duration(&mut self, value: u32) {
+        if let Some(spring) = &mut self.spring {
+            spring.duration_ms = value;
         }
     }
+
+    #[cfg(not(feature = "spring"))]
+    fn sync_spring_duration(&mut self, _value: u32) {}
+
+    #[cfg(feature = "spring")]
+    fn clear_spring(&mut self) {
+        self.spring = None;
+    }
+
+    #[cfg(not(feature = "spring"))]
+    fn clear_spring(&mut self) {}
 
     #[cfg(any(test, feature = "bench"))]
     pub(crate) fn transition_css(&self) -> String {
@@ -235,104 +278,11 @@ fn push_unique_property(list: &mut Vec<Cow<'static, str>>, prop: Cow<'static, st
     list.push(prop);
 }
 
-fn spring_easing(duration_ms: u32, bounce: f64) -> String {
-    let bounce = clamp_bounce(bounce);
-    if bounce <= 0.0 {
-        return SPRING_EASING.to_string();
-    }
-
-    let duration = duration_seconds(duration_ms);
-    let zeta = (1.0 - 0.85 * bounce).clamp(0.05, 0.98);
-    let omega_n = 4.0 / duration;
-    let omega_d = omega_n * (1.0 - zeta * zeta).sqrt();
-    let coeff = zeta / (1.0 - zeta * zeta).sqrt();
-
-    let mut out = String::from("linear(");
-    for index in 0..=7 {
-        let t = index as f64 / 7.0;
-        let value = if index == 0 {
-            0.0
-        } else if index == 7 {
-            1.0
-        } else {
-            let expo = (-zeta * omega_n * t).exp();
-            let value = 1.0 - expo * ((omega_d * t).cos() + coeff * (omega_d * t).sin());
-            value.clamp(-0.1, 1.35)
-        };
-
-        if index > 0 {
-            out.push_str(", ");
-        }
-        push_rounded_number(&mut out, value, 3);
-        if index > 0 && index < 7 {
-            out.push(' ');
-            push_rounded_number(&mut out, t * 100.0, 1);
-            out.push('%');
-        }
-    }
-    out.push(')');
-    out
-}
-
-fn push_rounded_number(out: &mut String, value: f64, decimals: u8) {
-    let scale = match decimals {
-        1 => 10_i64,
-        2 => 100_i64,
-        3 => 1000_i64,
-        _ => 1_i64,
-    };
-
-    let mut scaled = (value * scale as f64).round();
-    if !scaled.is_finite() {
-        out.push('0');
-        return;
-    }
-    if scaled == 0.0 {
-        out.push('0');
-        return;
-    }
-
-    let negative = scaled < 0.0;
-    if negative {
-        scaled = -scaled;
-        out.push('-');
-    }
-
-    let scaled = scaled as u64;
-    let int_part = scaled / scale as u64;
-    let mut frac_part = scaled % scale as u64;
-    out.push_str(&int_part.to_string());
-
-    if decimals == 0 || frac_part == 0 {
-        return;
-    }
-
-    let mut digits = [0_u8; 3];
-    let mut index = decimals as usize;
-    while index > 0 {
-        index -= 1;
-        digits[index] = (frac_part % 10) as u8;
-        frac_part /= 10;
-    }
-
-    let mut end = decimals as usize;
-    while end > 0 && digits[end - 1] == 0 {
-        end -= 1;
-    }
-    if end == 0 {
-        return;
-    }
-
-    out.push('.');
-    for digit in &digits[..end] {
-        out.push((b'0' + *digit) as char);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(feature = "spring")]
     #[test]
     fn spring_transition_defaults() {
         let spring = Transition::spring();
@@ -340,21 +290,14 @@ mod tests {
         assert_eq!(spring.delay_ms, 0);
         assert!(spring.spring.is_some());
         assert_eq!(spring.spring.unwrap().bounce, 0.2);
-        let easing = spring.easing_string();
-        assert!(easing.starts_with("linear("));
+        assert_eq!(spring.easing.as_str(), EASE_OUT_CUBIC);
     }
 
+    #[cfg(feature = "spring")]
     #[test]
     fn bounce_is_clamped() {
         let spring = Transition::spring_with(400, 1.8);
         assert_eq!(spring.spring.unwrap().bounce, 1.0);
-    }
-
-    #[test]
-    fn zero_bounce_is_ease_out() {
-        let spring = Transition::spring_with(400, 0.0);
-        let easing = spring.easing_string();
-        assert_eq!(easing.as_ref(), SPRING_EASING);
     }
 
     #[test]

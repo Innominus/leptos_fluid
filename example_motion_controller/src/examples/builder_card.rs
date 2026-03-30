@@ -1,7 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{use_spring, AnimationController, FluidStyle, Spring, Transition};
-
-use super::spring_utils::lerp;
+use leptos_fluid_motion::{AnimationController, Easing, FluidStyle, Transition};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BuilderCardState {
@@ -13,35 +11,27 @@ enum BuilderCardState {
 pub fn BuilderCardExample() -> impl IntoView {
     let state = RwSignal::new(BuilderCardState::Docked);
     let preview_ref = NodeRef::<leptos::html::Div>::new();
-    let card_progress = use_spring(0.0, Spring::new(580, 0.32));
-
-    Effect::new({
-        let card_progress = card_progress.clone();
-        move || {
-            card_progress.set(match state.get() {
-                BuilderCardState::Docked => 0.0,
-                BuilderCardState::Lifted => 1.0,
-            })
-        }
-    });
-
-    let animate_progress = card_progress.clone();
     let controller = AnimationController::builder()
         .target(preview_ref)
-        .transition(Transition::new().duration_ms(0))
-        .initial(builder_card_style(0.0))
-        .animate(move || builder_card_style(animate_progress.get()))
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
+        .initial(builder_card_style(BuilderCardState::Docked))
         .install();
     let seeded = StoredValue::new(false);
 
-    let seeded_progress = card_progress.clone();
     Effect::new(move || {
         if seeded.get_value() || preview_ref.get().is_none() {
             return;
         }
         seeded.set_value(true);
-        controller.set_immediate(builder_card_style(seeded_progress.get()));
+        controller.set_immediate(builder_card_style(state.get_untracked()));
     });
+
+    controller.on_change(
+        move || state.get(),
+        move |next, controller| {
+            controller.animate(builder_card_style(next));
+        },
+    );
 
     let toggle = move |_| {
         state.update(|current| {
@@ -51,11 +41,9 @@ pub fn BuilderCardExample() -> impl IntoView {
             }
         });
     };
-    let reset_progress = card_progress.clone();
     let reset = move |_| {
         state.set(BuilderCardState::Docked);
-        reset_progress.set_immediate(0.0);
-        controller.set_immediate(builder_card_style(0.0));
+        controller.set_immediate(builder_card_style(BuilderCardState::Docked));
     };
 
     view! {
@@ -96,36 +84,27 @@ pub fn BuilderCardExample() -> impl IntoView {
     }
 }
 
-fn builder_card_style(progress: f64) -> FluidStyle {
-    let shadow_y = lerp(14.0, 28.0, progress);
-    let shadow_blur = lerp(28.0, 56.0, progress);
-    let shadow_alpha = lerp(0.12, 0.28, progress);
-    let background = if progress >= 0.5 {
-        "#0f766e"
-    } else {
-        "#eef2f7"
-    };
-    let color = if progress >= 0.5 {
-        "#ecfeff"
-    } else {
-        "#0f172a"
-    };
-    let border_alpha = lerp(0.12, 0.4, progress);
-
-    FluidStyle::new()
-        .opacity(lerp(0.78, 1.0, progress))
-        .x(lerp(-18.0, 0.0, progress))
-        .y(lerp(16.0, 0.0, progress))
-        .scale(lerp(0.94, 1.02, progress))
-        .rotate(lerp(1.6, -1.0, progress))
-        .with("background", background)
-        .with("color", color)
-        .with(
-            "border-color",
-            format!("rgba(103,232,249,{border_alpha:.3})"),
-        )
-        .with(
-            "box-shadow",
-            format!("0 {shadow_y:.1}px {shadow_blur:.1}px rgba(8,47,73,{shadow_alpha:.3})"),
-        )
+fn builder_card_style(state: BuilderCardState) -> FluidStyle {
+    match state {
+        BuilderCardState::Docked => FluidStyle::new()
+            .opacity(0.78)
+            .x(-18.0)
+            .y(16.0)
+            .scale(0.94)
+            .rotate(1.6)
+            .with("background", "#eef2f7")
+            .with("color", "#0f172a")
+            .with("border-color", "rgba(15,23,42,.12)")
+            .with("box-shadow", "0 14px 28px rgba(15,23,42,.12)"),
+        BuilderCardState::Lifted => FluidStyle::new()
+            .opacity(1.0)
+            .x(0.0)
+            .y(0.0)
+            .scale(1.02)
+            .rotate(-1.0)
+            .with("background", "#0f766e")
+            .with("color", "#ecfeff")
+            .with("border-color", "rgba(103,232,249,.4)")
+            .with("box-shadow", "0 28px 56px rgba(8,47,73,.28)"),
+    }
 }

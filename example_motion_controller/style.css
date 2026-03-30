@@ -319,6 +319,8 @@ button.ghost {
     display: inline-flex;
     justify-content: center;
     align-items: center;
+    background: linear-gradient(145deg, #1d4ed8, #2563eb);
+    color: #eff6ff;
 }
 
 .auto-size-width-label {
@@ -328,10 +330,49 @@ button.ghost {
     min-height: 54px;
     padding: 0.75rem 1rem;
     font-weight: 700;
-    color: #eff6ff;
-    background: linear-gradient(145deg, #1d4ed8, #2563eb);
-    border-radius: 18px;
     white-space: nowrap;
+}
+
+.spring-retarget-stage {
+    position: relative;
+}
+
+.spring-retarget-lanes {
+    position: absolute;
+    inset: 1rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+}
+
+.spring-retarget-lanes span {
+    justify-self: center;
+    width: 2px;
+    height: 88px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(37, 99, 235, 0.12), rgba(15, 118, 110, 0.26));
+}
+
+.spring-retarget-card {
+    width: 240px;
+    background: linear-gradient(160deg, #0f172a, #1d4ed8);
+    color: #eff6ff;
+    box-shadow: 0 20px 44px rgba(37, 99, 235, 0.22);
+}
+
+.spring-retarget-card p {
+    color: rgba(239, 246, 255, 0.86);
+}
+
+.spring-timeline-glyph {
+    width: 240px;
+    background: linear-gradient(160deg, #0f766e, #115e59);
+    color: #ecfeff;
+    box-shadow: 0 18px 38px rgba(15, 118, 110, 0.18);
+}
+
+.spring-timeline-glyph p {
+    color: rgba(236, 254, 255, 0.86);
 }
 
 .timeline-glyph {

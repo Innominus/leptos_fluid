@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::examples::{
     AutoSizeExample, BuilderCardExample, MacroStateExample, ResolverDeckExample,
-    TimelineBuilderExample, TimelineMacroExample,
+    SpringRetargetExample, SpringTimelineExample, TimelineBuilderExample, TimelineMacroExample,
 };
 
 const HERO_POINTS: [(&str, &str); 5] = [
@@ -58,6 +58,8 @@ pub fn App() -> impl IntoView {
                 <BuilderCardExample />
                 <MacroStateExample />
                 <ResolverDeckExample />
+                <SpringRetargetExample />
+                <SpringTimelineExample />
                 <TimelineBuilderExample />
                 <TimelineMacroExample />
                 <AutoSizeExample />

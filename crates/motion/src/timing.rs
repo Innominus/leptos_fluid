@@ -1,7 +1,10 @@
 use js_sys::Date;
+#[cfg(feature = "timeline")]
 #[cfg(not(target_arch = "wasm32"))]
 use leptos::prelude::request_animation_frame;
+#[cfg(feature = "timeline")]
 use leptos::prelude::{Callable, Callback, GetValue, StoredValue};
+#[cfg(feature = "timeline")]
 #[cfg(target_arch = "wasm32")]
 use web_sys::wasm_bindgen::{JsCast, closure::Closure};
 
@@ -9,6 +12,7 @@ pub(crate) fn now_ms() -> f64 {
     Date::now()
 }
 
+#[cfg(feature = "timeline")]
 pub(crate) fn schedule_after(
     generation: u32,
     generation_store: StoredValue<u32>,

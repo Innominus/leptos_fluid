@@ -1,6 +1,9 @@
 //! Reactive motion primitives for Leptos components.
 
+#[cfg(feature = "spring")]
 mod spring_math;
+#[cfg(feature = "spring")]
+mod spring_solver;
 #[cfg(feature = "spring")]
 mod spring_value;
 mod style;
@@ -34,7 +37,9 @@ pub use spring_value::{SpringValue, use_spring};
 pub use style::{FluidStyle, FluidValue, Transform};
 #[cfg(feature = "timeline")]
 pub use timeline::{FluidStep, FluidTimeline};
-pub use transition::{Easing, Spring, Transition};
+#[cfg(feature = "spring")]
+pub use transition::Spring;
+pub use transition::{Easing, Transition};
 
 #[cfg(feature = "auto-size")]
 pub use auto_size::{
@@ -60,6 +65,8 @@ pub mod __private {
 }
 
 pub mod prelude {
+    #[cfg(feature = "spring")]
+    pub use crate::Spring;
     pub use crate::style;
     #[cfg(all(feature = "macros", feature = "timeline"))]
     pub use crate::timeline;
@@ -72,7 +79,7 @@ pub mod prelude {
         AutoSizeAxis, AutoSizeOptions, bind_auto_height, bind_auto_height_with, bind_auto_size,
         bind_auto_size_with, bind_auto_width, bind_auto_width_with,
     };
-    pub use crate::{Easing, FluidSignal, FluidStyle, FluidValue, Spring, Transform, Transition};
+    pub use crate::{Easing, FluidSignal, FluidStyle, FluidValue, Transform, Transition};
     #[cfg(feature = "wrappers")]
     pub use crate::{FluidButton, FluidDiv, FluidSpan};
     #[cfg(feature = "components")]

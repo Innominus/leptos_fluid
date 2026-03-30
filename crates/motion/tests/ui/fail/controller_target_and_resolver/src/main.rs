@@ -6,6 +6,6 @@ fn main() {
     let _ = controller! {
         target: node_ref,
         resolver: move || None,
-        transition: Transition::spring(),
+        transition: Transition::new(),
     };
 }

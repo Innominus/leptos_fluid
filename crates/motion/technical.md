@@ -113,10 +113,11 @@ If the caller explicitly sets `transform`, auto composition is skipped.
 
 Important behavior:
 
-- spring transitions are represented as a generated `linear(...)` easing curve
+- spring transitions use a live rAF-driven solver instead of generated CSS easing
 - `bounce(...)` will create spring metadata if missing
 - calling `.easing(...)` clears spring metadata
 - excluded properties are applied immediately while others animate
+- unsupported properties are applied immediately and do not interpolate in spring mode
 
 The system also supports per-style transition overrides by parsing a `transition` CSS value from `FluidStyle`.
 
@@ -131,6 +132,8 @@ Loop details:
 - solver stops when both displacement and velocity are below `rest_delta`
 
 This is separate from component `Transition`: spring values are usually paired with `Transition::new().duration_ms(0)` to avoid double smoothing.
+
+Timeline waits should continue using `duration_ms + delay_ms`; spring-driven segments are allowed to retarget before fully settling.
 
 ## Timeline model (`FluidTimeline`)
 

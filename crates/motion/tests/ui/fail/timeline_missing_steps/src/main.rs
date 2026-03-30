@@ -5,7 +5,7 @@ fn main() {
     let node_ref = NodeRef::<leptos::html::Div>::new();
     let controller = controller! {
         target: node_ref,
-        transition: Transition::spring(),
+        transition: Transition::new(),
     };
     let _ = timeline! {
         controller: controller,

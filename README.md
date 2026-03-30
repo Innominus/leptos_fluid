@@ -475,6 +475,8 @@ let s = style!(
 - `Transition::spring()` default: `500ms`, bounce `0.2`.
 - `Transition::spring_with(duration_ms, bounce)`.
 
+Spring transitions use a live rAF-driven solver. Unsupported properties are applied immediately and do not interpolate in spring mode.
+
 Use `Transition::new()` for most product UI transitions. Reach for `use_spring(...)` when the target changes continuously and you need the motion to stay interruptible.
 
 Other controls:

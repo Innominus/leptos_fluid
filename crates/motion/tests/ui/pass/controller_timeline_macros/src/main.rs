@@ -16,7 +16,7 @@ fn main() {
 
     let controller = controller! {
         target: node_ref,
-        transition: Transition::spring(),
+        transition: Transition::new(),
         initial: card_style(false),
     };
 
