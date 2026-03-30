@@ -6,7 +6,7 @@ It ships three focused modules:
 
 - `view_transitions`: nested outlet route transitions for `leptos_router`.
 - `flip`: FLIP animations for layout moves, resizes, and list/grid reorders.
-- `motion`: reactive element motion with style builders, transitions, timelines, and spring values.
+- `motion`: reactive element motion, with optional forwarded `motion-*` features for springs, timelines, builders, and macros.
 
 The crate is intentionally modular. You enable only what you need.
 
