@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-leptos_fluid = { path = "../", features = ["view-transitions", "motion"] }
+leptos_fluid = { path = "../", features = ["view-transitions", "motion", "motion-spring"] }
 leptos = { workspace = true }
 leptos_meta = { workspace = true }
 leptos_router = { workspace = true }

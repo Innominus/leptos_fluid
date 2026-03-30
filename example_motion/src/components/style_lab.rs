@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{style, FluidElement, FluidStyle, Transition};
+use leptos_fluid_motion::{style, Easing, FluidElement, FluidStyle, Transition};
 
 struct Mood {
     label: &'static str,
@@ -63,7 +63,7 @@ pub fn StyleLabSection() -> impl IntoView {
                 class="style-preview"
                 initial=mood_style(0)
                 animate=move || mood_style(active_mood.get())
-                transition=Transition::spring_with(540, 0.24)
+                transition=Transition::new().duration_ms(240).easing(Easing::EaseInOut)
                 while_hover=FluidStyle::new().scale(1.01).y(-6.0)
             >
                 <p class="chip">"style!"</p>

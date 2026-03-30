@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_flip::{Easing as FlipEasing, Flip, FlipOptions, ScaleMode as FlipScaleMode};
+use leptos_fluid_flip::{Flip, FlipOptions, ScaleMode as FlipScaleMode};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CardScale {
@@ -22,16 +22,16 @@ impl CardScale {
 pub fn FlipCardSection() -> impl IntoView {
     let on_right = RwSignal::new(false);
     let scale = RwSignal::new(CardScale::Standard);
-    let flip = Flip::new_with_options(
-        "flip-workbench-card".to_string(),
-        FlipOptions {
-            duration: 880,
-            easing: FlipEasing::EaseInOut,
-            scale_mode: FlipScaleMode::PositionAndScale,
-            scale_correction_selector: Some(".flip-workbench-card-shell"),
-            ..Default::default()
-        },
-    );
+    let card_ref = NodeRef::<leptos::html::Div>::new();
+    let flip = Flip::builder()
+        .target(card_ref)
+        .options(
+            FlipOptions::new()
+                .duration_ms(260)
+                .scale_mode(FlipScaleMode::PositionAndScale)
+                .scale_correction_selector(".flip-workbench-card-shell"),
+        )
+        .install();
 
     view! {
         <section class="section-grid">
@@ -68,7 +68,7 @@ pub fn FlipCardSection() -> impl IntoView {
 
             <div class="flip-lane" class:lane-right=move || on_right.get()>
                 <div
-                    id="flip-workbench-card"
+                    node_ref=card_ref
                     class="flip-workbench-card"
                     class:scale-compact=move || scale.get() == CardScale::Compact
                     class:scale-standard=move || scale.get() == CardScale::Standard
@@ -98,7 +98,7 @@ fn animate_flip_side(
         return;
     }
 
-    flip.animate(move || {
+    flip.run(move || {
         on_right.set(next_side);
         scale.set(current_scale);
     });
@@ -115,7 +115,7 @@ fn animate_flip_scale(
         return;
     }
 
-    flip.animate(move || {
+    flip.run(move || {
         on_right.set(current_side);
         scale.set(next_scale);
     });

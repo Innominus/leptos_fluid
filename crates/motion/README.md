@@ -64,7 +64,7 @@ fn Demo() -> impl IntoView {
             class="card"
             initial=FluidStyle::new().opacity(0.0).y(16.0)
             animate=animate
-            transition=Transition::spring()
+            transition=Transition::new().duration_ms(220)
             while_hover=FluidStyle::new().scale(1.02)
             while_tap=FluidStyle::new().scale(0.98)
         >
@@ -96,7 +96,7 @@ view! {
         class="panel"
         initial=FluidStyle::new().opacity(0.0).y(12.0)
         animate=FluidStyle::new().opacity(1.0).y(0.0)
-        transition=Transition::spring()
+        transition=Transition::new()
     >
         "Hello motion"
     </FluidElement>
@@ -104,6 +104,8 @@ view! {
 ```
 
 `animate`, `class`, and `style` props accept static values, signals, memos, and closures via `FluidSignal`.
+
+Use `Transition::new()` / `Transition::default()` for most enter/exit UI. Reserve `use_spring(...)` for continuously retargeted motion such as pointer follow or drag-like interactions.
 
 ## `AnimationController` (without motion elements)
 
@@ -119,7 +121,7 @@ fn ControllerDemo() -> impl IntoView {
     let node_ref = NodeRef::<leptos::html::Div>::new();
     let controller = AnimationController::builder()
         .target(node_ref)
-        .transition(Transition::spring())
+        .transition(Transition::new().duration_ms(220))
         .initial(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96))
         .install();
 
@@ -215,10 +217,12 @@ Using `duration_ms(0)` avoids double interpolation when the spring already contr
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{AnimationController, FluidStep, FluidStyle, FluidTimeline, Transition};
+use leptos_fluid_motion::{
+    AnimationController, Easing, FluidStep, FluidStyle, FluidTimeline, Transition,
+};
 
 let node_ref = NodeRef::<leptos::html::Div>::new();
-let transition = Transition::spring_with(520, 0.35);
+let transition = Transition::new().duration_ms(240).easing(Easing::EaseInOut);
 let paused = RwSignal::new(false);
 let controller = AnimationController::builder()
     .target(node_ref)

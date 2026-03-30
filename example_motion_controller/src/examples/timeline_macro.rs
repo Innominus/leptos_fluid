@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{controller, timeline, FluidStyle, Transition};
+use leptos_fluid_motion::{controller, timeline, Easing, FluidStyle, Transition};
 
 #[component]
 pub fn TimelineMacroExample() -> impl IntoView {
@@ -7,7 +7,7 @@ pub fn TimelineMacroExample() -> impl IntoView {
     let glyph_ref = NodeRef::<leptos::html::Div>::new();
     let controller = controller! {
         target: glyph_ref,
-        transition: Transition::spring_with(560, 0.3),
+        transition: Transition::new().duration_ms(240).easing(Easing::EaseInOut),
         initial: timeline_macro_rest(),
     };
     let seeded = StoredValue::new(false);
@@ -27,7 +27,7 @@ pub fn TimelineMacroExample() -> impl IntoView {
         steps: [
             { to: timeline_macro_charge() },
             { to: timeline_macro_burst() },
-            { to: timeline_macro_settle(), wait_ms: 520 },
+            { to: timeline_macro_settle(), wait_ms: 180 },
         ],
         triggers: [
             on(running.get()) {

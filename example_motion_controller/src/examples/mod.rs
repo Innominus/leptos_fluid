@@ -2,6 +2,7 @@ mod auto_size;
 mod builder_card;
 mod macro_state;
 mod resolver_deck;
+mod spring_utils;
 mod timeline_builder;
 mod timeline_macro;
 

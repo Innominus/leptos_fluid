@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_fluid_motion::{
-    bind_auto_height, bind_auto_width, AnimationController, FluidStyle, Transition,
+    bind_auto_height, bind_auto_width, AnimationController, Easing, FluidStyle, Transition,
 };
 
 const HEIGHT_COPY: [(&str, &str); 3] = [
@@ -34,11 +34,11 @@ pub fn AutoSizeExample() -> impl IntoView {
 
     let height_controller = AnimationController::builder()
         .target(height_shell_ref)
-        .transition(Transition::spring_with(500, 0.22))
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
         .install();
     let width_controller = AnimationController::builder()
         .target(width_shell_ref)
-        .transition(Transition::spring_with(420, 0.2))
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
         .install();
 
     bind_auto_height(height_controller, height_shell_ref, height_content_ref);

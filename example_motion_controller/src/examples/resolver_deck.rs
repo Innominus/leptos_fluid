@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
-use leptos_fluid_motion::{controller, when, FluidStyle, Transition};
+use leptos_fluid_motion::{controller, when, Easing, FluidStyle, Transition};
 use web_sys::Element;
 
 const DECK_TITLES: [&str; 3] = ["Routing", "Resolver", "Delivery"];
@@ -20,7 +20,7 @@ pub fn ResolverDeckExample() -> impl IntoView {
             let third_ref = third_ref.clone();
             move || resolve_active_card(active_index.get_untracked(), &first_ref, &second_ref, &third_ref)
         },
-        transition: Transition::spring_with(680, 0.24),
+        transition: Transition::new().duration_ms(240).easing(Easing::EaseInOut),
         initial: resolver_card_style(false),
     };
     let seeded = StoredValue::new(false);

@@ -1,10 +1,12 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{AnimationController, FluidStep, FluidStyle, FluidTimeline, Transition};
+use leptos_fluid_motion::{
+    AnimationController, Easing, FluidStep, FluidStyle, FluidTimeline, Transition,
+};
 
 #[component]
 pub fn TimelineStudioSection() -> impl IntoView {
     let glyph_ref = NodeRef::<leptos::html::Div>::new();
-    let transition = Transition::spring_with(520, 0.28);
+    let transition = Transition::new().duration_ms(240).easing(Easing::EaseInOut);
     let controller = AnimationController::builder()
         .target(glyph_ref)
         .transition(transition.clone())

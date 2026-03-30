@@ -5,6 +5,7 @@ mod footer;
 mod hero;
 mod perf;
 mod spring_follow;
+mod spring_utils;
 mod style_lab;
 mod timeline;
 mod wrappers;

@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{controller, when, FluidStyle, Transition};
+use leptos_fluid_motion::{controller, when, Easing, FluidStyle, Transition};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -14,7 +14,7 @@ pub fn MacroStateExample() -> impl IntoView {
     let preview_ref = NodeRef::<leptos::html::Div>::new();
     let controller = controller! {
         target: preview_ref,
-        transition: Transition::spring_with(540, 0.25),
+        transition: Transition::new().duration_ms(240).easing(Easing::EaseInOut),
         initial: mode_style(Mode::Standby),
     };
     let seeded = StoredValue::new(false);

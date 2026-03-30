@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{bind_auto_height, bind_auto_width, AnimationController, Transition};
+use leptos_fluid_motion::{
+    bind_auto_height, bind_auto_width, AnimationController, Easing, Transition,
+};
 
 const LAYOUT_NOTES: [&str; 3] = [
     "Small note.",
@@ -26,11 +28,11 @@ pub fn AutoLayoutSection() -> impl IntoView {
 
     let height_controller = AnimationController::builder()
         .target(height_shell_ref)
-        .transition(Transition::spring_with(460, 0.2))
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
         .install();
     let width_controller = AnimationController::builder()
         .target(width_shell_ref)
-        .transition(Transition::spring_with(420, 0.18))
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
         .install();
 
     bind_auto_height(height_controller, height_shell_ref, height_content_ref);

@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_flip::{Easing as FlipEasing, FlipGroup, FlipOptions, ScaleMode as FlipScaleMode};
+use leptos_fluid_flip::{FlipGroup, FlipOptions, ScaleMode as FlipScaleMode};
 
 #[derive(Clone, Copy)]
 struct BoardTile {
@@ -59,17 +59,16 @@ const BOARD_TILES: [BoardTile; 6] = [
 pub fn FlipBoardSection() -> impl IntoView {
     let dense = RwSignal::new(false);
     let order = RwSignal::new(BOARD_TILES.iter().map(|tile| tile.id).collect::<Vec<_>>());
-    let flip_group = FlipGroup::new_with_options(
-        ".flip-board-tile".to_string(),
-        FlipOptions {
-            duration: 760,
-            stagger: 32,
-            easing: FlipEasing::EaseInOut,
-            scale_mode: FlipScaleMode::PositionAndScale,
-            scale_correction_selector: Some(".flip-board-shell"),
-            ..Default::default()
-        },
-    );
+    let flip_group = FlipGroup::builder()
+        .selector(".flip-board-tile")
+        .options(
+            FlipOptions::new()
+                .duration_ms(240)
+                .stagger_ms(20)
+                .scale_mode(FlipScaleMode::PositionAndScale)
+                .scale_correction_selector(".flip-board-shell"),
+        )
+        .install();
 
     view! {
         <section class="section-grid">
@@ -80,13 +79,13 @@ pub fn FlipBoardSection() -> impl IntoView {
                     "Every tile stays mounted. Only CSS order and density change, so the group animator can interpolate the layout transition cleanly."
                 </p>
                 <div class="button-row">
-                    <button class="alt" on:click=move |_| flip_group.animate(move || order.update(rotate_left))>
+                    <button class="alt" on:click=move |_| flip_group.run(move || order.update(rotate_left))>
                         "Rotate"
                     </button>
-                    <button class="alt" on:click=move |_| flip_group.animate(move || order.update(shuffle_tiles))>
+                    <button class="alt" on:click=move |_| flip_group.run(move || order.update(shuffle_tiles))>
                         "Shuffle"
                     </button>
-                    <button on:click=move |_| flip_group.animate(move || dense.update(|value| *value = !*value))>
+                    <button on:click=move |_| flip_group.run(move || dense.update(|value| *value = !*value))>
                         {move || if dense.get() { "Relax spacing" } else { "Dense spacing" }}
                     </button>
                 </div>

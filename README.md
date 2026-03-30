@@ -105,7 +105,7 @@ fn Card() -> impl IntoView {
             class="card"
             initial=FluidStyle::new().opacity(0.0).y(24.0)
             animate=animate
-            transition=Transition::spring()
+            transition=Transition::new().duration_ms(220)
             while_hover=FluidStyle::new().scale(1.02)
             while_tap=FluidStyle::new().scale(0.98)
         >
@@ -165,7 +165,7 @@ fn FlipCard() -> impl IntoView {
     let flip = Flip::new_with_options(
         "flip-card".to_string(), // element id (without '#')
         FlipOptions {
-            duration: 700,
+            duration: 260,
             scale_mode: ScaleMode::PositionAndScale,
             ..Default::default()
         },
@@ -345,11 +345,11 @@ pub struct FlipOptions {
 
 Notes:
 
-- `duration` default from `FlipOptions::new()` is `1000` ms.
+- `duration` default from `FlipOptions::new()` is `240` ms.
 - `stagger` is index-based delay in group mode (`delay + stagger * index`).
-- `easing` uses FLIP-local enum:
-  - `Easing::Linear`
+- `easing` uses FLIP-local enum and defaults to `Easing::EaseInOut`:
   - `Easing::EaseInOut`
+  - `Easing::Linear`
   - `Easing::Custom(&'static str)`
 - `scale_mode`:
   - `PositionOnly`: only translate
@@ -424,7 +424,7 @@ Minimal pattern:
 <FluidDiv
     initial=FluidStyle::new().opacity(0.0).y(16.0)
     animate=move || FluidStyle::new().opacity(1.0).y(0.0)
-    transition=Transition::spring()
+    transition=Transition::new()
 />
 ```
 
@@ -474,6 +474,8 @@ let s = style!(
 - `Transition::snappy()` default: `150ms`.
 - `Transition::spring()` default: `500ms`, bounce `0.2`.
 - `Transition::spring_with(duration_ms, bounce)`.
+
+Use `Transition::new()` for most product UI transitions. Reach for `use_spring(...)` when the target changes continuously and you need the motion to stay interruptible.
 
 Other controls:
 
@@ -536,7 +538,7 @@ Use timelines when you want sequenced state independent of component internals.
 let paused = RwSignal::new(false);
 let controller = controller! {
     target: node_ref,
-    transition: Transition::spring_with(520, 0.35),
+    transition: Transition::new().duration_ms(240),
     initial: FluidStyle::new().opacity(0.4),
 };
 let timeline = timeline! {
@@ -575,7 +577,7 @@ Use macros when you want controller-first motion wiring with minimal effect boil
 ```rust
 let card = controller! {
     target: node_ref,
-    transition: Transition::spring_with(560, 0.22),
+    transition: Transition::new().duration_ms(220),
     initial: collapsed_style(),
 };
 
@@ -599,7 +601,7 @@ Use builders when you want IDE-friendly method completion and compile-time insta
 ```rust
 let card = AnimationController::builder()
     .target(node_ref)
-    .transition(Transition::spring_with(560, 0.22))
+    .transition(Transition::new().duration_ms(220))
     .initial(collapsed_style())
     .install();
 
