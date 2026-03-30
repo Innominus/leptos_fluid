@@ -71,12 +71,12 @@ If you only want one module without the umbrella crate:
 
 ```toml
 [dependencies]
-leptos_fluid_motion = { path = "../leptos_fluid/crates/motion" }
+leptos_fluid_motion = { path = "../leptos_fluid/crates/motion", default-features = false, features = ["controller", "components", "wrappers"] }
 leptos_fluid_flip = { path = "../leptos_fluid/crates/flip" }
 leptos_fluid_view_transitions = { path = "../leptos_fluid/crates/view_transitions" }
 ```
 
-For smaller wasm builds, depend on `leptos_fluid_motion` directly with `default-features = false` and only the pieces you need, for example `features = ["controller", "builders"]`.
+`leptos_fluid_motion` defaults to no features, so direct dependencies must opt into the pieces they use. For smaller wasm builds, keep `default-features = false` and choose only what you need, for example `features = ["controller", "builders"]` or `features = ["spring", "controller", "timeline"]`.
 
 The umbrella crate now forwards those fine-grained motion features too, so you can stay on `leptos_fluid` without paying for the entire motion surface.
 
@@ -258,7 +258,9 @@ The manager also installs a `popstate` compatibility fallback:
 - `FluidManager::new()`: create manager context and install compatibility listener.
 - `FluidManager::get_manager()`: retrieve manager from context.
 - `FluidRoutes(...)`: route wrapper that forwards to `Routes` and captures route patterns for direction detection. Its optional `transition` prop is forwarded to `leptos_router::Routes`.
+- `FluidFlatRoutes(...)`: flat-route wrapper that forwards to `FlatRoutes` and captures route patterns for direction detection.
 - `FluidOutlet(intro_class, outro_class)`: animated outlet replacement.
+- `FluidFlatOutlet(intro_class, outro_class)`: flat-route outlet replacement.
 
 When to use this module:
 
@@ -289,22 +291,30 @@ This is ideal for layout changes that would otherwise "jump":
 
 ### `Flip` (single element)
 
-Use `Flip` when one specific element (selected by **id**) is changing layout.
+Use `Flip` when one specific element is changing layout.
+
+You can target a stable `NodeRef`, a concrete element, a resolver closure, or the compatibility id-based constructor.
 
 ```rust
-let flip = Flip::new("my-id".to_string());
-flip.animate(move || {
+let flip = Flip::builder()
+    .target(card_ref)
+    .options(FlipOptions::new())
+    .install();
+
+flip.run(move || {
     // mutate signal/state that changes the layout
 });
 ```
 
-Public methods:
+Common methods:
 
-- `Flip::new(id_selector: String)`
-- `Flip::new_with_options(id_selector: String, options: FlipOptions)`
-- `set_id_selector`, `set_options`
+- `Flip::builder()`
+- `Flip::new(id_selector: String)` and `Flip::new_with_options(...)` for compatibility or simple id-based lookup
+- `set_target`, `set_id_selector`, `set_options`
+- `is_animating() -> Signal<bool>`
 - `get_is_animating_signal() -> Signal<bool>`
-- `animate(f)`
+- `run(f)`
+- `animate(f)` as a compatibility alias for `run(...)`
 - `measure(element)` and `rect(element)` for manual measurement workflows
 
 `id_selector` is passed to `document().get_element_by_id`, so provide the raw id (for example `"card-a"`, not `"#card-a"`).
@@ -388,16 +398,17 @@ FlipOptions {
 
 `motion` exports:
 
-- controller: `AnimationController`
-- builders: `AnimationController::builder()`, `FluidTimeline::builder(...)`
-- macros: `controller!`, `when!`, `timeline!`, `style!`
-- components: `FluidElement`, `FluidDiv`, `FluidSpan`, `FluidButton`
-- styles: `FluidStyle`, `FluidValue`, `style!`
-- transitions: `Transition`, `Spring`, `Easing`
-- signal bridge: `FluidSignal<T>`
-- timelines: `FluidTimeline`, `FluidStep`
-- spring values: `SpringValue`, `use_spring`
+- with any motion feature that enables `motion-core`: `FluidStyle`, `FluidValue`, `Transform`, `Transition`, `Easing`, `FluidSignal<T>`, `style!`
+- `motion-controller`: `AnimationController`
+- `motion-components`: `FluidElement`
+- `motion-wrappers` or `motion`: `FluidDiv`, `FluidSpan`, `FluidButton`
+- `motion-builders`: `AnimationController::builder()`, `FluidTimeline::builder(...)`
+- `motion-macros`: `controller!`, `when!`, `timeline!`
+- `motion-timeline`: `FluidTimeline`, `FluidStep`
+- `motion-spring`: `Spring`, `SpringValue`, `use_spring`
 - convenience: `motion::prelude::*`
+
+The umbrella `motion` feature enables the common controller + components + wrappers surface. Add the narrower forwarded `motion-*` features when you also need springs, timelines, builders, macros, or auto-size helpers.
 
 ### Motion components
 

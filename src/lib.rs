@@ -3,7 +3,11 @@
 //! Enable one or more feature modules:
 //! - `flip`
 //! - `view-transitions`
-//! - `motion` or fine-grained `motion-*` features
+//! - `motion` for the common controller/component/wrapper surface
+//! - fine-grained `motion-*` features for smaller motion builds
+//!
+//! `leptos_fluid::motion` is available whenever `motion-core` is enabled,
+//! including via `motion`, `motion-full`, and `full`.
 
 #[cfg(feature = "flip")]
 pub mod flip {

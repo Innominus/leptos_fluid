@@ -4,7 +4,7 @@ React + Motion equivalent of `example_motion_controller` for bundle-size compari
 
 ## Goals
 
-- Mirror the same interaction demos (toggle card, tabs underline, pointer states, queue-latest remount).
+- Mirror the current controller-first demos from `example_motion_controller`, including builder, macro, resolver, spring, timeline, and auto-size flows.
 - Provide two Motion builds for direct size comparison:
   - `LazyMotion` + `domAnimation` from `motion/react`
   - `m.*` components from `motion/react-m`

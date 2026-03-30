@@ -18,10 +18,11 @@ This project mirrors `example_motion_controller` using React + Motion in tree-sh
 
 ## Demo sections
 
-- `ToggleCardExample`: declarative state-driven card target.
-- `TabsUnderlineExample`: measured underline retargeting between tabs.
-- `PointerStateExample`: app-managed hover/press/base priority.
-- `QueueLatestExample`: detached-state updates replay on remount.
+- builder-style card state transitions
+- macro-style state machine transitions
+- resolver-driven target switching between live cards
+- spring retarget and timeline examples
+- auto-size examples for height and width
 
 ## Verification
 

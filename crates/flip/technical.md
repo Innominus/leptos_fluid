@@ -4,7 +4,7 @@ This document explains the internal runtime and data flow in `leptos_fluid_flip`
 
 ## Scope and exported API
 
-Public surface from `src/flip.rs`:
+Public surface from `src/flip/mod.rs`:
 
 - `Flip`: single-element FLIP animator (id lookup)
 - `FlipGroup`: multi-element FLIP animator (selector lookup)
@@ -18,7 +18,7 @@ Public surface from `src/flip.rs`:
 
 The crate has two execution layers:
 
-1. FLIP orchestration in `src/flip.rs`
+1. FLIP orchestration in `src/flip/mod.rs` plus `single.rs` / `group.rs`
 2. scale/border-radius correction loops in `src/flip/corrections.rs`
 
 Both use `leptos_fluid_web` helpers for DOM style reads/writes and WAAPI invocation.

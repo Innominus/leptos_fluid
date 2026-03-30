@@ -9,13 +9,18 @@ Via umbrella crate:
 ```toml
 [dependencies]
 leptos_fluid = { version = "0.1", features = ["motion"] }
+# Add more umbrella motion features as needed:
+# features = ["motion", "motion-spring", "motion-timeline"]
+# features = ["motion-core", "motion-controller", "motion-builders", "motion-macros"]
 ```
 
 Or depend on this crate directly:
 
 ```toml
 [dependencies]
-leptos_fluid_motion = { version = "0.1", default-features = false, features = ["controller", "builders"] }
+leptos_fluid_motion = { version = "0.1", default-features = false, features = ["controller", "components", "wrappers"] }
+# Add `spring`, `timeline`, `builders`, `macros`, or `auto-size` as needed.
+# Or use `features = ["full"]` for the complete surface.
 ```
 
 Feature split:
@@ -33,14 +38,15 @@ Feature split:
 
 ## What this crate provides
 
-- motion components: `FluidElement`, `FluidDiv`, `FluidSpan`, `FluidButton`
-- element-agnostic controller: `AnimationController`
-- style primitives: `FluidStyle`, `FluidValue`, `Transform`, `style!`
-- transition primitives: `Transition`, `Spring`, `Easing`
-- sequencing: `FluidTimeline`, `FluidStep`
-- spring values: `use_spring`, `SpringValue`
-- reactive adapters: `FluidSignal<T>`
-- prelude: `leptos_fluid_motion::prelude::*`
+- always available: `FluidStyle`, `FluidValue`, `Transform`, `Transition`, `Easing`, `FluidSignal<T>`, `style!`
+- `controller`: `AnimationController`
+- `components`: `FluidElement`
+- `wrappers`: `FluidDiv`, `FluidSpan`, `FluidButton`
+- `spring`: `Spring`, `use_spring`, `SpringValue`
+- `timeline`: `FluidTimeline`, `FluidStep`
+- `builders`: `AnimationController::builder()`, `FluidTimeline::builder(...)`
+- `macros`: `controller!`, `when!`, `timeline!`
+- convenience re-exports: `leptos_fluid_motion::prelude::*`
 
 ## Quick start
 
@@ -78,13 +84,13 @@ fn Demo() -> impl IntoView {
 
 ## `FluidElement` and wrappers
 
-Use wrappers for common tags:
+Use wrappers for common tags. These require the `wrappers` feature:
 
 - `FluidDiv`
 - `FluidSpan`
 - `FluidButton`
 
-Use `FluidElement` for custom tags:
+Use `FluidElement` for custom tags. This requires the `components` feature:
 
 ```rust
 use leptos::prelude::*;
@@ -108,6 +114,8 @@ view! {
 Use `Transition::new()` / `Transition::default()` for most enter/exit UI. Reserve `use_spring(...)` for continuously retargeted motion such as pointer follow or drag-like interactions.
 
 ## `AnimationController` (without motion elements)
+
+This API requires the `controller` feature.
 
 Use `AnimationController` when you want to animate a plain element/ref without `FluidElement` wrappers:
 
@@ -146,7 +154,7 @@ The typed builder gives IDE-friendly method completion and keeps `install()` una
 
 Use `target(...)`/`target:` for a stable `NodeRef` or `Element`, and `resolver(...)`/`resolver:` for dynamic lookup when the active element can change over time.
 
-If you prefer declarative sugar, `controller!` and `when!` lower to the same runtime.
+If you prefer declarative sugar, `controller!` and `when!` lower to the same runtime and require the `macros` feature.
 
 ## `FluidStyle` and `style!`
 
@@ -173,6 +181,8 @@ If you set `"transform"` manually via `set`/`with`, the builder does not append 
 
 ## `Transition`, `Spring`, and `Easing`
 
+`Spring` and spring-based helpers require the `spring` feature. `Transition` and `Easing` are always available.
+
 ```rust
 use leptos_fluid_motion::{Easing, Spring, Transition};
 
@@ -191,6 +201,8 @@ Excluded properties are applied immediately while other properties animate.
 Spring transitions use a live rAF-driven solver. Unsupported properties are applied immediately and do not interpolate in spring mode; use tween transitions for colors, filters, shadows, and other text-valued CSS properties.
 
 ## `use_spring` for continuously retargeted values
+
+This API requires the `spring` feature.
 
 Use `use_spring` for pointer-follow/drag-like interactions:
 
@@ -216,6 +228,8 @@ view! {
 Using `duration_ms(0)` avoids double interpolation when the spring already controls value smoothing.
 
 ## `FluidTimeline` for multi-step sequences
+
+This API requires the `timeline` feature. The typed builder shown below also requires `builders`.
 
 ```rust
 use leptos::prelude::*;

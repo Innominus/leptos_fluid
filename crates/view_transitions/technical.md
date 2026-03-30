@@ -8,7 +8,9 @@ Public exports from `src/lib.rs`:
 
 - `FluidManager`: shared transition coordinator stored in context
 - `FluidRoutes`: thin wrapper over `leptos_router::Routes`
+- `FluidFlatRoutes`: thin wrapper over `leptos_router::FlatRoutes`
 - `FluidOutlet`: replacement for `Outlet` with intro/outro layer rendering
+- `FluidFlatOutlet`: flat-route outlet variant with the same intro/outro layer strategy
 
 ## High-level model
 
@@ -53,6 +55,8 @@ Dynamic, optional, and wildcard segments are normalized to `":"` during storage 
 
 This is used by `FluidManager::set_reversal()` to infer backward navigation when moving to a route with a lower generated index.
 
+`FluidFlatRoutes` does the same capture work for `FlatRoutes`, but prepends the empty root segment expected by the current route-ordering logic so flat and nested setups share the same direction inference path.
+
 ## Outlet runtime (`src/fluid_outlet.rs`)
 
 Each `FluidOutlet` instance registers two nodes with manager:
@@ -67,6 +71,8 @@ Each `FluidOutlet` instance registers two nodes with manager:
 3. applies wrapper attributes/classes (`data-reverse`, transition class, `no-animations`)
 4. listens for `animationend` on intro and outro wrappers
 5. clears clone and resets flags after both wrappers report completion
+
+`FluidFlatOutlet` mirrors the same runtime behavior but uses the current location pathname as its outlet identity instead of `use_matched()` route state.
 
 ### Attributes applied and re-applied to outro nodes
 
