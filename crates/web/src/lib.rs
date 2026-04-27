@@ -5,6 +5,10 @@ use std::rc::Rc;
 
 use js_sys::Number;
 use js_sys::{Array, Function, Object, Reflect};
+#[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
+use web_sys::wasm_bindgen::closure::Closure;
+use web_sys::wasm_bindgen::JsCast;
+use web_sys::wasm_bindgen::JsValue;
 #[cfg(feature = "waapi")]
 use web_sys::Animation;
 #[cfg(any(
@@ -15,10 +19,6 @@ use web_sys::Animation;
 use web_sys::Element;
 #[cfg(feature = "dom-query")]
 use web_sys::NodeList;
-use web_sys::wasm_bindgen::JsCast;
-use web_sys::wasm_bindgen::JsValue;
-#[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
-use web_sys::wasm_bindgen::closure::Closure;
 #[cfg(feature = "style")]
 use web_sys::{CssStyleDeclaration, HtmlElement};
 #[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
@@ -266,7 +266,7 @@ pub fn object_set_f64(object: &Object, key: &str, value: f64) {
 
 pub fn js_number_to_string(value: f64) -> String {
     Number::from(value)
-        .to_string(10)
+        .to_string_with_radix(10)
         .ok()
         .and_then(|value| value.as_string())
         .unwrap_or_default()
@@ -292,7 +292,11 @@ pub fn safe_f64_ratio(numerator: f64, denominator: f64) -> f64 {
         return 1.0;
     }
     let value = numerator / denominator;
-    if value.is_finite() { value } else { 1.0 }
+    if value.is_finite() {
+        value
+    } else {
+        1.0
+    }
 }
 
 pub fn parse_js_f64(value: &str) -> Option<f64> {

@@ -23,13 +23,13 @@ repository = "https://github.com/Innominus/leptos_fluid"
 homepage = "https://github.com/Innominus/leptos_fluid"
 
 [workspace.dependencies]
-console_error_panic_hook = "0.1"
-criterion = "0.5"
-js-sys = "0.3.69"
-leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
-leptos_meta = { version = "0.8", default-features = false }
-leptos_router = { version = "0.8.11", default-features = false }
-web-sys = "0.3.69"
+console_error_panic_hook = "0.1.7"
+criterion = "0.8.2"
+js-sys = "0.3.95"
+leptos = { version = "0.8.19", default-features = false, features = ["csr"] }
+leptos_meta = { version = "0.8.6", default-features = false }
+leptos_router = { version = "0.8.13", default-features = false }
+web-sys = "0.3.95"
 leptos_fluid_flip = { version = "0.1.1", path = "crates/flip" }
 leptos_fluid_motion = { version = "0.1.1", path = "crates/motion" }
 leptos_fluid_view_transitions = { version = "0.1.1", path = "crates/view_transitions" }

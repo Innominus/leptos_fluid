@@ -6,5 +6,5 @@ edition = "2024"
 [workspace]
 
 [dependencies]
-leptos = { version = "0.8.15", default-features = false, features = ["csr"] }
+leptos = { version = "0.8.19", default-features = false, features = ["csr"] }
 leptos_fluid_motion = { path = "../../../../", default-features = false, features = ["builders", "timeline"] }
