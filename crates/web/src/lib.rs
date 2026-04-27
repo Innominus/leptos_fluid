@@ -3,12 +3,10 @@ use std::cell::RefCell;
 #[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
 use std::rc::Rc;
 
+#[cfg(feature = "waapi")]
+use js_sys::Function;
 use js_sys::Number;
-use js_sys::{Array, Function, Object, Reflect};
-#[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
-use web_sys::wasm_bindgen::closure::Closure;
-use web_sys::wasm_bindgen::JsCast;
-use web_sys::wasm_bindgen::JsValue;
+use js_sys::{Array, Object, Reflect};
 #[cfg(feature = "waapi")]
 use web_sys::Animation;
 #[cfg(any(
@@ -19,6 +17,10 @@ use web_sys::Animation;
 use web_sys::Element;
 #[cfg(feature = "dom-query")]
 use web_sys::NodeList;
+use web_sys::wasm_bindgen::JsCast;
+use web_sys::wasm_bindgen::JsValue;
+#[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
+use web_sys::wasm_bindgen::closure::Closure;
 #[cfg(feature = "style")]
 use web_sys::{CssStyleDeclaration, HtmlElement};
 #[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
@@ -54,10 +56,12 @@ thread_local! {
     static SHARED_RESIZE_OBSERVER: RefCell<Option<SharedResizeObserver>> = const { RefCell::new(None) };
 }
 
+#[cfg(feature = "resize-observer")]
 pub struct ResizeObserverHandle {
     subscription_id: Option<u32>,
 }
 
+#[cfg(feature = "resize-observer")]
 impl ResizeObserverHandle {
     pub fn disconnect(&mut self) {
         #[cfg(all(feature = "resize-observer", target_arch = "wasm32"))]
@@ -170,6 +174,7 @@ fn remove_resize_subscription(subscription_id: u32) {
     });
 }
 
+#[cfg(feature = "resize-observer")]
 pub fn observe_resize<F>(element: &Element, callback: F) -> ResizeObserverHandle
 where
     F: Fn() + 'static,
@@ -292,11 +297,7 @@ pub fn safe_f64_ratio(numerator: f64, denominator: f64) -> f64 {
         return 1.0;
     }
     let value = numerator / denominator;
-    if value.is_finite() {
-        value
-    } else {
-        1.0
-    }
+    if value.is_finite() { value } else { 1.0 }
 }
 
 pub fn parse_js_f64(value: &str) -> Option<f64> {

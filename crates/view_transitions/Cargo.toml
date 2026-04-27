@@ -12,6 +12,9 @@ documentation = "https://docs.rs/leptos_fluid_view_transitions"
 keywords = ["leptos", "router", "animation", "transitions", "wasm"]
 categories = ["wasm", "web-programming", "gui"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
+
 [dependencies]
 leptos = { workspace = true }
 leptos_router = { workspace = true }

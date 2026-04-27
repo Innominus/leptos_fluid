@@ -4,7 +4,7 @@ use web_sys::{Element, NodeList, wasm_bindgen::JsCast};
 pub(crate) fn get_scroll_pos_of_attr_children(
     parent: &Element,
     attr_name: &str,
-) -> Vec<(i32, i32)> {
+) -> Vec<(f64, f64)> {
     let selector = get_selector(attr_name);
     if let Ok(node_list) = parent.query_selector_all(&selector) {
         let mut top_left_scroll_pos = Vec::new();
@@ -23,7 +23,7 @@ pub(crate) fn get_scroll_pos_of_attr_children(
 pub(crate) fn set_scroll_pos_to_children_with_attr(
     parent: &Element,
     attr_name: &str,
-    top_left_scroll_pos: Vec<(i32, i32)>,
+    top_left_scroll_pos: Vec<(f64, f64)>,
 ) {
     if top_left_scroll_pos.is_empty() {
         return;
@@ -43,7 +43,7 @@ pub(crate) fn get_selector(attr_name: &str) -> String {
     "[".to_string() + attr_name + "]"
 }
 
-fn apply_scroll_positions(node_list: &NodeList, top_left_scroll_pos: &[(i32, i32)]) {
+fn apply_scroll_positions(node_list: &NodeList, top_left_scroll_pos: &[(f64, f64)]) {
     for i in 0..node_list.length() {
         if let Some(node) = node_list.get(i) {
             let (top_pos, left_pos) = top_left_scroll_pos[i as usize];
