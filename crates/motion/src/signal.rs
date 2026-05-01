@@ -2,8 +2,8 @@ use leptos::prelude::{Get, Memo, RwSignal, Signal};
 
 /// A flexible signal wrapper accepted by motion component props.
 ///
-/// `FluidSignal` can be created from static values, Leptos signals/memos, or
-/// closure-based derived values.
+/// `FluidSignal` can be created from static values, closure-based derived
+/// values, or explicitly from Leptos signals/memos.
 #[derive(Clone, Copy)]
 pub struct FluidSignal<T: Clone + Send + Sync + 'static>(Signal<T>);
 
@@ -15,30 +15,24 @@ impl<T: Clone + Send + Sync + 'static> FluidSignal<T> {
     pub fn derive(f: impl Fn() -> T + Send + Sync + 'static) -> Self {
         Self(Signal::derive(f))
     }
+
+    pub fn from_signal(signal: Signal<T>) -> Self {
+        Self(signal)
+    }
+
+    pub fn from_rw_signal(signal: RwSignal<T>) -> Self {
+        Self(signal.into())
+    }
+
+    pub fn from_memo(memo: Memo<T>) -> Self {
+        Self(memo.into())
+    }
 }
 
 impl<T: Clone + Send + Sync + 'static> FluidSignal<T> {
     pub fn static_value(value: T) -> Self {
         let stored = value;
         Self::derive(move || stored.clone())
-    }
-}
-
-impl<T: Clone + Send + Sync + 'static> From<Signal<T>> for FluidSignal<T> {
-    fn from(value: Signal<T>) -> Self {
-        Self(value)
-    }
-}
-
-impl<T: Clone + Send + Sync + 'static> From<RwSignal<T>> for FluidSignal<T> {
-    fn from(value: RwSignal<T>) -> Self {
-        Self(value.into())
-    }
-}
-
-impl<T: Clone + Send + Sync + 'static> From<Memo<T>> for FluidSignal<T> {
-    fn from(value: Memo<T>) -> Self {
-        Self(value.into())
     }
 }
 

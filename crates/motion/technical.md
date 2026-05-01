@@ -170,11 +170,9 @@ and an optional `triggers: [ on(signal) { ... } ]` field that lowers to `when! {
 
 - static values
 - closures
-- `Signal<T>`
-- `RwSignal<T>`
-- `Memo<T>`
+- explicit Leptos signals/memos with `FluidSignal::from_signal(...)`, `FluidSignal::from_rw_signal(...)`, or `FluidSignal::from_memo(...)`
 
-This avoids many overloads in component props while keeping type signatures strict.
+This avoids many overloads in component props while keeping type signatures strict. Signal conversion is explicit rather than `From<Signal<T>>`/`From<Memo<T>>` impls to avoid overlap with callable Leptos internals.
 
 ## Pointer interaction layers
 

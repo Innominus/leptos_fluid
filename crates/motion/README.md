@@ -109,7 +109,7 @@ view! {
 }
 ```
 
-`animate`, `class`, and `style` props accept static values, signals, memos, and closures via `FluidSignal`.
+`animate`, `class`, and `style` props accept static values and closures via `FluidSignal`. Use `FluidSignal::from_signal(...)`, `FluidSignal::from_rw_signal(...)`, or `FluidSignal::from_memo(...)` for Leptos signals and memos.
 
 Use `Transition::new()` / `Transition::default()` for most enter/exit UI. Reserve `use_spring(...)` for continuously retargeted motion such as pointer follow or drag-like interactions.
 

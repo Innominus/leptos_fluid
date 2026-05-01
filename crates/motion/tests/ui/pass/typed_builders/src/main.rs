@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{AnimationController, FluidStep, FluidStyle, FluidTimeline, Transition};
+use leptos_fluid_motion::{
+    AnimationController, FluidStep, FluidStyle, FluidTimeline, Transition,
+};
 
 fn style(active: bool) -> FluidStyle {
     if active {

@@ -120,7 +120,7 @@ impl FluidTimeline {
     }
 
     pub fn signal(&self) -> FluidSignal<FluidStyle> {
-        self.inner.write_value().value.into()
+        FluidSignal::from_rw_signal(self.inner.write_value().value)
     }
 
     pub fn set_steps(&self, steps: Vec<FluidStep>) {

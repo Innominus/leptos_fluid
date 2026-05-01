@@ -521,9 +521,9 @@ FluidStyle::new()
 
 - static values
 - closures (`Fn() -> T`)
-- `Signal<T>`, `RwSignal<T>`, `Memo<T>`
+- explicit Leptos signals/memos with `FluidSignal::from_signal(...)`, `FluidSignal::from_rw_signal(...)`, or `FluidSignal::from_memo(...)`
 
-Used by `animate`, `class`, and `style` props.
+Used by `animate`, `class`, and `style` props. Signal conversion is explicit to avoid trait-overlap conflicts with Leptos callable signal internals.
 
 ### `use_spring` and `SpringValue`
 
