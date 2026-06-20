@@ -37,44 +37,15 @@ Any umbrella feature that enables `motion-core` makes the module available, incl
 - `motion-controller`
 - `motion-auto-size`
 - `motion-timeline`
-- `motion-components`
-- `motion-wrappers`
 - `motion-builders`
 - `motion-macros`
 - `motion-full`
-- `full`
-
-Back-compat shim modules:
-
-- `leptos_fluid::animators::flip`
-- `leptos_fluid::animators::view_transitions`
-
-No motion compatibility shim exists because the older compatibility surface centered on flip/view-transition animator paths.
-
-## Feature model
-
-Defined in root `Cargo.toml`:
-
-- `default = []`
-- `flip`
-- `view-transitions`
-- `motion-core`
-- `motion-spring`
-- `motion-controller`
-- `motion-auto-size`
-- `motion-timeline`
-- `motion-components`
-- `motion-wrappers`
-- `motion-builders`
-- `motion-macros`
-- `motion-full`
-- `motion`
 - `full`
 
 Feature intent:
 
 - `motion-core`: base motion types like `FluidStyle`, `Transition`, `Easing`, and `FluidSignal`
-- `motion`: common element-motion surface, equivalent to controller + components + wrappers
+- `motion`: common controller+builders motion surface
 - `motion-full`: full motion feature surface without flip/view-transitions
 - `full`: enables `flip`, `view-transitions`, and `motion-full`
 

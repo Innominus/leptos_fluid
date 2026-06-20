@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{FluidDiv, FluidStyle, Transition};
+use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
 
 #[component]
 pub fn PerfSection() -> impl IntoView {
@@ -22,7 +22,7 @@ pub fn PerfSection() -> impl IntoView {
                 <p class="section-kicker">"Perf field"</p>
                 <h2>"A simple stress scene"</h2>
                 <p>
-                    "This keeps a dense field of tiny FluidDiv nodes moving so you can sanity-check visual smoothness while iterating on the runtime."
+                    "This keeps a dense field of tiny controller-driven nodes moving so you can sanity-check visual smoothness while iterating on the runtime."
                 </p>
                 <div class="button-row">
                     <button on:click=move |_| running.update(|value| *value = !*value)>
@@ -55,15 +55,8 @@ pub fn PerfSection() -> impl IntoView {
                         .into_iter()
                         .map(|index| {
                             let tick = tick;
-                            let index_f = index as f64;
-
                             view! {
-                                <FluidDiv
-                                    class="perf-dot"
-                                    initial=FluidStyle::new().opacity(0.85)
-                                    animate=move || perf_dot_style(tick.get(), index_f)
-                                    transition=Transition::new().duration_ms(0)
-                                ></FluidDiv>
+                                <PerfDot tick=tick index=index />
                             }
                         })
                         .collect_view()
@@ -71,6 +64,23 @@ pub fn PerfSection() -> impl IntoView {
                 <p class="perf-hint">{move || if running.get() { "Sampling the field" } else { "Idle" }}</p>
             </div>
         </section>
+    }
+}
+
+#[component]
+fn PerfDot(tick: RwSignal<f64>, index: usize) -> impl IntoView {
+    let dot_ref = NodeRef::<leptos::html::Div>::new();
+    let index_f = index as f64;
+
+    let _controller = AnimationController::builder()
+        .target(dot_ref)
+        .transition(Transition::new().duration_ms(0))
+        .initial(FluidStyle::new().opacity(0.85))
+        .animate(move || perf_dot_style(tick.get(), index_f))
+        .install();
+
+    view! {
+        <div class="perf-dot" node_ref=dot_ref></div>
     }
 }
 

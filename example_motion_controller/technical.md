@@ -6,7 +6,7 @@ This document explains the structure and intent of the `example_motion_controlle
 
 `example_motion_controller` is a controller-first playground for `leptos_fluid_motion`.
 
-It intentionally avoids `FluidElement` wrappers so contributors can evaluate the plain-element controller, builder, macro, resolver, timeline, and auto-size APIs directly.
+It exercises the plain-element controller, builder, macro, resolver, timeline, and auto-size APIs directly.
 
 ## Entrypoints
 
@@ -29,13 +29,12 @@ It intentionally avoids `FluidElement` wrappers so contributors can evaluate the
 
 ## Design constraints
 
-- no `FluidDiv`, `FluidSpan`, or `FluidElement`
 - animation commands route through `AnimationController` or controller-backed timeline helpers
 - targets are plain HTML elements reached through either stable `NodeRef`s or dynamic resolver closures
 
 ## Why this crate exists
 
-`example_motion` is the broad visual playground. This crate is intentionally narrower so controller-surface changes can be validated without the component abstraction layer.
+`example_motion` is the broad visual playground. This crate is narrower so controller-surface changes can be validated directly.
 
 ## Regression hooks
 

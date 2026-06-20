@@ -8,7 +8,7 @@ This document explains the structure and intent of the `example_motion` crate.
 
 It is used to validate:
 
-- wrapper components such as `FluidDiv`, `FluidSpan`, and `FluidButton`
+- controller builders and `bind_interaction_node_ref` hover/tap behavior on plain elements
 - `FluidStyle` composition and transition presets
 - auto-size helpers driven by `ResizeObserver`
 - timeline sequencing
@@ -40,8 +40,8 @@ It is used to validate:
 ## Section map and what each validates
 
 - `hero.rs` (`HeroSection`): landing copy and visual framing for the playground.
-- `wrappers.rs` (`WrapperGallerySection`): wrapper components and common motion-element ergonomics.
-- `style_lab.rs` (`StyleLabSection`): `FluidStyle`, transform composition, and arbitrary CSS property animation.
+- `wrappers.rs` (`WrapperGallerySection`): controller builders and `bind_interaction_node_ref` on plain div/span/button elements.
+- `style_lab.rs` (`StyleLabSection`): `FluidStyle`, transform composition, and arbitrary CSS property animation on a plain article element.
 - `auto_layout.rs` (`AutoLayoutSection`): auto-height and auto-width helpers bound to live content changes.
 - `timeline.rs` (`TimelineStudioSection`): `FluidTimeline` sequencing, loop control, and step playback.
 - `spring_showcase.rs` (`SpringShowcaseSection`): spring-driven values and transition tuning.
@@ -75,7 +75,7 @@ Use this crate for manual validation after changing `motion` or `flip` internals
 
 Suggested pass:
 
-1. Exercise wrapper components and verify hover/tap transitions stay smooth.
+1. Exercise controller-driven cards and verify hover/tap transitions stay smooth.
 2. Toggle the auto-size panels repeatedly and confirm shells track content without snapping.
 3. Start, pause, resume, and restart timeline sequences.
 4. Move the pointer quickly through the spring-follow panel.

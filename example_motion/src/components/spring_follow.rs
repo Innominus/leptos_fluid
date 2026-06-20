@@ -1,9 +1,12 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{use_spring, FluidDiv, FluidStyle, FluidValue, Spring, Transition};
+use leptos_fluid_motion::{
+    use_spring, AnimationController, FluidStyle, FluidValue, Spring, Transition,
+};
 
 #[component]
 pub fn SpringFollowSection() -> impl IntoView {
     let arena_ref = NodeRef::<leptos::html::Div>::new();
+    let ball_ref = NodeRef::<leptos::html::Div>::new();
     let follow_x = use_spring(0.0, Spring::new(640, 0.5));
     let follow_y = use_spring(0.0, Spring::new(640, 0.5));
 
@@ -13,13 +16,20 @@ pub fn SpringFollowSection() -> impl IntoView {
         move || cursor_ball_style(follow_x.get(), follow_y.get())
     };
 
+    let _ball_controller = AnimationController::builder()
+        .target(ball_ref)
+        .transition(Transition::new().duration_ms(0))
+        .initial(FluidStyle::new().opacity(1.0).scale(1.0))
+        .animate(ball_style)
+        .install();
+
     view! {
         <section class="section-grid">
             <div class="panel">
                 <p class="section-kicker">"Spring follow"</p>
                 <h2>"Continuous retargeting with use_spring"</h2>
                 <p>
-                    "Pointer movement only updates the target values. The spring resolves the motion continuously, so the wrapper itself can stay on a zero-duration transition."
+                    "Pointer movement only updates the target values. The spring resolves the motion continuously, so the controller can stay on a zero-duration transition."
                 </p>
             </div>
 
@@ -41,12 +51,7 @@ pub fn SpringFollowSection() -> impl IntoView {
                     }
                 }
             >
-                <FluidDiv
-                    class="follow-ball"
-                    initial=FluidStyle::new().opacity(1.0).scale(1.0)
-                    animate=ball_style
-                    transition=Transition::new().duration_ms(0)
-                ></FluidDiv>
+                <div class="follow-ball" node_ref=ball_ref></div>
                 <p class="follow-hint">"Move your cursor through the arena."</p>
             </div>
         </section>

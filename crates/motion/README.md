@@ -18,19 +18,17 @@ Or depend on this crate directly:
 
 ```toml
 [dependencies]
-leptos_fluid_motion = { version = "0.1", default-features = false, features = ["controller", "components", "wrappers"] }
-# Add `spring`, `timeline`, `builders`, `macros`, or `auto-size` as needed.
+leptos_fluid_motion = { version = "0.1", default-features = false, features = ["controller", "builders"] }
+# Add `spring`, `timeline`, `macros`, or `auto-size` as needed.
 # Or use `features = ["full"]` for the complete surface.
 ```
 
 Feature split:
 
 - `spring`: `use_spring`, `SpringValue`
-- `controller`: `AnimationController`
+- `controller`: `AnimationController`, `bind_interaction`, `bind_interaction_node_ref`
 - `auto-size`: ResizeObserver-backed `bind_auto_height`, `bind_auto_width`, `bind_auto_size`
 - `timeline`: `FluidTimeline`, `FluidStep`
-- `components`: `FluidElement`
-- `wrappers`: `FluidDiv`, `FluidSpan`, `FluidButton`
 - `builders`: typed builder APIs
 - `macros`: `controller!`, `when!`, `timeline!`
 
@@ -39,9 +37,7 @@ Feature split:
 ## What this crate provides
 
 - always available: `FluidStyle`, `FluidValue`, `Transform`, `Transition`, `Easing`, `FluidSignal<T>`, `style!`
-- `controller`: `AnimationController`
-- `components`: `FluidElement`
-- `wrappers`: `FluidDiv`, `FluidSpan`, `FluidButton`
+- `controller`: `AnimationController`, `bind_interaction`, `bind_interaction_node_ref`
 - `spring`: `Spring`, `use_spring`, `SpringValue`
 - `timeline`: `FluidTimeline`, `FluidStep`
 - `builders`: `AnimationController::builder()`, `FluidTimeline::builder(...)`
@@ -52,76 +48,45 @@ Feature split:
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{FluidDiv, FluidStyle, Transition};
+use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
 
 #[component]
 fn Demo() -> impl IntoView {
     let expanded = RwSignal::new(false);
-    let animate = move || {
-        if expanded.get() {
-            FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
-        } else {
-            FluidStyle::new().opacity(0.6).y(24.0).scale(0.96)
-        }
-    };
+    let node_ref = NodeRef::<leptos::html::Div>::new();
+    let controller = AnimationController::builder()
+        .target(node_ref)
+        .transition(Transition::new().duration_ms(220))
+        .initial(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96))
+        .animate(move || {
+            if expanded.get() {
+                FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+            } else {
+                FluidStyle::new().opacity(0.65).y(20.0).scale(0.96)
+            }
+        })
+        .install();
 
     view! {
-        <FluidDiv
-            class="card"
-            initial=FluidStyle::new().opacity(0.0).y(16.0)
-            animate=animate
-            transition=Transition::new().duration_ms(220)
-            while_hover=FluidStyle::new().scale(1.02)
-            while_tap=FluidStyle::new().scale(0.98)
-        >
-            <button on:click=move |_| expanded.update(|v| *v = !*v)>
-                "Toggle"
-            </button>
-        </FluidDiv>
+        <button on:click=move |_| expanded.update(|v| *v = !*v)>
+            "Toggle"
+        </button>
+        <div node_ref=node_ref class="card">"Animated by controller"</div>
     }
 }
 ```
 
-## `FluidElement` and wrappers
-
-Use wrappers for common tags. These require the `wrappers` feature:
-
-- `FluidDiv`
-- `FluidSpan`
-- `FluidButton`
-
-Use `FluidElement` for custom tags. This requires the `components` feature:
-
-```rust
-use leptos::prelude::*;
-use leptos_fluid_motion::{FluidElement, FluidStyle, Transition};
-
-view! {
-    <FluidElement
-        tag="section"
-        class="panel"
-        initial=FluidStyle::new().opacity(0.0).y(12.0)
-        animate=FluidStyle::new().opacity(1.0).y(0.0)
-        transition=Transition::new()
-    >
-        "Hello motion"
-    </FluidElement>
-}
-```
-
-`animate`, `class`, and `style` props accept static values and closures via `FluidSignal`. Use `FluidSignal::from_signal(...)`, `FluidSignal::from_rw_signal(...)`, or `FluidSignal::from_memo(...)` for Leptos signals and memos.
-
-Use `Transition::new()` / `Transition::default()` for most enter/exit UI. Reserve `use_spring(...)` for continuously retargeted motion such as pointer follow or drag-like interactions.
-
-## `AnimationController` (without motion elements)
+## `AnimationController` and hover/tap
 
 This API requires the `controller` feature.
 
-Use `AnimationController` when you want to animate a plain element/ref without `FluidElement` wrappers:
+Use `AnimationController` to animate a plain element/ref. Add `bind_interaction_node_ref` for declarative hover/tap behavior:
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
+use leptos_fluid_motion::{
+    AnimationController, FluidStyle, Transition, bind_interaction_node_ref,
+};
 
 #[component]
 fn ControllerDemo() -> impl IntoView {
@@ -131,15 +96,28 @@ fn ControllerDemo() -> impl IntoView {
         .target(node_ref)
         .transition(Transition::new().duration_ms(220))
         .initial(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96))
+        .animate(move || {
+            if expanded.get() {
+                FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+            } else {
+                FluidStyle::new().opacity(0.65).y(20.0).scale(0.96)
+            }
+        })
         .install();
 
-    controller.on_change(move || expanded.get(), move |expanded, controller| {
-        if expanded {
-            controller.animate(FluidStyle::new().opacity(1.0).y(0.0).scale(1.0));
-        } else {
-            controller.animate(FluidStyle::new().opacity(0.65).y(20.0).scale(0.96));
-        }
-    });
+    bind_interaction_node_ref(
+        controller,
+        node_ref,
+        move || {
+            if expanded.get() {
+                FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
+            } else {
+                FluidStyle::new().opacity(0.65).y(20.0).scale(0.96)
+            }
+        },
+        Some(FluidStyle::new().scale(1.02)),
+        Some(FluidStyle::new().scale(0.98)),
+    );
 
     view! {
         <button on:click=move |_| expanded.update(|v| *v = !*v)>
@@ -153,6 +131,8 @@ fn ControllerDemo() -> impl IntoView {
 The typed builder gives IDE-friendly method completion and keeps `install()` unavailable until you call `target(...)` or `resolver(...)`.
 
 Use `target(...)`/`target:` for a stable `NodeRef` or `Element`, and `resolver(...)`/`resolver:` for dynamic lookup when the active element can change over time.
+
+`bind_interaction` takes a resolver closure; `bind_interaction_node_ref` is the `NodeRef` convenience wrapper. Both reinstall listeners when the resolved element changes and clean up on scope disposal.
 
 If you prefer declarative sugar, `controller!` and `when!` lower to the same runtime and require the `macros` feature.
 
@@ -208,20 +188,23 @@ Use `use_spring` for pointer-follow/drag-like interactions:
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{use_spring, FluidDiv, FluidStyle, Spring, Transition};
+use leptos_fluid_motion::{use_spring, AnimationController, FluidStyle, Spring, Transition};
 
 let x = use_spring(0.0, Spring::new(500, 0.2));
 let y = use_spring(0.0, Spring::new(500, 0.2));
 
+let ball_ref = NodeRef::<leptos::html::Div>::new();
 let ball_style = move || FluidStyle::new().x(x.get()).y(y.get());
 
+let _ball_controller = AnimationController::builder()
+    .target(ball_ref)
+    .transition(Transition::new().duration_ms(0))
+    .initial(FluidStyle::new())
+    .animate(ball_style)
+    .install();
+
 view! {
-    <FluidDiv
-        class="ball"
-        initial=FluidStyle::new()
-        animate=ball_style
-        transition=Transition::new().duration_ms(0)
-    />
+    <div class="ball" node_ref=ball_ref></div>
 }
 ```
 

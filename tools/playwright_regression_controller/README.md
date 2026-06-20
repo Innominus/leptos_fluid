@@ -2,7 +2,7 @@
 
 Playwright-based animation regression checks for the controller-only demo.
 
-This crate runs end-to-end browser checks against the built `example_motion_controller` app and validates `AnimationController` behavior without `FluidElement` wrappers.
+This crate runs end-to-end browser checks against the built `example_motion_controller` app and validates `AnimationController` behavior on plain elements.
 
 ## What it tests
 

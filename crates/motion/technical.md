@@ -6,8 +6,8 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 
 - `src/lib.rs`: export surface and prelude
 - `src/controller.rs`: element-agnostic animation controller API
-- `src/animator.rs`: shared WAAPI animation runtime used by controllers/components
-- `src/components.rs`: motion components built on top of `AnimationController`
+- `src/animator.rs`: shared WAAPI animation runtime used by controllers/interaction helpers
+- `src/interaction.rs`: hover/tap listener binding that drives a controller (`bind_interaction`, `bind_interaction_node_ref`)
 - `src/macros.rs`: controller-first declarative macros (`controller!`, `when!`, `timeline!`)
 - `src/macro_support.rs`: helper runtime used by macro-generated effects
 - `src/builders.rs`: typed builder layer over controllers and timelines
@@ -16,13 +16,13 @@ This document describes how `leptos_fluid_motion` works internally so contributo
 - `src/transition.rs`: transition/spring configuration and easing generation
 - `src/spring_value.rs`: spring solver for continuously retargeted scalar values
 - `src/timeline.rs`: timeline sequencing state machine
-- `src/signal.rs`: signal adapter used by component props
+- `src/signal.rs`: signal adapter used by builder/animate bindings
 - `src/timing.rs`: frame-based scheduling helper
 - `src/spring_math.rs`: shared small math helpers
 
 ## Core runtime model
 
-`AnimationController` is the core runtime handle. `FluidElement` and wrappers (`FluidDiv`, `FluidSpan`, `FluidButton`) are declarative adapters over that controller.
+`AnimationController` is the core runtime handle. Hover/tap interactions are wired with `bind_interaction` / `bind_interaction_node_ref`, which install pointer listeners on the resolved target and animate via the controller.
 
 Controller-first macros also lower into this runtime:
 
@@ -43,8 +43,6 @@ The crate is also feature-split for wasm-size-sensitive builds:
 - `controller`
 - `auto-size`
 - `timeline`
-- `components`
-- `wrappers`
 - `builders`
 - `macros`
 - `spring`
@@ -166,17 +164,17 @@ and an optional `triggers: [ on(signal) { ... } ]` field that lowers to `when! {
 
 ## Signal adaptation (`FluidSignal<T>`)
 
-`FluidSignal<T>` is an acceptance-layer type so component props can consume:
+`FluidSignal<T>` is an acceptance-layer type so controller bindings (`bind`, `animate`, `bind_interaction`) can consume:
 
 - static values
 - closures
 - explicit Leptos signals/memos with `FluidSignal::from_signal(...)`, `FluidSignal::from_rw_signal(...)`, or `FluidSignal::from_memo(...)`
 
-This avoids many overloads in component props while keeping type signatures strict. Signal conversion is explicit rather than `From<Signal<T>>`/`From<Memo<T>>` impls to avoid overlap with callable Leptos internals.
+This avoids many overloads in builder/animate bindings while keeping type signatures strict. Signal conversion is explicit rather than `From<Signal<T>>`/`From<Memo<T>>` impls to avoid overlap with callable Leptos internals.
 
-## Pointer interaction layers
+## Pointer interaction layer (`bind_interaction`)
 
-Component runtime tracks two transient states:
+`bind_interaction` / `bind_interaction_node_ref` install pointer listeners on the controller's resolved target and animate via the controller. The binding tracks two transient states:
 
 - hover state (`while_hover`)
 - pressed state (`while_tap`)
@@ -188,6 +186,8 @@ Priority model:
 3. base `animate` style otherwise
 
 This is why release handlers recompute target from hover/base state.
+
+Listeners are reinstalled whenever the resolved element changes and cleaned up on scope disposal.
 
 ## Browser/WAAPI assumptions
 

@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{style, Easing, FluidElement, FluidStyle, Transition};
+use leptos_fluid_motion::{
+    bind_interaction_node_ref, style, AnimationController, Easing, FluidStyle, Transition,
+};
 
 struct Mood {
     label: &'static str,
@@ -37,13 +39,29 @@ const MOODS: [Mood; 3] = [
 pub fn StyleLabSection() -> impl IntoView {
     let active_mood = RwSignal::new(0usize);
 
+    let preview_ref = NodeRef::<leptos::html::Article>::new();
+    let controller = AnimationController::builder()
+        .target(preview_ref)
+        .transition(Transition::new().duration_ms(240).easing(Easing::EaseInOut))
+        .initial(mood_style(0))
+        .animate(move || mood_style(active_mood.get()))
+        .install();
+
+    bind_interaction_node_ref(
+        controller,
+        preview_ref,
+        move || mood_style(active_mood.get()),
+        Some(FluidStyle::new().scale(1.01).y(-6.0)),
+        None,
+    );
+
     view! {
         <section class="section-grid">
             <div class="panel">
                 <p class="section-kicker">"Style lab"</p>
                 <h2>"FluidStyle + style! on the raw primitive"</h2>
                 <p>
-                    "FluidElement stays close to the bare primitive. Switch moods to see typed transform helpers and raw CSS properties compose together."
+                    "A plain article element driven by the controller builder. Switch moods to see typed transform helpers and raw CSS properties compose together."
                 </p>
                 <div class="button-row">
                     <button class="alt" on:click=move |_| active_mood.set(0)>
@@ -58,14 +76,7 @@ pub fn StyleLabSection() -> impl IntoView {
                 </div>
             </div>
 
-            <FluidElement
-                tag="article"
-                class="style-preview"
-                initial=mood_style(0)
-                animate=move || mood_style(active_mood.get())
-                transition=Transition::new().duration_ms(240).easing(Easing::EaseInOut)
-                while_hover=FluidStyle::new().scale(1.01).y(-6.0)
-            >
+            <article class="style-preview" node_ref=preview_ref>
                 <p class="chip">"style!"</p>
                 <h3>{move || MOODS[active_mood.get()].label}</h3>
                 <p>{move || MOODS[active_mood.get()].note}</p>
@@ -74,7 +85,7 @@ pub fn StyleLabSection() -> impl IntoView {
                     <span class="swatch"></span>
                     <span class="swatch"></span>
                 </div>
-            </FluidElement>
+            </article>
         </section>
     }
 }

@@ -47,8 +47,8 @@ This component is intentionally simple so transition behavior is easy to observe
 
 ## Pages
 
-- `pages/home/view.rs`: basic `FluidDiv` state animation + hover/tap variants
-- `pages/motion/view.rs`: richer style composition (`box-shadow`, glow layer)
+- `pages/home/view.rs`: basic `AnimationController` state animation + hover/tap via `bind_interaction_node_ref`
+- `pages/motion/view.rs`: richer style composition (`box-shadow`, glow layer) driven by controllers
 - `pages/about/view.rs`: minimal static content route
 
 The page set is intentionally uneven (static + animated) to catch transition cleanup and mount timing issues.

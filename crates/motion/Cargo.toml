@@ -19,17 +19,13 @@ full = [
     "controller",
     "auto-size",
     "timeline",
-    "components",
-    "wrappers",
     "builders",
     "macros",
 ]
 spring = []
-controller = ["leptos_fluid_web/style", "leptos_fluid_web/waapi"]
+controller = ["leptos_fluid_web/style", "leptos_fluid_web/waapi", "web-sys/Element", "web-sys/EventTarget"]
 auto-size = ["controller", "leptos_fluid_web/resize-observer", "web-sys/HtmlElement", "web-sys/DomRect"]
 timeline = ["controller"]
-components = ["controller"]
-wrappers = ["components"]
 builders = ["controller"]
 macros = ["builders"]
 bench = []

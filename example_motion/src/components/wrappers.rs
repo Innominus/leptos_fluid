@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{Easing, FluidButton, FluidDiv, FluidSpan, FluidStyle, Transition};
+use leptos_fluid_motion::{
+    bind_interaction_node_ref, AnimationController, Easing, FluidStyle, Transition,
+};
 
 const WRAPPER_TAGS: [&str; 4] = ["FluidDiv", "FluidButton", "FluidSpan", "while_hover"];
 
@@ -7,19 +9,57 @@ const WRAPPER_TAGS: [&str; 4] = ["FluidDiv", "FluidButton", "FluidSpan", "while_
 pub fn WrapperGallerySection() -> impl IntoView {
     let spotlight = RwSignal::new(false);
 
+    let card_ref = NodeRef::<leptos::html::Div>::new();
+    let button_ref = NodeRef::<leptos::html::Button>::new();
+
+    let card_controller = AnimationController::builder()
+        .target(card_ref)
+        .transition(Transition::new().duration_ms(220).easing(Easing::EaseInOut))
+        .initial(wrapper_surface_style(false))
+        .animate(move || wrapper_surface_style(spotlight.get()))
+        .install();
+
+    bind_interaction_node_ref(
+        card_controller,
+        card_ref,
+        move || wrapper_surface_style(spotlight.get()),
+        Some(FluidStyle::new().scale(1.02).y(-6.0)),
+        None,
+    );
+
+    let button_controller = AnimationController::builder()
+        .target(button_ref)
+        .transition(Transition::snappy())
+        .initial(FluidStyle::new().opacity(0.0).y(12.0))
+        .animate(FluidStyle::new().opacity(1.0).y(0.0))
+        .install();
+
+    bind_interaction_node_ref(
+        button_controller,
+        button_ref,
+        FluidStyle::new().opacity(1.0).y(0.0),
+        Some(FluidStyle::new().scale(1.05).y(-3.0)),
+        Some(FluidStyle::new().scale(0.96)),
+    );
+
     let chips = WRAPPER_TAGS
         .into_iter()
         .enumerate()
         .map(|(index, label)| {
+            let chip_ref = NodeRef::<leptos::html::Span>::new();
+            let _chip_controller = AnimationController::builder()
+                .target(chip_ref)
+                .transition(
+                    Transition::new()
+                        .duration_ms(180)
+                        .delay_ms(32 * index as u32),
+                )
+                .initial(FluidStyle::new().opacity(0.0).x(-14.0))
+                .animate(FluidStyle::new().opacity(1.0).x(0.0))
+                .install();
+
             view! {
-                <FluidSpan
-                    class="chip"
-                    initial=FluidStyle::new().opacity(0.0).x(-14.0)
-                    animate=FluidStyle::new().opacity(1.0).x(0.0)
-                    transition=Transition::new().duration_ms(180).delay_ms(32 * index as u32)
-                >
-                    {label}
-                </FluidSpan>
+                <span class="chip" node_ref=chip_ref>{label}</span>
             }
         })
         .collect_view();
@@ -30,7 +70,7 @@ pub fn WrapperGallerySection() -> impl IntoView {
                 <p class="section-kicker">"Wrapper gallery"</p>
                 <h2>"Readable component-level motion"</h2>
                 <p>
-                    "These wrappers stay close to normal Leptos markup while still giving you hover, tap, and reactive animate styles."
+                    "Plain elements with controller builders and bind_interaction_node_ref keep hover and tap behavior declarative without a wrapper component."
                 </p>
                 <div class="button-row">
                     <button on:click=move |_| spotlight.update(|value| *value = !*value)>
@@ -40,30 +80,23 @@ pub fn WrapperGallerySection() -> impl IntoView {
             </div>
 
             <div class="wrapper-grid">
-                <FluidDiv
+                <div
                     class="wrapper-card"
-                    initial=wrapper_surface_style(false)
-                    animate=move || wrapper_surface_style(spotlight.get())
-                    transition=Transition::new().duration_ms(220).easing(Easing::EaseInOut)
-                    while_hover=FluidStyle::new().scale(1.02).y(-6.0)
+                    node_ref=card_ref
                 >
                     <p class="chip">"FluidDiv"</p>
                     <h3>"Reactive surfaces"</h3>
                     <p>
                         "Drive cards from signals and keep hover behavior declarative."
                     </p>
-                </FluidDiv>
+                </div>
 
-                <FluidButton
+                <button
                     class="wrapper-button"
-                    initial=FluidStyle::new().opacity(0.0).y(12.0)
-                    animate=FluidStyle::new().opacity(1.0).y(0.0)
-                    transition=Transition::snappy()
-                    while_hover=FluidStyle::new().scale(1.05).y(-3.0)
-                    while_tap=FluidStyle::new().scale(0.96)
+                    node_ref=button_ref
                 >
                     "Launch a FluidButton interaction"
-                </FluidButton>
+                </button>
 
                 <div class="chip-row">{chips}</div>
             </div>

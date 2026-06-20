@@ -1,11 +1,35 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{FluidDiv, FluidStyle, Transition};
+use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
 
 #[component]
 pub fn SpringShowcaseSection() -> impl IntoView {
     let expanded = RwSignal::new(false);
     let roomy = RwSignal::new(false);
     let lane = RwSignal::new(1usize);
+
+    let calm_ref = NodeRef::<leptos::html::Div>::new();
+    let _calm_controller = AnimationController::builder()
+        .target(calm_ref)
+        .transition(Transition::spring().duration_ms(520).bounce(0.42))
+        .initial(calm_surface_style(false))
+        .animate(move || calm_surface_style(expanded.get()))
+        .install();
+
+    let size_ref = NodeRef::<leptos::html::Div>::new();
+    let _size_controller = AnimationController::builder()
+        .target(size_ref)
+        .transition(Transition::spring_with(560, 0.44))
+        .initial(size_surface_style(false))
+        .animate(move || size_surface_style(roomy.get()))
+        .install();
+
+    let puck_ref = NodeRef::<leptos::html::Div>::new();
+    let _puck_controller = AnimationController::builder()
+        .target(puck_ref)
+        .transition(Transition::spring_with(540, 0.52))
+        .initial(lane_puck_style(1))
+        .animate(move || lane_puck_style(lane.get()))
+        .install();
 
     view! {
         <section class="section-grid">
@@ -32,16 +56,14 @@ pub fn SpringShowcaseSection() -> impl IntoView {
                         </button>
                     </div>
                     <div class="spring-demo-stage spring-demo-stage-center">
-                        <FluidDiv
+                        <div
                             class="spring-surface spring-surface-calm"
-                            initial=calm_surface_style(false)
-                            animate=move || calm_surface_style(expanded.get())
-                            transition=Transition::spring().duration_ms(520).bounce(0.42)
+                            node_ref=calm_ref
                         >
                             <p class="chip">"calm"</p>
                             <h4>"Default API, tuned to bounce"</h4>
                             <p>"Large travel plus a stronger bounce makes the spring shape obvious."</p>
-                        </FluidDiv>
+                        </div>
                     </div>
                 </div>
 
@@ -59,16 +81,14 @@ pub fn SpringShowcaseSection() -> impl IntoView {
                         </button>
                     </div>
                     <div class="spring-demo-stage spring-demo-stage-center">
-                        <FluidDiv
+                        <div
                             class="spring-surface spring-surface-size"
-                            initial=size_surface_style(false)
-                            animate=move || size_surface_style(roomy.get())
-                            transition=Transition::spring_with(560, 0.44)
+                            node_ref=size_ref
                         >
                             <p class="chip">"size"</p>
                             <h4>"Springing explicit size props"</h4>
                             <p>{move || if roomy.get() { "Expanded to show a larger state." } else { "Compact and ready." }}</p>
-                        </FluidDiv>
+                        </div>
                     </div>
                 </div>
 
@@ -97,14 +117,9 @@ pub fn SpringShowcaseSection() -> impl IntoView {
                             <span></span>
                             <span></span>
                         </div>
-                        <FluidDiv
-                            class="spring-puck"
-                            initial=lane_puck_style(1)
-                            animate=move || lane_puck_style(lane.get())
-                            transition=Transition::spring_with(540, 0.52)
-                        >
+                        <div class="spring-puck" node_ref=puck_ref>
                             <span>{move || match lane.get() { 0 => "L", 1 => "C", _ => "R" }}</span>
-                        </FluidDiv>
+                        </div>
                     </div>
                 </div>
             </div>

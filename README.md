@@ -32,13 +32,11 @@ The crate is intentionally modular. You enable only what you need.
 | --- | --- | --- |
 | `view-transitions` | `leptos_fluid::view_transitions::*` | Nested route outlet transitions using intro/outro CSS animation classes |
 | `flip` | `leptos_fluid::flip::*` | FLIP capture/invert/play for layout changes |
-| `motion` | `leptos_fluid::motion::*` | Common motion surface (`AnimationController`, `FluidElement`, wrappers) |
+| `motion` | `leptos_fluid::motion::*` | Common motion surface (`AnimationController`, builders, hover/tap helpers) |
 | `motion-core` | `leptos_fluid::motion::*` | Core motion types like `FluidStyle`, `Transition`, and `style!` |
-| `motion-controller` | `leptos_fluid::motion::*` | `AnimationController` runtime |
+| `motion-controller` | `leptos_fluid::motion::*` | `AnimationController`, `bind_interaction`, `bind_interaction_node_ref` |
 | `motion-auto-size` | `leptos_fluid::motion::*` | ResizeObserver-backed height/width helpers |
 | `motion-timeline` | `leptos_fluid::motion::*` | `FluidTimeline` and `FluidStep` |
-| `motion-components` | `leptos_fluid::motion::*` | `FluidElement` |
-| `motion-wrappers` | `leptos_fluid::motion::*` | `FluidDiv`, `FluidSpan`, `FluidButton` |
 | `motion-builders` | `leptos_fluid::motion::*` | typed builder APIs |
 | `motion-macros` | `leptos_fluid::motion::*` | `controller!`, `when!`, `timeline!` |
 | `motion-spring` | `leptos_fluid::motion::*` | `use_spring`, `SpringValue` |
@@ -71,7 +69,7 @@ If you only want one module without the umbrella crate:
 
 ```toml
 [dependencies]
-leptos_fluid_motion = { path = "../leptos_fluid/crates/motion", default-features = false, features = ["controller", "components", "wrappers"] }
+leptos_fluid_motion = { path = "../leptos_fluid/crates/motion", default-features = false, features = ["controller", "builders"] }
 leptos_fluid_flip = { path = "../leptos_fluid/crates/flip" }
 leptos_fluid_view_transitions = { path = "../leptos_fluid/crates/view_transitions" }
 ```
@@ -82,15 +80,18 @@ The umbrella crate now forwards those fine-grained motion features too, so you c
 
 ## Quick start
 
-### 1) Motion component
+### 1) Motion controller
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
+use leptos_fluid::motion::{
+    AnimationController, FluidStyle, Transition, bind_interaction_node_ref,
+};
 
 #[component]
 fn Card() -> impl IntoView {
     let open = RwSignal::new(false);
+    let card_ref = NodeRef::<leptos::html::Div>::new();
     let animate = move || {
         if open.get() {
             FluidStyle::new().opacity(1.0).y(0.0).scale(1.0)
@@ -98,19 +99,24 @@ fn Card() -> impl IntoView {
             FluidStyle::new().opacity(0.7).y(20.0).scale(0.96)
         }
     };
+    let controller = AnimationController::builder()
+        .target(card_ref)
+        .transition(Transition::new().duration_ms(220))
+        .initial(FluidStyle::new().opacity(0.0).y(24.0))
+        .animate(animate)
+        .install();
+
+    bind_interaction_node_ref(
+        controller,
+        card_ref,
+        animate,
+        Some(FluidStyle::new().scale(1.02)),
+        Some(FluidStyle::new().scale(0.98)),
+    );
 
     view! {
         <button on:click=move |_| open.update(|v| *v = !*v)>"Toggle"</button>
-        <FluidDiv
-            class="card"
-            initial=FluidStyle::new().opacity(0.0).y(24.0)
-            animate=animate
-            transition=Transition::new().duration_ms(220)
-            while_hover=FluidStyle::new().scale(1.02)
-            while_tap=FluidStyle::new().scale(0.98)
-        >
-            "Hello"
-        </FluidDiv>
+        <div class="card" node_ref=card_ref>"Hello"</div>
     }
 }
 ```
@@ -399,45 +405,38 @@ FlipOptions {
 `motion` exports:
 
 - with any motion feature that enables `motion-core`: `FluidStyle`, `FluidValue`, `Transform`, `Transition`, `Easing`, `FluidSignal<T>`, `style!`
-- `motion-controller`: `AnimationController`
-- `motion-components`: `FluidElement`
-- `motion-wrappers` or `motion`: `FluidDiv`, `FluidSpan`, `FluidButton`
+- `motion-controller`: `AnimationController`, `bind_interaction`, `bind_interaction_node_ref`
 - `motion-builders`: `AnimationController::builder()`, `FluidTimeline::builder(...)`
 - `motion-macros`: `controller!`, `when!`, `timeline!`
 - `motion-timeline`: `FluidTimeline`, `FluidStep`
 - `motion-spring`: `Spring`, `SpringValue`, `use_spring`
 - convenience: `motion::prelude::*`
 
-The umbrella `motion` feature enables the common controller + components + wrappers surface. Add the narrower forwarded `motion-*` features when you also need springs, timelines, builders, macros, or auto-size helpers.
+The umbrella `motion` feature enables the common controller + builders surface. Add the narrower forwarded `motion-*` features when you also need springs, timelines, macros, or auto-size helpers.
 
-### Motion components
+### Motion controllers and hover/tap
 
-`FluidDiv`, `FluidSpan`, and `FluidButton` are typed wrappers over `FluidElement`.
-
-`FluidElement` props:
-
-| Prop | Type | Default | What it does |
-| --- | --- | --- | --- |
-| `tag` | `&'static str` | `"div"` | Underlying HTML tag (`FluidElement` only) |
-| `initial` | `FluidStyle` | empty | Style applied before first animate run |
-| `animate` | `FluidSignal<FluidStyle>` | empty | Reactive target style |
-| `transition` | `Transition` | `Transition::default()` | Animation runtime config |
-| `reset` | `Signal<u32>` | `0` | Re-runs initial behavior when value changes |
-| `while_hover` | `Option<FluidStyle>` | `None` | Temporary style while pointer is over element |
-| `while_tap` | `Option<FluidStyle>` | `None` | Temporary style while pointer is pressed |
-| `class` | `FluidSignal<String>` | `""` | Static or reactive `class` attribute |
-| `style` | `FluidSignal<String>` | `""` | Raw non-animated style string |
-| `node_ref` | `Option<FluidNodeRef>` | auto | Node ref to underlying element |
-
-Minimal pattern:
+`AnimationController` drives plain elements via `NodeRef`s or resolvers. `bind_interaction_node_ref` adds declarative hover/tap behavior.
 
 ```rust
-<FluidDiv
-    initial=FluidStyle::new().opacity(0.0).y(16.0)
-    animate=move || FluidStyle::new().opacity(1.0).y(0.0)
-    transition=Transition::new()
-/>
+let card_ref = NodeRef::<leptos::html::Div>::new();
+let controller = AnimationController::builder()
+    .target(card_ref)
+    .transition(Transition::new().duration_ms(220))
+    .initial(FluidStyle::new().opacity(0.0).y(16.0))
+    .animate(move || FluidStyle::new().opacity(1.0).y(0.0))
+    .install();
+
+bind_interaction_node_ref(
+    controller,
+    card_ref,
+    move || FluidStyle::new().opacity(1.0).y(0.0),
+    Some(FluidStyle::new().scale(1.02)),
+    None,
+);
 ```
+
+`bind_interaction` takes a resolver closure; `bind_interaction_node_ref` is the `NodeRef` convenience wrapper. Listeners are reinstalled when the resolved element changes and cleaned up on scope disposal.
 
 ### `FluidStyle` and `FluidValue`
 

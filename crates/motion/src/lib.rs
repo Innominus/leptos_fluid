@@ -19,10 +19,10 @@ mod animator;
 mod auto_size;
 #[cfg(feature = "builders")]
 mod builders;
-#[cfg(feature = "components")]
-mod components;
 #[cfg(feature = "controller")]
 mod controller;
+#[cfg(feature = "controller")]
+mod interaction;
 #[cfg(any(feature = "builders", feature = "macros"))]
 mod macro_support;
 #[cfg(feature = "macros")]
@@ -50,12 +50,10 @@ pub use auto_size::{
 pub use builders::{AnimationControllerBuilder, ReadyAnimationControllerBuilder};
 #[cfg(all(feature = "builders", feature = "timeline"))]
 pub use builders::{FluidTimelineBuilder, ReadyFluidTimelineBuilder};
-#[cfg(feature = "wrappers")]
-pub use components::{FluidButton, FluidDiv, FluidSpan};
-#[cfg(feature = "components")]
-pub use components::{FluidElement, FluidNodeRef};
 #[cfg(feature = "controller")]
 pub use controller::{AnimationController, ControllerTarget};
+#[cfg(feature = "controller")]
+pub use interaction::{bind_interaction, bind_interaction_node_ref};
 pub use signal::FluidSignal;
 
 #[doc(hidden)]
@@ -80,16 +78,14 @@ pub mod prelude {
         bind_auto_size_with, bind_auto_width, bind_auto_width_with,
     };
     pub use crate::{Easing, FluidSignal, FluidStyle, FluidValue, Transform, Transition};
-    #[cfg(feature = "wrappers")]
-    pub use crate::{FluidButton, FluidDiv, FluidSpan};
-    #[cfg(feature = "components")]
-    pub use crate::{FluidElement, FluidNodeRef};
     #[cfg(feature = "timeline")]
     pub use crate::{FluidStep, FluidTimeline};
     #[cfg(all(feature = "builders", feature = "timeline"))]
     pub use crate::{FluidTimelineBuilder, ReadyFluidTimelineBuilder};
     #[cfg(feature = "spring")]
     pub use crate::{SpringValue, use_spring};
+    #[cfg(feature = "controller")]
+    pub use crate::{bind_interaction, bind_interaction_node_ref};
     #[cfg(feature = "macros")]
     pub use crate::{controller, when};
 }

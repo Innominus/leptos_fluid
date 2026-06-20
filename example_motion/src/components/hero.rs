@@ -1,10 +1,12 @@
 use leptos::prelude::*;
-use leptos_fluid_motion::{Easing, FluidButton, FluidDiv, FluidStyle, FluidValue, Transition};
+use leptos_fluid_motion::{
+    bind_interaction_node_ref, AnimationController, Easing, FluidStyle, FluidValue, Transition,
+};
 
 const HERO_PILLARS: [(&str, &str); 4] = [
     (
-        "Wrapper components",
-        "FluidDiv, FluidButton, and FluidSpan for expressive markup.",
+        "Controller builders",
+        "AnimationController::builder() keeps plain elements ergonomic.",
     ),
     (
         "Raw styling",
@@ -24,6 +26,39 @@ const HERO_PILLARS: [(&str, &str); 4] = [
 pub fn HeroSection() -> impl IntoView {
     let energized = RwSignal::new(false);
 
+    let showcase_ref = NodeRef::<leptos::html::Div>::new();
+    let cta_ref = NodeRef::<leptos::html::Button>::new();
+
+    let showcase_controller = AnimationController::builder()
+        .target(showcase_ref)
+        .transition(Transition::new().duration_ms(260).easing(Easing::EaseInOut))
+        .initial(hero_card_style(false))
+        .animate(move || hero_card_style(energized.get()))
+        .install();
+
+    bind_interaction_node_ref(
+        showcase_controller,
+        showcase_ref,
+        move || hero_card_style(energized.get()),
+        Some(FluidStyle::new().scale(1.01).y(-6.0)),
+        Some(FluidStyle::new().scale(0.99)),
+    );
+
+    let cta_controller = AnimationController::builder()
+        .target(cta_ref)
+        .transition(Transition::snappy())
+        .initial(FluidStyle::new().opacity(0.0).y(10.0))
+        .animate(FluidStyle::new().opacity(1.0).y(0.0))
+        .install();
+
+    bind_interaction_node_ref(
+        cta_controller,
+        cta_ref,
+        FluidStyle::new().opacity(1.0).y(0.0),
+        Some(FluidStyle::new().scale(1.04)),
+        Some(FluidStyle::new().scale(0.96)),
+    );
+
     let pillars = HERO_PILLARS
         .into_iter()
         .map(|(label, body)| {
@@ -42,7 +77,7 @@ pub fn HeroSection() -> impl IntoView {
                 <p class="kicker">"Leptos Fluid"</p>
                 <h1>"A rebuilt motion showroom for the whole stack."</h1>
                 <p class="lead-copy">
-                    "This example focuses on the full motion surface: wrapper components, style composition, timelines, springs, and FLIP layout animation."
+                    "This example focuses on the full motion surface: controller builders, style composition, timelines, springs, and FLIP layout animation."
                 </p>
 
                 <div class="button-row">
@@ -57,32 +92,18 @@ pub fn HeroSection() -> impl IntoView {
                 <div class="summary-grid">{pillars}</div>
             </div>
 
-            <FluidDiv
-                class="hero-showcase"
-                initial=hero_card_style(false)
-                animate=move || hero_card_style(energized.get())
-                transition=Transition::new().duration_ms(260).easing(Easing::EaseInOut)
-                while_hover=FluidStyle::new().scale(1.01).y(-6.0)
-                while_tap=FluidStyle::new().scale(0.99)
-            >
+            <div class="hero-showcase" node_ref=showcase_ref>
                 <div class="hero-orb hero-orb-left"></div>
                 <div class="hero-orb hero-orb-right"></div>
                 <p class="chip">"Motion stack"</p>
                 <h2>"One surface, multiple layers"</h2>
                 <p>
-                    "Wrapper components read beautifully, builders keep plain elements ergonomic, and FLIP handles layout changes without losing continuity."
+                    "Controller builders keep plain elements ergonomic and FLIP handles layout changes without losing continuity."
                 </p>
-                <FluidButton
-                    class="hero-cta"
-                    initial=FluidStyle::new().opacity(0.0).y(10.0)
-                    animate=FluidStyle::new().opacity(1.0).y(0.0)
-                    transition=Transition::snappy()
-                    while_hover=FluidStyle::new().scale(1.04)
-                    while_tap=FluidStyle::new().scale(0.96)
-                >
+                <button class="hero-cta" node_ref=cta_ref>
                     "FluidButton in the hero"
-                </FluidButton>
-            </FluidDiv>
+                </button>
+            </div>
         </section>
     }
 }

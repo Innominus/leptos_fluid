@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptos_fluid::motion::{FluidDiv, FluidStyle, Transition};
+use leptos_fluid::motion::{
+    bind_interaction_node_ref, AnimationController, FluidStyle, Transition,
+};
 
 #[component]
 pub fn Motion() -> impl IntoView {
@@ -22,6 +24,30 @@ pub fn Motion() -> impl IntoView {
         }
     };
 
+    let glow_ref = NodeRef::<leptos::html::Div>::new();
+    let _glow_controller = AnimationController::builder()
+        .target(glow_ref)
+        .transition(Transition::spring_with(420, 0.1))
+        .initial(FluidStyle::new().opacity(0.0).scale(0.96))
+        .animate(glow_style)
+        .install();
+
+    let card_ref = NodeRef::<leptos::html::Div>::new();
+    let card_controller = AnimationController::builder()
+        .target(card_ref)
+        .transition(Transition::spring_with(440, 0.12))
+        .initial(FluidStyle::new().opacity(0.72).y(18.0).scale(0.98))
+        .animate(card_style)
+        .install();
+
+    bind_interaction_node_ref(
+        card_controller,
+        card_ref,
+        card_style,
+        Some(FluidStyle::new().scale(1.02)),
+        Some(FluidStyle::new().scale(0.98)),
+    );
+
     view! {
         <section class="w-full min-h-screen bg-gradient-to-b via-white from-slate-50 to-slate-100">
             <div class="flex flex-col gap-10 py-12 px-6 mx-auto w-full max-w-5xl">
@@ -33,7 +59,7 @@ pub fn Motion() -> impl IntoView {
                         "A focused motion playground"
                     </h1>
                     <p class="max-w-2xl text-sm text-slate-600">
-                        "This page isolates the motion components so you can see how the API feels and how the animations behave in a real layout."
+                        "This page isolates the motion controllers so you can see how the API feels and how the animations behave in a real layout."
                     </p>
                 </header>
 
@@ -65,20 +91,14 @@ pub fn Motion() -> impl IntoView {
                         </div>
 
                         <div class="relative mt-8">
-                            <FluidDiv
+                            <div
                                 class="absolute inset-0 rounded-2xl bg-emerald-200/60 blur-2xl"
-                                initial=FluidStyle::new().opacity(0.0).scale(0.96)
-                                animate=glow_style
-                                transition=Transition::spring_with(420, 0.1)
-                            ></FluidDiv>
+                                node_ref=glow_ref
+                            ></div>
 
-                            <FluidDiv
+                            <div
                                 class="relative p-6 bg-white rounded-2xl border border-slate-200 shadow-xl"
-                                initial=FluidStyle::new().opacity(0.72).y(18.0).scale(0.98)
-                                animate=card_style
-                                transition=Transition::spring_with(440, 0.12)
-                                while_hover=FluidStyle::new().scale(1.02)
-                                while_tap=FluidStyle::new().scale(0.98)
+                                node_ref=card_ref
                             >
                                 <div class="flex gap-4 items-center">
                                     <div class="w-12 h-12 text-white rounded-full bg-slate-900"></div>
@@ -93,10 +113,10 @@ pub fn Motion() -> impl IntoView {
                                 </div>
                                 <div class="grid gap-3 mt-6 text-sm text-slate-600">
                                     <p>"• initial → animate transitions"</p>
-                                    <p>"• hover/tap variants"</p>
+                                    <p>"• hover/tap via bind_interaction_node_ref"</p>
                                     <p>"• live spring transitions via rAF"</p>
                                 </div>
-                            </FluidDiv>
+                            </div>
                         </div>
                     </div>
 
