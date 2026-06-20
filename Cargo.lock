@@ -1600,6 +1600,7 @@ version = "0.1.1"
 dependencies = [
  "leptos_fluid_flip",
  "leptos_fluid_motion",
+ "leptos_fluid_scroll",
  "leptos_fluid_view_transitions",
 ]
 
@@ -1653,6 +1654,29 @@ dependencies = [
  "leptos",
  "leptos_fluid_flip",
  "leptos_fluid_motion",
+]
+
+[[package]]
+name = "leptos_fluid_scroll"
+version = "0.1.1"
+dependencies = [
+ "any_spawner",
+ "js-sys",
+ "leptos",
+ "leptos_fluid_motion",
+ "leptos_fluid_web",
+ "web-sys",
+]
+
+[[package]]
+name = "leptos_fluid_scroll_example"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "leptos_fluid_motion",
+ "leptos_fluid_scroll",
+ "web-sys",
 ]
 
 [[package]]

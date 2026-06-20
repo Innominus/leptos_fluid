@@ -1,0 +1,44 @@
+[package]
+name = "leptos_fluid_scroll"
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Scroll-triggered animations for Leptos: a focused GSAP ScrollTrigger clone that integrates with leptos_fluid_motion."
+readme = "README.md"
+repository = "https://github.com/Innominus/leptos_fluid"
+homepage = "https://github.com/Innominus/leptos_fluid"
+documentation = "https://docs.rs/leptos_fluid_scroll"
+keywords = ["leptos", "animation", "scroll", "scrolltrigger", "wasm"]
+categories = ["wasm", "web-programming", "gui"]
+
+[features]
+default = []
+full = ["controller", "timeline", "builders", "macros"]
+# Pure callback mode is always available with default-features = false.
+controller = ["dep:leptos_fluid_motion", "leptos_fluid_motion/controller"]
+timeline = ["dep:leptos_fluid_motion", "leptos_fluid_motion/timeline", "leptos_fluid_motion/controller"]
+builders = []
+macros = ["builders"]
+
+[dependencies]
+leptos = { workspace = true }
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+    "Element",
+    "Window",
+    "Document",
+    "DomRect",
+    "HtmlElement",
+    "EventTarget",
+    "ResizeObserver",
+    "ResizeObserverEntry",
+] }
+leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false, features = ["resize-observer"] }
+leptos_fluid_motion = { workspace = true, optional = true }
+
+[dev-dependencies]
+any_spawner = "0.3.0"
+
+[package.metadata.docs.rs]
+all-features = true

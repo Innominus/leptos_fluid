@@ -1,0 +1,243 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap");
+
+:root {
+    color-scheme: dark;
+    --bg: #09111d;
+    --panel: rgba(14, 24, 40, 0.82);
+    --line: rgba(206, 229, 255, 0.12);
+    --ink: #f5f8ff;
+    --muted: #afbdd4;
+    --teal: #5eead4;
+    --amber: #fbbf24;
+    --rose: #fb7185;
+    --blue: #60a5fa;
+    --shadow: 0 28px 76px rgba(1, 5, 16, 0.5);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+}
+
+body {
+    font-family: "Outfit", sans-serif;
+    color: var(--ink);
+    background:
+        radial-gradient(circle at 12% 16%, rgba(94, 234, 212, 0.14), transparent 34%),
+        radial-gradient(circle at 84% 14%, rgba(96, 165, 250, 0.16), transparent 34%),
+        radial-gradient(circle at 80% 82%, rgba(251, 191, 36, 0.12), transparent 34%),
+        linear-gradient(180deg, #08101a 0%, var(--bg) 100%);
+}
+
+button {
+    font: inherit;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.68rem 1.08rem;
+    background: linear-gradient(145deg, #0f766e, #0f5d6c);
+    color: #ecfeff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.page {
+    width: min(1080px, calc(100% - 2.4rem));
+    margin: 0 auto;
+    padding: clamp(2.4rem, 4vw, 3.8rem) 0;
+    display: grid;
+    gap: 1.6rem;
+}
+
+.section {
+    min-height: 130vh;
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+}
+
+.section-scrub {
+    min-height: 150vh;
+}
+
+.panel {
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    padding: 1.3rem;
+    background: var(--panel);
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow);
+}
+
+.panel p,
+.section p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.kicker {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--teal);
+}
+
+.panel h2,
+.hero h1,
+.footer-panel h2 {
+    margin: 0 0 0.6rem;
+}
+
+.hero h1 {
+    font-family: "Fraunces", serif;
+    font-size: clamp(2.4rem, 4vw, 4rem);
+    line-height: 0.98;
+}
+
+.card {
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.4rem;
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+    box-shadow: 0 24px 62px rgba(1, 5, 16, 0.44);
+    min-height: 220px;
+}
+
+.card h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card-scrub {
+    background: linear-gradient(145deg, rgba(15, 118, 110, 0.88), rgba(37, 99, 235, 0.78));
+    color: #ecfeff;
+}
+
+.card-toggle {
+    background: linear-gradient(145deg, rgba(217, 119, 6, 0.86), rgba(190, 24, 93, 0.74));
+    color: #fff;
+}
+
+.card-scrub-step {
+    background: linear-gradient(145deg, rgba(124, 58, 237, 0.84), rgba(14, 165, 233, 0.74));
+    color: #fff;
+}
+
+.card-once {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+}
+
+.card-callback {
+    background: linear-gradient(145deg, rgba(6, 182, 212, 0.22), rgba(37, 99, 235, 0.18));
+}
+
+.indicator {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.badge.active {
+    background: rgba(94, 234, 212, 0.18);
+    border-color: rgba(94, 234, 212, 0.4);
+}
+
+.progress-track {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    margin-top: 0.8rem;
+}
+
+.progress-fill {
+    position: absolute;
+    inset: 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--teal), var(--blue));
+    transition: width 0.05s linear;
+}
+
+.step-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.24rem 0.56rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: inherit;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.chip.active {
+    border-color: rgba(94, 234, 212, 0.4);
+    background: rgba(94, 234, 212, 0.14);
+}
+
+.hero {
+    min-height: 90vh;
+    display: grid;
+    gap: 1rem;
+    align-content: center;
+    text-align: left;
+}
+
+.hero p.lead {
+    max-width: 60ch;
+    font-size: 1.1rem;
+}
+
+.footer-panel {
+    border-top: 1px solid var(--line);
+    padding-top: 1.6rem;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.footer-panel a {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+@media (max-width: 680px) {
+    .page {
+        width: min(100%, calc(100% - 1.2rem));
+    }
+    .hero h1 {
+        font-size: 2.2rem;
+    }
+}

@@ -2,11 +2,12 @@
 
 `leptos_fluid` is a feature-gated umbrella crate for animation primitives in Leptos CSR apps.
 
-It ships three focused modules:
+It ships four focused modules:
 
 - `view_transitions`: nested outlet route transitions for `leptos_router`.
 - `flip`: FLIP animations for layout moves, resizes, and list/grid reorders.
 - `motion`: reactive element motion, with optional forwarded `motion-*` features for springs, timelines, builders, and macros.
+- `scroll`: a focused GSAP ScrollTrigger clone, with optional forwarded `scroll-*` features for controller/timeline bindings, builders, and macros.
 
 The crate is intentionally modular. You enable only what you need.
 
@@ -18,6 +19,7 @@ The crate is intentionally modular. You enable only what you need.
 - [View transitions API guide](#view-transitions-api-guide)
 - [FLIP API guide](#flip-api-guide)
 - [Motion API guide](#motion-api-guide)
+- [Scroll (ScrollTrigger) API guide](#scroll-scrolltrigger-api-guide)
 - [Choosing the right tool](#choosing-the-right-tool)
 - [Examples in this repo](#examples-in-this-repo)
 - [Benchmarks](#benchmarks)
@@ -41,6 +43,12 @@ The crate is intentionally modular. You enable only what you need.
 | `motion-macros` | `leptos_fluid::motion::*` | `controller!`, `when!`, `timeline!` |
 | `motion-spring` | `leptos_fluid::motion::*` | `use_spring`, `SpringValue` |
 | `motion-full` | `leptos_fluid::motion::*` | Full motion surface without flip/view-transitions |
+| `scroll` | `leptos_fluid::scroll::*` | Scroll-triggered animations (GSAP ScrollTrigger clone) |
+| `scroll-controller` | `leptos_fluid::scroll::*` | Bind scroll triggers to `AnimationController`s |
+| `scroll-timeline` | `leptos_fluid::scroll::*` | Drive `FluidTimeline`s from scroll progress |
+| `scroll-builders` | `leptos_fluid::scroll::*` | Typed builder API for scroll triggers |
+| `scroll-macros` | `leptos_fluid::scroll::*` | `scroll_trigger!` declarative macro |
+| `scroll-full` | `leptos_fluid::scroll::*` | Full scroll surface |
 | `full` | all above | Convenience feature to enable everything |
 
 This repository also includes internal helper crates:
@@ -61,6 +69,11 @@ leptos_fluid = { path = "../leptos_fluid", features = ["motion"] }
 # features = ["motion-core", "motion-controller", "motion-macros"]
 # features = ["motion-core", "motion-controller", "motion-auto-size", "motion-timeline", "motion-builders"]
 # features = ["motion-full"]
+
+# narrower scroll builds via the umbrella crate:
+# features = ["scroll-controller", "scroll-builders"]
+# features = ["scroll-controller", "scroll-timeline", "scroll-builders", "scroll-macros"]
+# features = ["scroll-full"]
 ```
 
 ### Direct subcrate dependencies
@@ -70,13 +83,16 @@ If you only want one module without the umbrella crate:
 ```toml
 [dependencies]
 leptos_fluid_motion = { path = "../leptos_fluid/crates/motion", default-features = false, features = ["controller", "builders"] }
+leptos_fluid_scroll = { path = "../leptos_fluid/crates/scroll", default-features = false, features = ["controller", "builders"] }
 leptos_fluid_flip = { path = "../leptos_fluid/crates/flip" }
 leptos_fluid_view_transitions = { path = "../leptos_fluid/crates/view_transitions" }
 ```
 
 `leptos_fluid_motion` defaults to no features, so direct dependencies must opt into the pieces they use. For smaller wasm builds, keep `default-features = false` and choose only what you need, for example `features = ["controller", "builders"]` or `features = ["spring", "controller", "timeline"]`.
 
-The umbrella crate now forwards those fine-grained motion features too, so you can stay on `leptos_fluid` without paying for the entire motion surface.
+`leptos_fluid_scroll` also defaults to no features: the bare crate is a pure-callback scroll trigger with no `leptos_fluid_motion` dependency. Add `controller`, `timeline`, `builders`, `macros`, or `full` to pull in motion integrations.
+
+The umbrella crate now forwards those fine-grained motion and scroll features too, so you can stay on `leptos_fluid` without paying for the entire surface.
 
 ## Quick start
 
@@ -654,6 +670,180 @@ When to use timeline:
 
 This is what keeps repeated tab clicks, toggle spam, and hover/tap interruptions smooth instead of snapping.
 
+## Scroll (ScrollTrigger) API guide
+
+### Mental model
+
+`scroll` is a focused [GSAP ScrollTrigger](https://gsap.com/docs/v3/Plugins/ScrollTrigger/) clone for Leptos CSR. A `ScrollTrigger` watches an element's position relative to the viewport and exposes reactive progress / direction / is_active / velocity signals, plus callbacks for the four lifecycle phases (`onEnter` / `onLeave` / `onEnterBack` / `onLeaveBack`) and `onUpdate` / `onRefresh` / `onToggle`.
+
+Use `scroll` when an animation is tied to scroll position (scrub-linked reveals, parallax, progress-driven transforms) rather than to interaction or component state. The two integrate via `bind_controller` and `bind_timeline`: the scroll trigger produces a `0.0..=1.0` progress signal, and a `motion` controller or timeline consumes it.
+
+A shared scroll engine batches all registered triggers on the viewport through a single scroll listener and a single `requestAnimationFrame` callback, so adding more triggers does not add more scroll listeners.
+
+### Core exports
+
+`scroll` exports (with any `scroll` feature enabled):
+
+- `ScrollTrigger`, `ScrollTriggerConfig`, `TriggerTargetSource`
+- `Scrub` (`Bool(bool)` direct-link or `Number(t)` catch-up smoothing)
+- `ToggleActions`, `Action`, `TogglePhase`, `ScrollDirection`
+- `ScrollTriggerEvent`, `ScrollCallback`, `VelocityTracker`
+- position parsing: `ScrollPosition`, `ScrollPoint`, `ScrollOffset`, `Rect`, `parse_start_end`, `resolve_start`, `parse_point`, `parse_offset`, `clamp_value`, `strip_clamp`
+- `Scroller`, `ScrollListenerHandle`
+- `scroll-controller`: `ScrollTrigger::bind_controller`, `bind_controller_with`
+- `scroll-timeline`: `ScrollTrigger::bind_timeline`, `bind_timeline_scrub`
+- `scroll-builders`: `ScrollTrigger::builder()`, `ScrollTriggerBuilder<State>`, `ReadyScrollTriggerBuilder`
+- `scroll-macros`: `scroll_trigger!` (implies `builders`)
+- convenience: `scroll::prelude::*`
+
+The umbrella `scroll` feature enables the bare pure-callback surface (no `leptos_fluid_motion` dependency). Add the narrower forwarded `scroll-*` features when you also need controller/timeline bindings, builders, or macros.
+
+### Quick start
+
+```rust
+use leptos::prelude::*;
+use leptos_fluid::motion::{AnimationController, FluidStyle, Transition};
+use leptos_fluid::scroll::{Scrub, ScrollTrigger};
+// or: use leptos_fluid_scroll::prelude::*;
+//     use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
+
+#[component]
+fn ScrubCard() -> impl IntoView {
+    let card_ref = NodeRef::<leptos::html::Div>::new();
+
+    let controller = AnimationController::builder()
+        .target(card_ref)
+        .transition(Transition::new().duration_ms(120))
+        .initial(FluidStyle::new().opacity(0.0).y(100.0))
+        .install();
+
+    let trigger = ScrollTrigger::builder()
+        .target(card_ref)
+        .start("top center")
+        .end("bottom center")
+        .scrub(Scrub::Bool(true))
+        .bind_controller(controller, |p| {
+            FluidStyle::new().opacity(p).y(100.0 - p * 100.0)
+        })
+        .install();
+
+    let progress = trigger.progress();
+
+    view! {
+        <div class="card" node_ref=card_ref>
+            {move || format!("progress {:.2}", progress.get())}
+        </div>
+    }
+}
+```
+
+The typed builder keeps `install()` unavailable until you call `.target(...)` or `.resolver(...)`. Use `.scrub(Scrub::Bool(true))` to link progress directly to scroll, or `.scrub(Scrub::Number(0.3))` for catch-up smoothing.
+
+### Integration modes
+
+#### Pure callback (no motion dep)
+
+With `default-features = false` (or the umbrella `scroll` feature alone), the trigger has no `leptos_fluid_motion` dependency. Use callbacks or read the reactive signals directly.
+
+```rust
+use leptos::prelude::*;
+use leptos_fluid::scroll::ScrollTrigger;
+
+let card_ref = NodeRef::<leptos::html::Div>::new();
+let enters = RwSignal::new(0u32);
+let enters_handle = enters;
+
+let trigger = ScrollTrigger::builder()
+    .target(card_ref)
+    .start("top center")
+    .end("bottom center")
+    .on_enter(move |_| enters_handle.update(|v| *v += 1))
+    .install();
+
+let progress = trigger.progress();
+let is_active = trigger.is_active();
+```
+
+`ScrollTrigger::create(config, target)` is the lower-level entry point if you do not want the typed builder.
+
+#### Scrub a controller
+
+Requires `scroll-controller` (or `scroll-full`). `bind_controller` creates a Leptos `Effect` that reads `ScrollTrigger::progress()` and dispatches the derived `FluidStyle` to the controller. The first sample is applied immediately (no tween); subsequent samples animate via the controller's default transition. `bind_controller_with` accepts a fixed `Transition` override.
+
+```rust
+let _trigger = ScrollTrigger::builder()
+    .target(card_ref)
+    .start("top center")
+    .end("bottom center")
+    .scrub(Scrub::Number(0.3))
+    .bind_controller(controller, |p| {
+        FluidStyle::new().opacity(p).y(100.0 - p * 100.0)
+    })
+    .install();
+```
+
+For `scrub: Number`, the scroll engine already smooths `progress()`, so the binding never double-smooths.
+
+#### Drive a timeline via toggleActions
+
+Requires `scroll-timeline` (or `scroll-full`). `bind_timeline` maps the four-phase `toggleActions` string (`"onEnter onLeave onEnterBack onLeaveBack"`) to `FluidTimeline` methods. The binding watches `is_active()` and `direction()` and dispatches the configured `Action` on each phase transition.
+
+```rust
+let _trigger = ScrollTrigger::builder()
+    .target(card_ref)
+    .start("top center")
+    .end("bottom top")
+    .bind_timeline(timeline, "play pause resume none")
+    .install();
+```
+
+`Reset`, `Complete`, and `Reverse` have no exact `FluidTimeline` primitive: see `crates/scroll/technical.md` for the chosen mappings and their limitations.
+
+#### Discrete-step timeline scrubbing
+
+Requires `scroll-timeline` (or `scroll-full`). `bind_timeline_scrub` maps scroll `progress()` to a discrete step index and calls `timeline.set_immediate(style_fn(index, progress))` when the target index changes.
+
+```rust
+const STEP_COUNT: usize = 4;
+
+let _trigger = ScrollTrigger::builder()
+    .target(card_ref)
+    .start("top center")
+    .end("bottom center")
+    .scrub(Scrub::Bool(true))
+    .bind_timeline_scrub(timeline, STEP_COUNT, |idx, _p| match idx {
+        0 => FluidStyle::new().opacity(0.6).y(40.0),
+        1 => FluidStyle::new().opacity(0.85).y(0.0),
+        2 => FluidStyle::new().opacity(1.0).y(-10.0),
+        _ => FluidStyle::new().opacity(0.92).y(-20.0),
+    })
+    .install();
+```
+
+**Limitation:** `FluidTimeline` is step-index based and `FluidStyle` has no lerp, so this binding jumps between steps rather than interpolating. For smooth scrubbing, use `bind_controller`.
+
+### `scroll_trigger!` macro
+
+Requires `scroll-macros` (implies `scroll-builders`).
+
+```rust
+let _trigger = scroll_trigger! {
+    trigger: card_ref,
+    start: "top center",
+    end: "bottom center",
+    scrub: true,
+    bind_controller: (controller, |p| {
+        FluidStyle::new().opacity(p).y(100.0 - p * 100.0)
+    }),
+};
+```
+
+Supported fields: `trigger:` / `resolver:`, `start:`, `end:`, `once:`, `id:`, `scrub:` (accepts `true` / `false` / numeric / `Scrub`), `toggle_actions:`, all seven `on_*` callbacks, and `bind_controller` / `bind_controller_with` / `bind_timeline` / `bind_timeline_scrub`. Each field may appear at most once; unknown fields produce `compile_error!`.
+
+### Deferred features
+
+The following GSAP ScrollTrigger features are out of scope for the initial implementation: `pin`, `snap`, `markers`, `batch`, horizontal scrolling, custom scroller elements (only the viewport is supported), `matchMedia` / responsive triggers, and `containerAnimation` coupling. See `crates/scroll/technical.md` for the roadmap and planned module homes.
+
 ## Choosing the right tool
 
 | Use case | Preferred module |
@@ -663,8 +853,11 @@ This is what keeps repeated tab clicks, toggle spam, and hover/tap interruptions
 | Animate style/state of a component over time | `motion` |
 | Cursor-follow or continuous target smoothing | `motion` + `use_spring` |
 | Sequenced multi-step UI choreography | `motion` + `FluidTimeline` |
+| Scroll-linked / scroll-triggered animations | `scroll` |
+| Scrub a controller by scroll progress | `scroll` + `bind_controller` |
+| Play/pause a timeline on scroll enter/leave | `scroll` + `bind_timeline` |
 
-You can combine modules safely. Example in this repo: `example_motion` uses both `motion` and `flip`, while `example_motion_controller` focuses on controller-only motion wiring.
+You can combine modules safely. `scroll` produces a `0.0..=1.0` progress signal that `motion` controllers and timelines consume via `bind_controller` / `bind_timeline`. Use `scroll` for scroll-linked animations and `motion` for interaction/state-driven animations. Example in this repo: `example_motion` uses both `motion` and `flip`, `example_motion_controller` focuses on controller-only motion wiring, and `example_scroll` exercises every `scroll` integration mode.
 
 ## Examples in this repo
 
@@ -688,6 +881,15 @@ trunk serve --open
 cd example_motion_controller
 trunk serve --open
 ```
+
+### Scroll playground
+
+```bash
+cd example_scroll
+trunk serve --open
+```
+
+Walks through every `scroll` integration mode: pure-callback signals, `once` reveal, `bind_controller` scrub, `bind_timeline` toggleActions, and `bind_timeline_scrub` discrete steps.
 
 ### React + Motion parity playground
 

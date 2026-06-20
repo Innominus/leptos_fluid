@@ -5,9 +5,13 @@
 //! - `view-transitions`
 //! - `motion` for the common controller/component/wrapper surface
 //! - fine-grained `motion-*` features for smaller motion builds
+//! - `scroll` for scroll-triggered animations
+//! - fine-grained `scroll-*` features for smaller scroll builds
 //!
 //! `leptos_fluid::motion` is available whenever `motion-core` is enabled,
 //! including via `motion`, `motion-full`, and `full`.
+//! `leptos_fluid::scroll` is available whenever `scroll` is enabled,
+//! including via `scroll-full` and `full`.
 
 #[cfg(feature = "flip")]
 pub mod flip {
@@ -25,6 +29,12 @@ pub mod view_transitions {
 pub mod motion {
     //! Element-level reactive motion primitives.
     pub use leptos_fluid_motion::*;
+}
+
+#[cfg(feature = "scroll")]
+pub mod scroll {
+    //! Scroll-triggered animation primitives (GSAP ScrollTrigger clone).
+    pub use leptos_fluid_scroll::*;
 }
 
 // Back-compat shim for previous `animators` module paths.

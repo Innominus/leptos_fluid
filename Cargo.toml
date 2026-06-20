@@ -5,10 +5,12 @@ members = [
     "crates/flip",
     "crates/view_transitions",
     "crates/motion",
+    "crates/scroll",
     "crates/web",
     "example",
     "example_motion",
     "example_motion_controller",
+    "example_scroll",
     "tools/playwright_regression",
     "tools/playwright_regression_controller",
 ]
@@ -32,6 +34,7 @@ leptos_router = { version = "0.8.13", default-features = false }
 web-sys = "0.3.95"
 leptos_fluid_flip = { version = "0.1.1", path = "crates/flip" }
 leptos_fluid_motion = { version = "0.1.1", path = "crates/motion" }
+leptos_fluid_scroll = { version = "0.1.1", path = "crates/scroll" }
 leptos_fluid_view_transitions = { version = "0.1.1", path = "crates/view_transitions" }
 leptos_fluid_web = { version = "0.1.1", path = "crates/web" }
 
@@ -53,6 +56,7 @@ exclude = [
     "example/**",
     "example_motion/**",
     "example_motion_controller/**",
+    "example_scroll/**",
     "tools/**",
     "target/**",
     "closure_test",
@@ -66,6 +70,7 @@ leptos_fluid_view_transitions = {
     optional = true,
 }
 leptos_fluid_motion = { version = "0.1.1", path = "crates/motion", optional = true, default-features = false }
+leptos_fluid_scroll = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -80,7 +85,13 @@ motion-builders = ["motion-controller", "leptos_fluid_motion/builders"]
 motion-macros = ["motion-controller", "leptos_fluid_motion/macros"]
 motion-full = ["motion-spring", "motion-auto-size", "motion-timeline", "motion-builders", "motion-macros"]
 motion = ["motion-controller", "motion-builders"]
-full = ["flip", "view-transitions", "motion-full"]
+scroll            = ["dep:leptos_fluid_scroll"]
+scroll-controller = ["scroll", "leptos_fluid_scroll/controller"]
+scroll-timeline   = ["scroll", "leptos_fluid_scroll/timeline"]
+scroll-builders   = ["scroll", "leptos_fluid_scroll/builders"]
+scroll-macros     = ["scroll-builders", "leptos_fluid_scroll/macros"]
+scroll-full       = ["scroll-controller", "scroll-timeline", "scroll-builders", "scroll-macros"]
+full = ["flip", "view-transitions", "motion-full", "scroll-full"]
 
 [package.metadata.docs.rs]
 all-features = true

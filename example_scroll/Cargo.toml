@@ -1,0 +1,12 @@
+[package]
+name = "leptos_fluid_scroll_example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+leptos_fluid_scroll = { path = "../crates/scroll", default-features = false, features = ["controller", "timeline", "builders", "macros"] }
+leptos_fluid_motion = { path = "../crates/motion", default-features = false, features = ["spring", "controller", "timeline", "builders", "macros", "auto-size"] }
+leptos = { workspace = true }
+console_error_panic_hook = { workspace = true }
+web-sys = { workspace = true, features = ["Element"] }
