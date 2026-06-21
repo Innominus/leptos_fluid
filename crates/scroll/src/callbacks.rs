@@ -7,7 +7,6 @@
 //! pure-logic phase we expose only `Rc<dyn Fn>` callback slots so no `leptos`
 //! dependency is needed here.
 
-use std::collections::VecDeque;
 use std::rc::Rc;
 
 /// Snapshot of a scroll trigger's state passed to callbacks.
@@ -45,15 +44,21 @@ pub fn scroll_callback<F: Fn(ScrollTriggerEvent) + 'static>(f: F) -> ScrollCallb
 
 /// Rolling-window velocity estimator for scroll position samples.
 ///
+/// Backed by a fixed 32-slot ring buffer (no heap allocation). 32 samples
+/// covers a 100ms window at 240Hz (24 samples) and a 200ms window at 120Hz.
 /// Samples older than `window_ms` from the newest sample are evicted on each
 /// `push`. Velocity is computed as `(latest_pos - oldest_pos) / dt_seconds`.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct VelocityTracker {
-    samples: VecDeque<(f64, f64)>,
+    samples: [(f64, f64); 32],
+    head: usize,
+    len: usize,
     window_ms: f64,
 }
 
 impl VelocityTracker {
+    const CAP: usize = 32;
+
     /// Creates a tracker with the default 100ms window.
     pub fn new() -> Self {
         Self::with_window(100.0)
@@ -62,7 +67,9 @@ impl VelocityTracker {
     /// Creates a tracker with a custom window length in milliseconds.
     pub fn with_window(window_ms: f64) -> Self {
         Self {
-            samples: VecDeque::new(),
+            samples: [(0.0, 0.0); 32],
+            head: 0,
+            len: 0,
             window_ms: window_ms.max(0.0),
         }
     }
@@ -71,30 +78,47 @@ impl VelocityTracker {
     /// evicting samples older than `time_ms - window_ms`.
     pub fn push(&mut self, time_ms: f64, scroll_pos: f64) {
         let cutoff = time_ms - self.window_ms;
-        while let Some(&(front_time, _)) = self.samples.front() {
-            if front_time < cutoff {
-                self.samples.pop_front();
+        // Evict oldest-first while the front sample is strictly older than cutoff.
+        while self.len > 0 {
+            let front_idx = self.head;
+            if self.samples[front_idx].0 < cutoff {
+                self.head = (self.head + 1) % Self::CAP;
+                self.len -= 1;
             } else {
                 break;
             }
         }
-        self.samples.push_back((time_ms, scroll_pos));
+        if self.len < Self::CAP {
+            let idx = (self.head + self.len) % Self::CAP;
+            self.samples[idx] = (time_ms, scroll_pos);
+            self.len += 1;
+        } else {
+            // Full: overwrite the oldest (head) and advance head.
+            self.samples[self.head] = (time_ms, scroll_pos);
+            self.head = (self.head + 1) % Self::CAP;
+        }
     }
 
     /// Returns the current velocity in pixels per second, or `0.0` if fewer than
     /// two samples are available or the time delta is zero.
     pub fn velocity(&self) -> f64 {
-        let Some((front_time, front_pos)) = self.samples.front().copied() else {
+        if self.len < 2 {
             return 0.0;
-        };
-        let Some((back_time, back_pos)) = self.samples.back().copied() else {
-            return 0.0;
-        };
+        }
+        let (front_time, front_pos) = self.samples[self.head];
+        let back_idx = (self.head + self.len - 1) % Self::CAP;
+        let (back_time, back_pos) = self.samples[back_idx];
         let dt = back_time - front_time;
         if dt == 0.0 {
             return 0.0;
         }
         (back_pos - front_pos) / (dt / 1000.0)
+    }
+
+    /// Number of samples currently retained (exposed for tests).
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -137,7 +161,7 @@ mod tests {
         tracker.push(0.0, 0.0);
         tracker.push(50.0, 100.0);
         tracker.push(200.0, 200.0);
-        assert_eq!(tracker.samples.len(), 2);
+        assert_eq!(tracker.len(), 2);
         assert_eq!(tracker.velocity(), (200.0 - 100.0) / ((200.0 - 50.0) / 1000.0));
     }
 

@@ -14,27 +14,19 @@ categories = ["wasm", "web-programming", "gui"]
 
 [features]
 default = []
-full = ["controller", "timeline", "builders", "macros"]
+resize-observer = ["dep:leptos_fluid_web", "leptos_fluid_web/resize-observer", "web-sys/ResizeObserver", "web-sys/ResizeObserverEntry"]
 # Pure callback mode is always available with default-features = false.
 controller = ["dep:leptos_fluid_motion", "leptos_fluid_motion/controller"]
 timeline = ["dep:leptos_fluid_motion", "leptos_fluid_motion/timeline", "leptos_fluid_motion/controller"]
 builders = []
 macros = ["builders"]
+full = ["controller", "timeline", "builders", "macros", "resize-observer"]
 
 [dependencies]
 leptos = { workspace = true }
 js-sys = { workspace = true }
-web-sys = { workspace = true, features = [
-    "Element",
-    "Window",
-    "Document",
-    "DomRect",
-    "HtmlElement",
-    "EventTarget",
-    "ResizeObserver",
-    "ResizeObserverEntry",
-] }
-leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false, features = ["resize-observer"] }
+web-sys = { workspace = true, features = ["Element", "Window", "Document", "DomRect", "EventTarget"] }
+leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false, optional = true }
 leptos_fluid_motion = { workspace = true, optional = true }
 
 [dev-dependencies]

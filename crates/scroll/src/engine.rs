@@ -17,25 +17,27 @@ use crate::callbacks::VelocityTracker;
 use crate::scroller::{ScrollListenerHandle, Scroller};
 use crate::trigger::ScrollTrigger;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "resize-observer"))]
 use leptos_fluid_web::{ResizeObserverHandle, observe_resize};
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static SHARED_ENGINE: RefCell<Option<SharedScrollEngine>> = const { RefCell::new(None) };
+    static ENGINE_OUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static PENDING_REGISTERS: RefCell<Vec<ScrollTrigger>> = const { RefCell::new(Vec::new()) };
 }
 
-#[allow(dead_code)]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 struct RegisteredTrigger {
     id: u32,
     trigger: ScrollTrigger,
 }
 
-#[allow(dead_code)]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 struct SharedScrollEngine {
     _scroll_handle: ScrollListenerHandle,
     _resize_handle: ScrollListenerHandle,
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", feature = "resize-observer"))]
     _resize_observer_handle: Option<ResizeObserverHandle>,
     triggers: Vec<RegisteredTrigger>,
     next_id: u32,
@@ -52,6 +54,7 @@ impl SharedScrollEngine {
         let scroll_handle = scroller.on_scroll(|| schedule_tick());
         let resize_handle = scroller.on_resize(|| schedule_resize());
 
+        #[cfg(feature = "resize-observer")]
         let resize_observer_handle = web_sys::window()
             .and_then(|w| w.document())
             .and_then(|d| d.document_element())
@@ -60,6 +63,7 @@ impl SharedScrollEngine {
         Some(Self {
             _scroll_handle: scroll_handle,
             _resize_handle: resize_handle,
+            #[cfg(all(target_arch = "wasm32", feature = "resize-observer"))]
             _resize_observer_handle: resize_observer_handle,
             triggers: Vec::new(),
             next_id: 1,
@@ -85,7 +89,7 @@ impl SharedScrollEngine {
         })
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn register(&mut self, trigger: ScrollTrigger) -> u32 {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
@@ -93,12 +97,12 @@ impl SharedScrollEngine {
         id
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn unregister(&mut self, id: u32) {
         self.triggers.retain(|registered| registered.id != id);
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn tick(&mut self) {
         self.raf_scheduled = false;
         self.scroll_pending = false;
@@ -118,23 +122,25 @@ impl SharedScrollEngine {
             .collect();
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn refresh_all(&mut self) {
         let triggers = std::mem::take(&mut self.triggers);
         for registered in &triggers {
             registered.trigger.refresh();
         }
-        self.triggers = triggers;
+        self.triggers = triggers
+            .into_iter()
+            .filter(|registered| !registered.trigger.is_killed())
+            .collect();
     }
 }
 
-#[allow(dead_code)]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 fn now_ms() -> f64 {
     Date::now()
 }
 
 #[cfg(target_arch = "wasm32")]
-#[allow(dead_code)]
 fn schedule_tick() {
     SHARED_ENGINE.with(|slot| {
         let mut borrow = slot.borrow_mut();
@@ -146,21 +152,31 @@ fn schedule_tick() {
             return;
         }
         engine.raf_scheduled = true;
-        request_animation_frame(move || {
-            SHARED_ENGINE.with(|slot| {
-                if let Some(engine) = slot.borrow_mut().as_mut() {
-                    engine.tick();
-                }
-            });
+    });
+    request_animation_frame(move || {
+        SHARED_ENGINE.with(|slot| {
+            // Take the engine OUT of the slot so callbacks invoked during
+            // `tick` can re-enter `register`/`unregister` (which hit the slot)
+            // without a `RefCell` double-borrow panic. `register` calls during
+            // the loop are queued in `PENDING_REGISTERS`; `unregister` is a
+            // no-op (the `killed` flag + tick's `!is_killed()` filter drops it).
+            let mut engine_opt = slot.borrow_mut().take();
+            ENGINE_OUT.with(|out| out.set(true));
+            if let Some(engine) = engine_opt.as_mut() {
+                engine.tick();
+                PENDING_REGISTERS.with(|pending| {
+                    for trigger in pending.borrow_mut().drain(..) {
+                        engine.register(trigger);
+                    }
+                });
+            }
+            ENGINE_OUT.with(|out| out.set(false));
+            *slot.borrow_mut() = engine_opt;
         });
     });
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn _schedule_tick() {}
-
 #[cfg(target_arch = "wasm32")]
-#[allow(dead_code)]
 fn schedule_resize() {
     SHARED_ENGINE.with(|slot| {
         let mut borrow = slot.borrow_mut();
@@ -175,22 +191,36 @@ fn schedule_resize() {
             return;
         }
         engine.last_resize_ms = now;
-        request_animation_frame(move || {
-            SHARED_ENGINE.with(|slot| {
-                if let Some(engine) = slot.borrow_mut().as_mut() {
-                    engine.refresh_all();
-                }
-            });
+    });
+    request_animation_frame(move || {
+        SHARED_ENGINE.with(|slot| {
+            let mut engine_opt = slot.borrow_mut().take();
+            ENGINE_OUT.with(|out| out.set(true));
+            if let Some(engine) = engine_opt.as_mut() {
+                engine.refresh_all();
+                PENDING_REGISTERS.with(|pending| {
+                    for trigger in pending.borrow_mut().drain(..) {
+                        engine.register(trigger);
+                    }
+                });
+            }
+            ENGINE_OUT.with(|out| out.set(false));
+            *slot.borrow_mut() = engine_opt;
         });
     });
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn _schedule_resize() {}
-
 pub(crate) fn register(trigger: ScrollTrigger) -> u32 {
     #[cfg(target_arch = "wasm32")]
     {
+        if ENGINE_OUT.with(|out| out.get()) {
+            // Engine is taken out of the slot for tick/refresh_all; queue
+            // for merge after the loop completes.
+            PENDING_REGISTERS.with(|pending| {
+                pending.borrow_mut().push(trigger);
+            });
+            return 0;
+        }
         SHARED_ENGINE.with(|slot| {
             if slot.borrow().is_none() {
                 *slot.borrow_mut() = SharedScrollEngine::new();

@@ -35,7 +35,6 @@ This document describes how `leptos_fluid_scroll` is organized internally so con
 - `is_active: RwSignal<bool>` - whether the scroll position is within `[start_px, end_px]`
 - `velocity: RwSignal<f64>` - scroll velocity in pixels per second
 - `scrub_current` / `scrub_target` / `scrub_last_ms: StoredValue<..., LocalStorage>` - smoothing state for `Scrub::Number`
-- `_generation: StoredValue<u32>` - invalidation counter (reserved for future use)
 - `registration_id: StoredValue<Option<u32>, LocalStorage>` - the engine-assigned id used by `kill()`
 - `enabled` / `killed: StoredValue<bool, LocalStorage>` - lifecycle flags
 - `velocity_tracker: StoredValue<VelocityTracker, LocalStorage>` - the per-trigger rolling-window velocity estimator
@@ -45,13 +44,20 @@ This document describes how `leptos_fluid_scroll` is organized internally so con
 
 ### Engine thread-local singleton
 
-The shared `ScrollEngine` (in `engine.rs`) is a thread-local `RefCell<Option<SharedScrollEngine>>` that batches all registered triggers on the same scroller (viewport in MVP) through a single scroll listener, a single resize listener, and a single `request_animation_frame` callback. This avoids per-trigger scroll listeners and lets the engine evaluate every trigger together each frame.
+The shared `ScrollEngine` (in `engine.rs`) is backed by three thread-locals:
+- `SHARED_ENGINE: RefCell<Option<SharedScrollEngine>>` - the engine slot
+- `ENGINE_OUT: Cell<bool>` - flag set while the engine is taken out of the slot during `tick`/`refresh_all` so callbacks that re-enter `register`/`unregister` do not double-borrow the `RefCell`
+- `PENDING_REGISTERS: RefCell<Vec<ScrollTrigger>>` - queue of triggers registered during a tick/refresh; merged back into the engine after the loop
 
-The engine installs three listeners on first `register`:
+The engine batches all registered triggers on the same scroller (viewport in MVP) through a single scroll listener, a single resize listener, and a single `requestAnimationFrame` callback. This avoids per-trigger scroll listeners and lets the engine evaluate every trigger together each frame.
+
+The engine installs listeners on first `register`:
 
 - `Scroller::on_scroll` -> `schedule_tick` (sets `scroll_pending`, schedules a rAF if one is not already in flight)
 - `Scroller::on_resize` -> `schedule_resize` (debounced: ignored if the last resize was < 200ms ago; otherwise schedules a rAF that runs `refresh_all`)
-- `observe_resize` on `document.documentElement` -> `schedule_resize` (so element-level layout changes also trigger refresh)
+- `observe_resize` on `document.documentElement` -> `schedule_resize` (only when the `resize-observer` feature is enabled; so element-level layout changes also trigger refresh)
+
+`schedule_tick` and `schedule_resize` take the engine OUT of the `SHARED_ENGINE` slot (`slot.borrow_mut().take()`), set `ENGINE_OUT = true`, run `tick()`/`refresh_all()`, drain `PENDING_REGISTERS` into the engine, then restore the engine and clear `ENGINE_OUT`. This take-out pattern lets callbacks invoked during `tick`/`refresh_all` re-enter `register`/`unregister` (which hit the slot) without a `RefCell` double-borrow panic. `register` during the loop queues into `PENDING_REGISTERS` (returns id `0`); `unregister` during the loop is a no-op (the `killed` flag + the post-loop `!is_killed()` filter drops it).
 
 `tick()` clears `raf_scheduled` and `scroll_pending`, samples the current scroll position and velocity via its own `VelocityTracker`, then iterates every registered trigger and calls `trigger.engine_update(scroll_pos, velocity, now)`. Killed triggers are filtered out after the loop.
 
@@ -93,7 +99,7 @@ where `dt` is the seconds elapsed since the previous smoothing step. Smoothing s
 
 ### toggleActions 4-phase state machine
 
-Each `engine_update` computes `active = start_px <= scroll_pos && scroll_pos <= end_px` and `direction = sign(clamped - prev_progress)`. When `active != prev_active`, the engine computes the `TogglePhase` from `(prev_active, active, direction)`:
+Each `engine_update` computes `active = start_px <= scroll_pos && scroll_pos <= end_px` and `direction = sign(clamped - prev_progress)`, falling back to the previous direction when `clamped == prev_progress`. When `active != prev_active`, the engine computes the `TogglePhase` from `(prev_active, active, direction)`:
 
 | prev_active | active | direction | phase |
 | --- | --- | --- | --- |
@@ -114,9 +120,10 @@ The crate is feature-split for wasm-size-sensitive builds:
 - `timeline`: `bind_timeline`, `bind_timeline_scrub`
 - `builders`: `ScrollTrigger::builder()`, `ScrollTriggerBuilder<State>`, `ReadyScrollTriggerBuilder`
 - `macros`: `scroll_trigger!` (implies `builders`)
-- `full`: convenience aggregate of all of the above
+- `resize-observer`: element-resize auto-refresh via `leptos_fluid_web` ResizeObserver on `document.documentElement` (opt-in; viewport `window.on_resize` refresh is always on)
+- `full`: convenience aggregate of all of the above (including `resize-observer`)
 
-The pure-callback mode (`default-features = false`) has no `leptos_fluid_motion` dependency and exposes only the callback/progress surface. The umbrella crate forwards these as `scroll-controller`, `scroll-timeline`, `scroll-builders`, `scroll-macros`, `scroll-full`.
+The pure-callback mode (`default-features = false`) has no `leptos_fluid_motion` dependency and exposes only the callback/progress surface. The umbrella crate forwards these as `scroll-controller`, `scroll-timeline`, `scroll-builders`, `scroll-macros`, `scroll-full` (the umbrella `scroll-full` does NOT forward `leptos_fluid_scroll/full` and so does NOT include `resize-observer`; to enable element-resize auto-refresh via the umbrella, users must add `leptos_fluid_scroll/resize-observer` directly, or depend on `leptos_fluid_scroll` with `features = ["full"]`).
 
 Each engine update follows this shape:
 

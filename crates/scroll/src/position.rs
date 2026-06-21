@@ -7,7 +7,8 @@
 
 /// One-dimensional layout rectangle: `start` is the top or left edge, `size` is
 /// the extent along the scroll axis.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Rect {
     /// Offset of the leading edge from the scroll origin (top/left).
     pub start: f64,
@@ -21,7 +22,8 @@ pub struct Rect {
 /// top/left edge. `Pixels` is an absolute pixel offset from the top/left edge.
 /// GSAP treats percentages and pixels as relative to the top/left of the
 /// element/viewport, and this module follows that convention.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ScrollPoint {
     Top,
     Bottom,
@@ -37,7 +39,8 @@ pub enum ScrollPoint {
 /// Scroller-side anchor: either an absolute point on the viewport, or a
 /// relative delta applied to the resolved start position (the `"+=N"` /
 /// `"-=N"` form).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ScrollOffset {
     Absolute(ScrollPoint),
     Relative {
@@ -52,9 +55,12 @@ pub enum ScrollOffset {
 /// One side of a start/end pair: a trigger point on the trigger element and a
 /// scroller point on the scroller viewport. The trigger fires when the
 /// scroller's scroll position aligns the two points.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct ScrollPosition {
+    /// The anchor point on the trigger element (e.g. `Top`, `Bottom`, `Center`).
     pub trigger: ScrollPoint,
+    /// The anchor point on the scroller viewport, or a `Relative` delta for `end`.
     pub scroller: ScrollOffset,
 }
 

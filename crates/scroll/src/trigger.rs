@@ -78,7 +78,6 @@ pub(crate) struct ScrollTriggerInner {
     scrub_current: StoredValue<f64, LocalStorage>,
     scrub_target: StoredValue<f64, LocalStorage>,
     scrub_last_ms: StoredValue<Option<f64>, LocalStorage>,
-    _generation: StoredValue<u32>,
     registration_id: StoredValue<Option<u32>, LocalStorage>,
     enabled: StoredValue<bool, LocalStorage>,
     killed: StoredValue<bool, LocalStorage>,
@@ -91,8 +90,7 @@ impl ScrollTrigger {
     /// Constructs a host-only trigger for reactive tests. The trigger has no
     /// target, no engine registration, and no `on_cleanup` hook; tests drive the
     /// `progress` / `is_active` / `direction` signals directly.
-    #[cfg(any(test, feature = "controller", feature = "timeline"))]
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn host_test_trigger(
         config: ScrollTriggerConfig,
         progress: f64,
@@ -112,7 +110,6 @@ impl ScrollTrigger {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
-            _generation: StoredValue::new(0),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -182,7 +179,6 @@ impl ScrollTrigger {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
-            _generation: StoredValue::new(0),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -596,7 +592,6 @@ mod tests {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
-            _generation: StoredValue::new(0),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -624,7 +619,6 @@ mod tests {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(Some(1000.0)),
-            _generation: StoredValue::new(0),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),

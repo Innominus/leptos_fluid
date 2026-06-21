@@ -102,7 +102,6 @@ impl ScrubAuto for Scrub {
 /// Mirrors `watch_on_change` in `crates/motion/src/macro_support.rs`: the first
 /// sample records the baseline but does not invoke `on_change`; subsequent
 /// samples fire only when the value actually differs from the last seen value.
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn watch_progress<F>(progress: leptos::prelude::Signal<f64>, mut on_change: F)
 where
     F: FnMut(f64) + 'static,

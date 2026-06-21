@@ -51,6 +51,8 @@ The crate is intentionally modular. You enable only what you need.
 | `scroll-full` | `leptos_fluid::scroll::*` | Full scroll surface |
 | `full` | all above | Convenience feature to enable everything |
 
+> Element-resize auto-refresh (`leptos_fluid_scroll/resize-observer`) is opt-in and not forwarded by the umbrella `scroll-*` or `full` features. Depend on `leptos_fluid_scroll` directly and enable `resize-observer` if you need it.
+
 This repository also includes internal helper crates:
 
 - `leptos_fluid_web`: browser and WAAPI helpers used internally by `flip` and `motion`.
@@ -699,6 +701,8 @@ A shared scroll engine batches all registered triggers on the viewport through a
 The umbrella `scroll` feature enables the bare pure-callback surface (no `leptos_fluid_motion` dependency). Add the narrower forwarded `scroll-*` features when you also need controller/timeline bindings, builders, or macros.
 
 ### Quick start
+
+Requires `scroll-builders`, `scroll-controller`, and a `motion-*` feature (e.g. `motion-controller`) for the `AnimationController` import. The umbrella `scroll-full` + `motion` features cover all of these.
 
 ```rust
 use leptos::prelude::*;

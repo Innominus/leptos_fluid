@@ -21,7 +21,8 @@ pub enum Action {
 ///
 /// Discriminants are explicit and ordered so `as usize` indexes directly into a
 /// `[Action; 4]` produced by [`parse_toggle_actions`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
 pub enum TogglePhase {
     /// Forward crossing of the start boundary into the active range.
@@ -35,7 +36,8 @@ pub enum TogglePhase {
 }
 
 /// Scroll direction sign: `1` for forward, `-1` for backward.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i8)]
 pub enum ScrollDirection {
     Forward = 1,

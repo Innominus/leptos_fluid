@@ -13,6 +13,9 @@ leptos_fluid = { version = "0.1", features = ["scroll"] }
 # features = ["scroll", "scroll-controller", "scroll-builders"]
 # features = ["scroll-controller", "scroll-timeline", "scroll-builders", "scroll-macros"]
 # features = ["scroll-full"]
+# Element-resize auto-refresh (ResizeObserver on document.documentElement) is opt-in.
+# The umbrella scroll-full/full features do NOT forward it; to enable it, depend on
+# leptos_fluid_scroll directly with features = ["resize-observer"] (or ["full"]).
 ```
 
 Or depend on this crate directly:
@@ -29,7 +32,8 @@ Feature split:
 - `timeline`: drive a `leptos_fluid_motion::FluidTimeline` from scroll progress.
 - `builders`: typed builder API over `ScrollTrigger`.
 - `macros`: `scroll_trigger!` declarative macro (implies `builders`).
-- `full`: convenience aggregate of all of the above.
+- `resize-observer`: element-resize auto-refresh via `leptos_fluid_web` ResizeObserver on `document.documentElement` (opt-in; viewport resize refresh via `window.on_resize` is always on).
+- `full`: convenience aggregate of all of the above (including `resize-observer`).
 - Pure-callback mode (no features) needs none of these and has no `leptos_fluid_motion` dependency.
 
 ## What this crate provides
@@ -42,7 +46,7 @@ Feature split:
 - `scrub` (boolean direct-link or `Number(t)` catch-up smoothing)
 - `once` single-shot triggers that auto-kill after the forward leave
 - lifecycle: `kill`, `disable`, `enable`, `refresh`, `scroll_position`, `get_velocity`
-- auto-refresh on viewport/element resize via the shared scroll engine + `leptos_fluid_web` ResizeObserver
+- viewport-resize auto-refresh always on via `window.on_resize`; element-resize auto-refresh (ResizeObserver on `document.documentElement`) via the `resize-observer` feature
 - `controller`: `bind_controller`, `bind_controller_with`
 - `timeline`: `bind_timeline` (toggleActions), `bind_timeline_scrub` (discrete-step)
 - `builders`: `ScrollTrigger::builder()` typed builder with state-marker install guarantee
@@ -230,7 +234,7 @@ This API requires the `timeline` feature. The typed builder form also requires `
 
 ```rust
 use leptos::prelude::*;
-use leptos_fluid_motion::{FluidStyle, FluidTimeline};
+use leptos_fluid_motion::{AnimationController, FluidStyle, FluidTimeline, Transition};
 use leptos_fluid_scroll::prelude::*;
 
 const STEP_COUNT: usize = 4;
@@ -239,25 +243,37 @@ const STEP_COUNT: usize = 4;
 fn TimelineScrubDemo() -> impl IntoView {
     let node_ref = NodeRef::<leptos::html::Div>::new();
 
-    let timeline = FluidTimeline::new(FluidStyle::new());
+    let controller = AnimationController::builder()
+        .target(node_ref)
+        .transition(Transition::new().duration_ms(120))
+        .initial(step_style(0))
+        .install();
+
+    // FluidTimeline::new + bind (rather than the builder) because no steps are
+    // needed here: bind_timeline_scrub drives style directly via set_immediate
+    // on the controller, so the timeline's own step list is never sequenced.
+    let timeline = FluidTimeline::new(step_style(0));
+    timeline.bind(controller);
 
     let _trigger = ScrollTrigger::builder()
         .target(node_ref)
         .start("top center")
         .end("bottom center")
         .scrub(Scrub::Bool(true))
-        .bind_timeline_scrub(timeline, STEP_COUNT, |idx, _p| {
-            match idx {
-                0 => FluidStyle::new().opacity(0.6).y(40.0),
-                1 => FluidStyle::new().opacity(0.85).y(0.0),
-                2 => FluidStyle::new().opacity(1.0).y(-10.0),
-                _ => FluidStyle::new().opacity(0.92).y(-20.0),
-            }
-        })
+        .bind_timeline_scrub(timeline, STEP_COUNT, |idx, _p| step_style(idx))
         .install();
 
     view! {
         <div class="card" node_ref=node_ref>"Discrete-step scrub"</div>
+    }
+}
+
+fn step_style(index: usize) -> FluidStyle {
+    match index {
+        0 => FluidStyle::new().opacity(0.6).y(40.0),
+        1 => FluidStyle::new().opacity(0.85).y(0.0),
+        2 => FluidStyle::new().opacity(1.0).y(-10.0),
+        _ => FluidStyle::new().opacity(0.92).y(-20.0),
     }
 }
 ```

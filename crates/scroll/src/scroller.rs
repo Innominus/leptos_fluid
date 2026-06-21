@@ -16,7 +16,8 @@ use web_sys::wasm_bindgen::JsCast;
 use web_sys::EventTarget;
 
 /// The scroll source a trigger is attached to.
-#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone)]
 pub enum Scroller {
     /// The browser viewport (`window`). The only supported source in MVP.
     Viewport,
@@ -116,7 +117,7 @@ impl Scroller {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn install_window_listener(event: &str, callback: impl Fn() + 'static) -> ScrollListenerHandle {
+fn install_window_listener(event: &'static str, callback: impl Fn() + 'static) -> ScrollListenerHandle {
     let Some(window) = web_sys::window() else {
         return ScrollListenerHandle::default();
     };
@@ -128,7 +129,7 @@ fn install_window_listener(event: &str, callback: impl Fn() + 'static) -> Scroll
     ScrollListenerHandle {
         target: Some(target),
         closure: Some(Rc::new(closure)),
-        event: event.to_string(),
+        event,
     }
 }
 
@@ -141,7 +142,7 @@ pub struct ScrollListenerHandle {
     #[cfg(target_arch = "wasm32")]
     closure: Option<Rc<Closure<dyn FnMut(JsValue)>>>,
     #[cfg(target_arch = "wasm32")]
-    event: String,
+    event: &'static str,
 }
 
 impl ScrollListenerHandle {
