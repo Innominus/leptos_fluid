@@ -1680,6 +1680,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "leptos_fluid_trendy_example"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "leptos",
+ "leptos_fluid_motion",
+ "leptos_fluid_scroll",
+ "web-sys",
+]
+
+[[package]]
 name = "leptos_fluid_view_transitions"
 version = "0.1.1"
 dependencies = [

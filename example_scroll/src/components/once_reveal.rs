@@ -14,21 +14,16 @@ pub fn OnceRevealSection() -> impl IntoView {
 
     let revealed = RwSignal::new(false);
 
-    Effect::new(move || {
-        let target = if revealed.get() {
-            FluidStyle::new().opacity(1.0).y(0.0)
-        } else {
-            FluidStyle::new().opacity(0.0).y(40.0)
-        };
-        controller.animate(target);
-    });
-
     let trigger = ScrollTrigger::builder()
         .target(card_ref)
         .start("top 85%")
         .once(true)
         .on_enter(move |_| {
+            if revealed.get() {
+                return;
+            }
             revealed.set(true);
+            controller.animate(FluidStyle::new().opacity(1.0).y(0.0));
         })
         .install();
 
@@ -40,9 +35,11 @@ pub fn OnceRevealSection() -> impl IntoView {
                 <p class="kicker">"One-shot reveal"</p>
                 <h2>"Fire-once on enter"</h2>
                 <p>
-                    "ScrollTrigger with once: true fires on_enter a single time when \
-                     the element crosses 85% of the viewport height. The callback flips \
-                     a signal that an AnimationController animates from hidden to visible."
+                    "ScrollTrigger with once: true fires on_enter a single time \
+                     when the element enters the viewport; the callback calls \
+                     controller.animate() to tween from hidden (opacity 0, \
+                     translateY 40px) to visible (opacity 1, translateY 0) over \
+                     500ms."
                 </p>
                 <div class="indicator">
                     <span class="badge" class:active=move || revealed.get()>

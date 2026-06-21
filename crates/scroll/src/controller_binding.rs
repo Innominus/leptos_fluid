@@ -1,23 +1,28 @@
 //! Scroll-driven [`AnimationController`] bindings.
 //!
-//! Mirrors `crates/motion/src/controller.rs:443-464` (`bind_signal`): each
-//! binding creates a Leptos `Effect` that reads `ScrollTrigger::progress()` and
-//! dispatches the derived [`FluidStyle`] to the controller. The first sample is
-//! applied immediately (no tween) via an `initialized` flag, so the controller
-//! adopts the current scroll state as its baseline rather than tweening into it
-//! on mount. Subsequent samples animate via the controller's default transition
-//! ([`ScrollTrigger::bind_controller`]) or a fixed per-call transition override
-//! ([`ScrollTrigger::bind_controller_with`]).
+//! Each binding creates a Leptos `Effect` that reads `ScrollTrigger::progress()`
+//! and dispatches the derived [`FluidStyle`] to the controller. **Every sample**
+//! is applied via [`AnimationController::set_immediate`] (no WAAPI tween per
+//! tick), because the scroll engine's scrub smoothing (`Scrub::Number(t)` in
+//! `step_scrub`) already provides the interpolation. Starting a WAAPI tween each
+//! rAF tick and cancelling it ~16ms later produces mid-tween redirection
+//! glitches when scroll direction reverses rapidly; `set_immediate` commits each
+//! smoothed value directly, eliminating the churn.
 //!
-//! For `scrub: Number`, the scroll engine already smooths `progress()` (see
+//! For `scrub: Number`, the scroll engine smooths `progress()` (see
 //! `crates/scroll/src/trigger.rs::step_scrub`), so `style_fn` receives the
-//! smoothed value and the binding never double-smooths. For `scrub: Bool(false)`
-//! (callback-only mode) `progress()` still updates as the user scrolls, so the
-//! binding works the same way; whether callbacks also fire is independent of the
-//! controller binding.
+//! smoothed value. For `scrub: Bool(true)` (direct 1:1), `style_fn` receives
+//! the raw clamped progress. For `scrub: Bool(false)` (callback-only mode)
+//! `progress()` still updates as the user scrolls, so the binding works the same
+//! way; whether callbacks also fire is independent of the controller binding.
+//!
+//! For one-shot entrance animations (play once on enter, not scroll-tracked),
+//! use `scrub: Bool(false)` + `on_enter(callback)` +
+//! `controller.animate(style)` inside the callback — that starts a single clean
+//! WAAPI tween with no redirection issue.
 
-use leptos::prelude::{Effect, Get, GetValue, LocalStorage, SetValue, StoredValue};
-use leptos_fluid_motion::{AnimationController, FluidStyle, Transition};
+use leptos::prelude::{Effect, Get};
+use leptos_fluid_motion::{AnimationController, FluidStyle};
 
 use crate::ScrollTrigger;
 
@@ -25,8 +30,9 @@ impl ScrollTrigger {
     /// Binds a reactive style source to an [`AnimationController`], driven by
     /// scroll progress. `style_fn` receives the current (smoothed when
     /// `scrub: Number`) progress in `0.0..=1.0` and returns the target
-    /// [`FluidStyle`]. The first value is applied immediately (no tween);
-    /// subsequent values animate via the controller's default transition.
+    /// [`FluidStyle`]. Every value is applied immediately via
+    /// [`AnimationController::set_immediate`] — no per-tick WAAPI tween —
+    /// because the scroll engine's scrub smoothing handles interpolation.
     ///
     /// The effect's lifetime follows the current reactive owner scope, matching
     /// the lifecycle of `AnimationController::bind` in `crates/motion/src/controller.rs`.
@@ -35,45 +41,34 @@ impl ScrollTrigger {
         F: Fn(f64) -> FluidStyle + 'static,
     {
         let progress = self.progress();
-        let initialized: StoredValue<bool, LocalStorage> = StoredValue::new_local(false);
         Effect::new(move || {
             let p = progress.get();
             let style = style_fn(p);
-            if initialized.get_value() {
-                controller.animate(style);
-            } else {
-                controller.set_immediate(style);
-                initialized.set_value(true);
-            }
+            controller.set_immediate(style);
         });
     }
 
-    /// Same as [`ScrollTrigger::bind_controller`] but uses a fixed
-    /// [`Transition`] override per update via [`AnimationController::animate_with`].
+    /// Same as [`ScrollTrigger::bind_controller`] but also sets the controller's
+    /// default [`Transition`] (used by any subsequent `controller.animate()` call,
+    /// e.g. from an `on_enter` callback). The transition is **not used** for
+    /// per-tick application — all samples are applied via `set_immediate`, which
+    /// bypasses WAAPI and writes inline styles directly. The transition is
+    /// retained on the controller so a later `controller.animate(target)` (e.g.
+    /// inside an `on_enter` callback) will use it.
     ///
-    /// The transition is cloned per update; pass lightweight transitions or
-    /// precompute as needed, matching the contract of
-    /// `AnimationController::bind_with`.
+    /// If you have no plans to call `controller.animate()` on this controller,
+    /// prefer [`ScrollTrigger::bind_controller`] — there is no per-tick
+    /// difference between the two methods.
     pub fn bind_controller_with<F>(
         &self,
         controller: AnimationController,
-        transition: Transition,
+        transition: leptos_fluid_motion::Transition,
         style_fn: F,
     ) where
         F: Fn(f64) -> FluidStyle + 'static,
     {
-        let progress = self.progress();
-        let initialized: StoredValue<bool, LocalStorage> = StoredValue::new_local(false);
-        Effect::new(move || {
-            let p = progress.get();
-            let style = style_fn(p);
-            if initialized.get_value() {
-                controller.animate_with(style, transition.clone());
-            } else {
-                controller.set_immediate(style);
-                initialized.set_value(true);
-            }
-        });
+        controller.set_transition(transition);
+        self.bind_controller(controller, style_fn);
     }
 }
 
@@ -84,6 +79,7 @@ mod tests {
     use crate::Scrub;
     use leptos::prelude::{Get, ReadValue, RwSignal, Set};
     use leptos::reactive::owner::Owner;
+    use leptos_fluid_motion::Transition;
 
     #[test]
     fn bind_controller_runs_effect_without_panicking_with_no_target() {

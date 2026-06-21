@@ -11,6 +11,7 @@ members = [
     "example_motion",
     "example_motion_controller",
     "example_scroll",
+    "example_trendy",
     "tools/playwright_regression",
     "tools/playwright_regression_controller",
 ]
@@ -57,6 +58,7 @@ exclude = [
     "example_motion/**",
     "example_motion_controller/**",
     "example_scroll/**",
+    "example_trendy/**",
     "tools/**",
     "target/**",
     "closure_test",

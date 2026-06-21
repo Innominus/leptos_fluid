@@ -24,6 +24,11 @@ use crate::position::{Rect, clamp_value, resolve_start};
 use crate::scroller::Scroller;
 use crate::toggle::TogglePhase;
 
+/// Convergence epsilon for `Scrub::Number` smoothing: when the scrub current
+/// value is within `SCRUB_CONVERGENCE_EPS` of the raw target, the trigger snaps
+/// to raw and the engine stops self-rescheduling the rAF loop.
+const SCRUB_CONVERGENCE_EPS: f64 = 1e-4;
+
 #[derive(Clone)]
 enum TriggerTarget {
     Element(Element),
@@ -275,8 +280,18 @@ impl ScrollTrigger {
             Some(target) => match target.resolve() {
                 Some(element) => {
                     let rect = element.get_bounding_client_rect();
+                    // `get_bounding_client_rect().top` is viewport-relative
+                    // (negative for elements above the current viewport).
+                    // `scroller.scroll_position()` is the absolute document
+                    // scroll offset, and `raw_progress` compares the two, so
+                    // we must convert the rect to document-absolute coordinates
+                    // by adding the current scroll position. Without this,
+                    // reloading the page mid-scroll (browser restores scroll
+                    // position) produces wildly wrong start/end pixels and
+                    // every trigger thinks it has already been scrolled past.
+                    let scroll_offset = scroller.scroll_position();
                     Rect {
-                        start: rect.top() as f64,
+                        start: rect.top() as f64 + scroll_offset,
                         size: rect.height() as f64,
                     }
                 }
@@ -301,9 +316,19 @@ impl ScrollTrigger {
         let scroll_pos = scroller.scroll_position();
         let raw = raw_progress(scroll_pos, start_px, end_px);
         let clamped = clamp_value(raw, 0.0, 1.0);
-        inner.progress.set(clamped);
+        // Only fire the reactive signal when the value actually changes.
+        // Without this guard, refresh() calls progress.set()/is_active.set()
+        // even when the smoothed value hasn't changed, causing subscribed
+        // Effects (bind_controller, style: bindings, class: bindings) to
+        // fire unnecessarily → set_immediate → cancel_active_animation +
+        // apply_style per frame per idle trigger.
+        if clamped != inner.progress.get_untracked() {
+            inner.progress.set(clamped);
+        }
         let active = start_px <= scroll_pos && scroll_pos <= end_px;
-        inner.is_active.set(active);
+        if active != inner.is_active.get_untracked() {
+            inner.is_active.set(active);
+        }
 
         if let Some(cb) = inner.config.on_refresh.as_ref() {
             let event = ScrollTriggerEvent::new(
@@ -370,10 +395,16 @@ impl ScrollTrigger {
     /// The per-trigger update invoked by the shared scroll engine on each rAF
     /// tick. Computes raw progress, detects phase transitions, dispatches
     /// callbacks, updates reactive signals, and steps scrub smoothing.
-    pub(crate) fn engine_update(&self, scroll_pos: f64, velocity: f64, now_ms: f64) {
+    ///
+    /// Returns `true` if this trigger uses `Scrub::Number` smoothing and hasn't
+    /// yet converged to its target — the engine uses this to self-reschedule
+    /// the rAF loop so smoothing advances every frame (not just on scroll
+    /// events). Returns `false` for `Scrub::Bool` (direct 1:1 or callbacks-only)
+    /// and after a `once` kill.
+    pub(crate) fn engine_update(&self, scroll_pos: f64, velocity: f64, now_ms: f64) -> bool {
         let inner = self.inner.read_value();
         if inner.killed.get_value() || !inner.enabled.get_value() {
-            return;
+            return false;
         }
 
         let start_px = inner.start_pixels.get_value();
@@ -416,15 +447,33 @@ impl ScrollTrigger {
         }
 
         let exposed_progress = step_scrub(&inner, clamped, now_ms);
-        inner.progress.set(exposed_progress);
-        inner.is_active.set(active);
+        // Only fire the reactive signal when the value actually changes.
+        // Without this guard, every rAF tick calls progress.set() for every
+        // registered trigger even when the smoothed value hasn't changed
+        // (triggers outside their active range stay at 0.0 or 1.0), causing
+        // all subscribed Effects (bind_controller, style: bindings, class:
+        // bindings) to fire unnecessarily → set_immediate →
+        // cancel_active_animation + apply_style per frame per idle trigger.
+        if exposed_progress != inner.progress.get_untracked() {
+            inner.progress.set(exposed_progress);
+        }
+        if active != inner.is_active.get_untracked() {
+            inner.is_active.set(active);
+        }
         inner.prev_progress.set_value(clamped);
         inner.prev_active.set_value(active);
 
         if inner.config.once && active_changed && !active && direction_sign == 1 {
             drop(inner);
             self.kill();
+            return false;
         }
+
+        // Self-reschedule signal: only Scrub::Number smoothing needs continuous
+        // rAF frames; converged triggers stop the loop.
+        matches!(inner.config.scrub, Scrub::Number(_))
+            && (inner.scrub_target.get_value() - inner.scrub_current.get_value()).abs()
+                > SCRUB_CONVERGENCE_EPS
     }
 }
 
@@ -500,7 +549,7 @@ fn step_scrub(inner: &ScrollTriggerInner, raw: f64, now_ms: f64) -> f64 {
                 let alpha = 1.0 - (-dt / t).exp();
                 current + (raw - current) * alpha
             };
-            if (raw - next).abs() < 1e-4 {
+            if (raw - next).abs() < SCRUB_CONVERGENCE_EPS {
                 inner.scrub_current.set_value(raw);
                 inner.scrub_last_ms.set_value(Some(now_ms));
                 raw

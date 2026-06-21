@@ -1,0 +1,765 @@
+/* =========================================================================
+   Leptos Fluid — Trendy Scroll Showcase
+   Bold editorial design system (Awwwards style)
+   ========================================================================= */
+
+:root {
+    /* Color palette */
+    --bg: #0a0a0a;
+    --bg-elev: #141414;
+    --ink: #f5f0e8;
+    --ink-dim: rgba(245, 240, 232, 0.6);
+    --line: rgba(245, 240, 232, 0.08);
+    --line-bright: rgba(245, 240, 232, 0.2);
+    --magenta: #ff2d75;
+    --blue: #0047ff;
+    --lime: #c6ff00;
+    --amber: #ff9500;
+    --shadow-soft: 0 20px 60px -20px rgba(0, 0, 0, 0.5);
+    --shadow-deep: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+
+    /* Typography */
+    --font-display: "Fraunces", Georgia, serif;
+    --font-body: "Inter", system-ui, sans-serif;
+}
+
+/* -------------------------------------------------------------------------
+   Global resets
+   ------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: auto;
+}
+
+body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+}
+
+::selection {
+    background: var(--magenta);
+    color: var(--bg);
+}
+
+h1,
+h2,
+h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+}
+
+/* -------------------------------------------------------------------------
+   Page + sections
+   ------------------------------------------------------------------------- */
+
+.page {
+    width: 100%;
+}
+
+.section {
+    min-height: 100vh;
+    display: grid;
+    place-content: center;
+    padding: 8rem 2rem;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+}
+
+.section-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.section-hero {
+    min-height: 100vh;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 20% 50%, rgba(0, 71, 255, 0.15), transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 45, 117, 0.12), transparent 50%),
+        var(--bg);
+}
+
+.section-gallery {
+    min-height: 200vh;
+    overflow: hidden;
+    background: var(--bg);
+}
+
+.section-text {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(198, 255, 0, 0.06), transparent 60%),
+        var(--bg);
+}
+
+.section-grid {
+    min-height: 120vh;
+    background: var(--bg);
+}
+
+.section-counter {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 70% 30%, rgba(255, 149, 0, 0.1), transparent 50%),
+        var(--bg);
+}
+
+.section-image {
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.section-tilt {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 30% 70%, rgba(255, 45, 117, 0.08), transparent 50%),
+        var(--bg);
+}
+
+.section-marquee {
+    min-height: 60vh;
+    background: var(--bg-elev);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+.section-color {
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.section-cta {
+    min-height: 80vh;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(198, 255, 0, 0.05), transparent 70%),
+        var(--bg);
+}
+
+/* -------------------------------------------------------------------------
+   Typography components
+   ------------------------------------------------------------------------- */
+
+.kicker {
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    font-weight: 600;
+    color: var(--ink-dim);
+    margin-bottom: 1.5rem;
+}
+
+h2 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-optical-sizing: auto;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 2rem;
+}
+
+.lead {
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: clamp(1.1rem, 2vw, 1.4rem);
+    color: var(--ink-dim);
+    max-width: 60ch;
+    line-height: 1.5;
+}
+
+/* -------------------------------------------------------------------------
+   Cards, badges, chips, panels
+   ------------------------------------------------------------------------- */
+
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--shadow-soft);
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 2rem;
+}
+
+.stagger-grid {
+    margin-top: 3rem;
+}
+
+.stagger-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--shadow-soft);
+    will-change: transform, opacity;
+    opacity: 0;
+    transform: translate3d(0, 60px, 0) scale(0.95);
+}
+
+.stagger-card-title {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 1.75rem;
+    line-height: 1.1;
+    margin: 0.75rem 0;
+}
+
+.stagger-card-desc {
+    color: var(--ink-dim);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+}
+
+.badge.active {
+    border-color: var(--lime);
+    color: var(--lime);
+}
+
+.indicator {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 2rem;
+}
+
+.panel {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 500px;
+}
+
+/* -------------------------------------------------------------------------
+   Progress bar
+   ------------------------------------------------------------------------- */
+
+.progress-track {
+    height: 2px;
+    background: var(--line);
+    border-radius: 1px;
+    overflow: hidden;
+    max-width: 300px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--ink);
+}
+
+/* -------------------------------------------------------------------------
+   Text mask reveal
+   ------------------------------------------------------------------------- */
+
+.line-mask {
+    overflow: hidden;
+    display: block;
+}
+
+.line {
+    display: block;
+    transform: translateY(120px);
+    will-change: transform;
+}
+
+.text-mask-heading {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(3rem, 8vw, 6rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 2rem;
+}
+
+/* -------------------------------------------------------------------------
+   Marquee
+   ------------------------------------------------------------------------- */
+
+.marquee-viewport {
+    overflow: hidden;
+}
+
+.marquee-track {
+    display: flex;
+    white-space: nowrap;
+    will-change: transform;
+    padding: 1.5rem 0;
+}
+
+.marquee-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 2rem;
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 900;
+    color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------
+   Perspective tilt
+   ------------------------------------------------------------------------- */
+
+.tilt-container {
+    perspective: 1000px;
+    margin-top: 3rem;
+    display: grid;
+    place-items: center;
+}
+
+.tilt-card {
+    transform-style: preserve-3d;
+    will-change: transform;
+    width: clamp(280px, 60vw, 460px);
+    aspect-ratio: 3 / 4;
+    background: var(--bg-elev);
+    border: 1px solid var(--line-bright);
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    display: grid;
+    place-content: end center;
+    text-align: center;
+    box-shadow: var(--shadow-deep);
+}
+
+/* -------------------------------------------------------------------------
+   Magnetic CTA
+   ------------------------------------------------------------------------- */
+
+.magnetic-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 3rem;
+    background: var(--magenta);
+    color: var(--bg);
+    border: none;
+    border-radius: 99px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.2rem;
+    cursor: pointer;
+    will-change: transform;
+    position: relative;
+    transition: box-shadow 0.2s ease;
+}
+
+/* -------------------------------------------------------------------------
+   Counter
+   ------------------------------------------------------------------------- */
+
+.counter-inner {
+    text-align: center;
+}
+
+.counter-display {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.counter-number {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(6rem, 15vw, 12rem);
+    line-height: 1;
+    color: var(--ink);
+}
+
+.counter-suffix {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(3rem, 8vw, 6rem);
+    color: var(--magenta);
+}
+
+.counter-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.25rem, 3vw, 2rem);
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+}
+
+.counter-sublabel {
+    color: var(--ink-dim);
+    font-size: 1rem;
+}
+
+/* -------------------------------------------------------------------------
+   Horizontal gallery
+   ------------------------------------------------------------------------- */
+
+.gallery-track {
+    display: flex;
+    gap: 2rem;
+    will-change: transform;
+}
+
+.gallery-card {
+    flex-shrink: 0;
+    width: clamp(300px, 40vw, 500px);
+    height: 60vh;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+}
+
+.sticky-pin {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.gallery-spacer {
+    min-height: 200vh;
+    position: relative;
+}
+
+.gallery-inner {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 2rem;
+    padding: 6rem 2rem 2rem;
+    align-items: center;
+}
+
+.gallery-kicker {
+    margin-bottom: 0;
+}
+
+.gallery-progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.card-numeral {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(3rem, 8vw, 5rem);
+    color: var(--ink-dim);
+    line-height: 1;
+    margin-bottom: 1rem;
+}
+
+.card-name {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1;
+    margin-bottom: 0.75rem;
+}
+
+.card-desc {
+    color: var(--ink-dim);
+    font-size: 1rem;
+    max-width: 28ch;
+    text-align: center;
+    margin: 0 auto;
+}
+
+/* -------------------------------------------------------------------------
+   Sticky hero
+   ------------------------------------------------------------------------- */
+
+.hero-spacer {
+    min-height: 150vh;
+    position: relative;
+}
+
+.hero-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+
+.hero-layer {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+
+.hero-bg-blob {
+    width: 60vw;
+    height: 60vw;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.5;
+}
+
+.hero-bg-blob-1 {
+    background: radial-gradient(circle, rgba(0, 71, 255, 0.45), transparent 70%);
+}
+
+.hero-bg-blob-2 {
+    background: radial-gradient(circle, rgba(255, 45, 117, 0.4), transparent 70%);
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    padding: 0 2rem;
+    text-align: center;
+}
+
+.hero-title {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(3rem, 9vw, 7rem);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+    will-change: transform, opacity;
+}
+
+/* -------------------------------------------------------------------------
+   Footer
+   ------------------------------------------------------------------------- */
+
+.footer {
+    min-height: 50vh;
+    display: grid;
+    place-items: center;
+    padding: 4rem 2rem;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+}
+
+.footer-inner {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.footer h3 {
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    margin: 1rem 0;
+}
+
+.footer p {
+    color: var(--ink-dim);
+}
+
+/* -------------------------------------------------------------------------
+   Utility classes
+   ------------------------------------------------------------------------- */
+
+.text-magenta { color: var(--magenta); }
+.text-blue { color: var(--blue); }
+.text-lime { color: var(--lime); }
+.text-amber { color: var(--amber); }
+.text-dim { color: var(--ink-dim); }
+.mt-2 { margin-top: 2rem; }
+.mt-4 { margin-top: 4rem; }
+
+/* -------------------------------------------------------------------------
+   Demo 06 — Image reveal
+   ------------------------------------------------------------------------- */
+
+.image-frame {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    margin: 3rem auto 0;
+    aspect-ratio: 16 / 10;
+    border-radius: 8px;
+    overflow: hidden;
+    will-change: transform, clip-path;
+    box-shadow: var(--shadow-deep);
+}
+
+.image-frame-inner {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(135deg, rgba(0, 71, 255, 0.65), transparent 55%),
+        linear-gradient(225deg, rgba(255, 45, 117, 0.55), transparent 55%),
+        linear-gradient(180deg, #1a2647 0%, #2b3a67 40%, #0a0a0a 100%);
+}
+
+.image-label {
+    position: absolute;
+    left: 1.5rem;
+    bottom: 1.25rem;
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+    will-change: opacity;
+    transition: opacity 200ms ease-out;
+}
+
+/* -------------------------------------------------------------------------
+   Demo 07 — Perspective tilt
+   ------------------------------------------------------------------------- */
+
+.tilt-numeral {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(4rem, 12vw, 7rem);
+    color: var(--magenta);
+    line-height: 1;
+    margin-bottom: 1rem;
+}
+
+.tilt-title {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    margin-bottom: 0.75rem;
+}
+
+.tilt-desc {
+    color: var(--ink-dim);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    max-width: 30ch;
+}
+
+/* -------------------------------------------------------------------------
+   Demo 08 — Velocity marquee
+   ------------------------------------------------------------------------- */
+
+.marquee-inner {
+    margin-bottom: 1.5rem;
+}
+
+.marquee-foot {
+    margin-top: 1.5rem;
+}
+
+/* -------------------------------------------------------------------------
+   Demo 09 — Color morph
+   ------------------------------------------------------------------------- */
+
+.color-block {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+    margin: 3rem auto 0;
+    min-height: 50vh;
+    border-radius: 12px;
+    overflow: hidden;
+    will-change: background-color;
+    box-shadow: var(--shadow-deep);
+}
+
+.color-block-content {
+    position: relative;
+    z-index: 1;
+    padding: 3rem 2.5rem;
+    color: var(--bg);
+    mix-blend-mode: difference;
+}
+
+.color-block-title {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    margin-bottom: 1rem;
+    line-height: 1;
+}
+
+.color-block-desc {
+    font-size: 1.05rem;
+    max-width: 50ch;
+    line-height: 1.5;
+}
+
+/* -------------------------------------------------------------------------
+   Demo 10 — Magnetic CTA
+   ------------------------------------------------------------------------- */
+
+.magnetic-wrap-area {
+    display: grid;
+    place-items: center;
+    margin-top: 3rem;
+}
+
+.magnetic-wrap {
+    display: inline-block;
+    padding: 4rem;
+    position: relative;
+}
+
+.magnetic-btn.hovered {
+    box-shadow: 0 0 40px rgba(255, 45, 117, 0.5);
+}
+
+.cta-hint {
+    margin-top: 2rem;
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 0.95rem;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+    .section {
+        padding: 5rem 1.5rem;
+    }
+
+    h2 {
+        font-size: clamp(2rem, 8vw, 3rem);
+    }
+
+    .gallery-card {
+        width: 80vw;
+        height: 50vh;
+    }
+}

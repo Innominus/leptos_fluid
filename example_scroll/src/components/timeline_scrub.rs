@@ -23,6 +23,9 @@ pub fn TimelineScrubSection() -> impl IntoView {
         controller.set_immediate(step_style(0));
     });
 
+    // FluidTimeline::new + bind (rather than the builder) because no steps are
+    // needed here: bind_timeline_scrub drives style directly via set_immediate
+    // on the controller, so the timeline's own step list is never sequenced.
     let timeline = FluidTimeline::new(step_style(0));
     timeline.bind(controller);
 

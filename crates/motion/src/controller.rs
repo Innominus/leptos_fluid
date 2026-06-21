@@ -439,6 +439,35 @@ impl AnimationController {
         self.bind_signal(style.into(), None, true);
     }
 
+    /// Binds a reactive style source, applying **every** sample immediately via
+    /// [`Self::set_immediate`] (no WAAPI tween on any sample).
+    ///
+    /// This is the correct binding for high-frequency signal sources that
+    /// already provide their own interpolation (e.g. rAF-driven marquee
+    /// offsets, spring `Signal<f64>` feeds such as magnetic-cursor offsets
+    /// driven by `use_spring`). Using `animate()` per tick would start a new
+    /// WAAPI tween each frame and cancel it ~16ms later, producing mid-tween
+    /// redirection glitches when the signal changes direction rapidly.
+    /// `bind_set_immediate` avoids the WAAPI animation churn entirely — each
+    /// sample is committed directly to the element's inline style.
+    ///
+    /// For scroll-scrub bindings, use `ScrollTrigger::bind_controller` from
+    /// the `leptos_fluid_scroll` crate, which already applies every sample
+    /// via `set_immediate`.
+    ///
+    /// The effect's lifetime follows the current reactive owner scope.
+    pub fn bind_set_immediate<T>(&self, style: T)
+    where
+        T: Into<FluidSignal<FluidStyle>>,
+    {
+        let controller = *self;
+        let style = style.into();
+        Effect::new(move || {
+            let next = style.get();
+            controller.set_immediate(next);
+        });
+    }
+
     #[inline(never)]
     fn bind_signal(
         &self,
