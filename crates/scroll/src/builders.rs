@@ -144,6 +144,11 @@ impl<State> ScrollTriggerBuilder<State> {
     pub fn on_refresh(self, f: impl Fn(crate::ScrollTriggerEvent) + 'static) -> Self {
         self.map(|state| state.config.on_refresh = Some(crate::callbacks::scroll_callback(f)))
     }
+
+    /// Sets the `onScrubComplete` callback (fires when `Scrub::Number` settles).
+    pub fn on_scrub_complete(self, f: impl Fn(crate::ScrollTriggerEvent) + 'static) -> Self {
+        self.map(|state| state.config.on_scrub_complete = Some(crate::callbacks::scroll_callback(f)))
+    }
 }
 
 impl ScrollTriggerBuilder<ScrollTriggerBuilderNeedsTarget> {

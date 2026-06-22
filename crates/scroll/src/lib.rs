@@ -26,7 +26,7 @@ mod macros;
 mod macro_support;
 
 pub use callbacks::{ScrollCallback, ScrollTriggerEvent, VelocityTracker, scroll_callback};
-pub use config::{ScrollTriggerConfig, Scrub, ToggleActions};
+pub use config::{ReducedMotion, ScrollTriggerConfig, Scrub, ToggleActions};
 pub use position::{
     Rect, ScrollOffset, ScrollPoint, ScrollPosition, clamp_value, parse_offset, parse_point,
     parse_position, parse_start_end, resolve_start, strip_clamp,
@@ -36,6 +36,7 @@ pub use toggle::{
     Action, ScrollDirection, TogglePhase, action_for, parse_action, parse_toggle_actions,
 };
 pub use trigger::{ScrollTrigger, TriggerTargetSource};
+pub use engine::set_reduced_motion;
 #[cfg(feature = "builders")]
 pub use builders::{ReadyScrollTriggerBuilder, ScrollTriggerBuilder};
 
@@ -51,8 +52,9 @@ pub mod prelude {
         Action, Rect, ScrollCallback, ScrollDirection, ScrollListenerHandle, ScrollOffset,
         ScrollPoint, ScrollPosition, ScrollTrigger, ScrollTriggerConfig, ScrollTriggerEvent,
         Scroller, Scrub, ToggleActions, TogglePhase, TriggerTargetSource, VelocityTracker,
-        action_for, clamp_value, parse_action, parse_offset, parse_point, parse_position,
-        parse_start_end, resolve_start, scroll_callback, strip_clamp,
+        ReducedMotion, action_for, clamp_value, parse_action, parse_offset, parse_point,
+        parse_position, parse_start_end, resolve_start, scroll_callback, set_reduced_motion,
+        strip_clamp,
     };
     #[cfg(feature = "builders")]
     pub use crate::{ReadyScrollTriggerBuilder, ScrollTriggerBuilder};

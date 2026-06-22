@@ -763,3 +763,24 @@ h2 {
         height: 50vh;
     }
 }
+
+/* -------------------------------------------------------------------------
+   prefers-reduced-motion
+   -------------------------------------------------------------------------
+   Pairs with the engine-level ReducedMotion::Respect accommodation
+   (crates/scroll/src/engine.rs). The engine snaps Scrub::Number smoothing
+   to raw progress; this block neutralizes any remaining CSS transitions
+   so reduced-motion users get instant state changes with no motion.
+   Inline styles written by AnimationController::set_immediate are covered
+   by the universal `transition: none !important` rule below. */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

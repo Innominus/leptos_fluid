@@ -28,6 +28,11 @@ use crate::toggle::TogglePhase;
 /// value is within `SCRUB_CONVERGENCE_EPS` of the raw target, the trigger snaps
 /// to raw and the engine stops self-rescheduling the rAF loop.
 const SCRUB_CONVERGENCE_EPS: f64 = 1e-4;
+/// Cap on per-frame `dt` for `Scrub::Number` smoothing. A backgrounded tab
+/// pauses rAF; on resume the first `dt` can be many seconds, which without a
+/// cap drives the expo-tween alpha to 1.0 and snaps instantly. Capping at 0.1s
+/// preserves the smooth catch-up feel (mirrors GSAP's tween dt clamping).
+const SCRUB_DT_CAP_SECS: f64 = 0.1;
 
 #[derive(Clone)]
 enum TriggerTarget {
@@ -83,6 +88,11 @@ pub(crate) struct ScrollTriggerInner {
     scrub_current: StoredValue<f64, LocalStorage>,
     scrub_target: StoredValue<f64, LocalStorage>,
     scrub_last_ms: StoredValue<Option<f64>, LocalStorage>,
+    /// Tracks the converged state of `Scrub::Number` smoothing for the
+    /// `on_scrub_complete` callback: starts `true` so the first snap from
+    /// `dt=0` doesn't fire; transitions to `false` while easing, back to
+    /// `true` on convergence (firing the callback on that edge).
+    scrub_converged: StoredValue<bool, LocalStorage>,
     registration_id: StoredValue<Option<u32>, LocalStorage>,
     enabled: StoredValue<bool, LocalStorage>,
     killed: StoredValue<bool, LocalStorage>,
@@ -115,6 +125,7 @@ impl ScrollTrigger {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
+            scrub_converged: StoredValue::new_local(true),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -184,6 +195,7 @@ impl ScrollTrigger {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
+            scrub_converged: StoredValue::new_local(true),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -387,6 +399,17 @@ impl ScrollTrigger {
             .velocity()
     }
 
+    /// Resets the per-trigger scrub clock so the next `step_scrub` call uses
+    /// `dt = 0` instead of a stale timestamp. Called by the engine on
+    /// visibility regain (tab hidden → visible) to avoid a huge first dt.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn reset_scrub_clock(&self) {
+        self.inner
+            .read_value()
+            .scrub_last_ms
+            .set_value(None);
+    }
+
     /// Returns `true` once the trigger has been killed.
     pub(crate) fn is_killed(&self) -> bool {
         self.inner.read_value().killed.get_value()
@@ -423,8 +446,14 @@ impl ScrollTrigger {
             inner.direction.get_untracked()
         };
 
-        inner.direction.set(direction_sign);
-        inner.velocity.set(velocity);
+        // GSAP-parity: guard direction/velocity signal writes so idle ticks
+        // (scroll position unchanged → velocity 0) don't churn subscribers.
+        if direction_sign != inner.direction.get_untracked() {
+            inner.direction.set(direction_sign);
+        }
+        if velocity != inner.velocity.get_untracked() {
+            inner.velocity.set(velocity);
+        }
         inner.velocity_tracker.write_value().push(now_ms, scroll_pos);
 
         let progress_changed = clamped != prev_progress;
@@ -446,7 +475,29 @@ impl ScrollTrigger {
             }
         }
 
-        let exposed_progress = step_scrub(&inner, clamped, now_ms);
+        let (exposed_progress, just_converged) = if engine::reduced_motion_snaps_scrub() {
+            // GSAP-parity: `prefers-reduced-motion: reduce` snaps `Scrub::Number`
+            // to raw progress, skipping the continuous smoothing rAF loop. Keep
+            // `scrub_target`/`scrub_current`/`scrub_last_ms` in sync with `raw`
+            // so a later switch back to `Ignore` doesn't snap from a stale
+            // value. `scrub_converged = true` suppresses `on_scrub_complete`
+            // (this is a snap, not a convergence). Phase callbacks above still
+            // fire.
+            inner.scrub_target.set_value(clamped);
+            inner.scrub_current.set_value(clamped);
+            inner.scrub_last_ms.set_value(Some(now_ms));
+            inner.scrub_converged.set_value(true);
+            (clamped, false)
+        } else {
+            step_scrub(&inner, clamped, now_ms)
+        };
+        // GSAP-parity: fire on_scrub_complete the first time a Scrub::Number
+        // trigger settles after being non-converged (the expo-tween edge).
+        if just_converged {
+            if let Some(cb) = inner.config.on_scrub_complete.as_ref() {
+                cb(event);
+            }
+        }
         // Only fire the reactive signal when the value actually changes.
         // Without this guard, every rAF tick calls progress.set() for every
         // registered trigger even when the smoothed value hasn't changed
@@ -463,15 +514,19 @@ impl ScrollTrigger {
         inner.prev_progress.set_value(clamped);
         inner.prev_active.set_value(active);
 
-        if inner.config.once && active_changed && !active && direction_sign == 1 {
+        // GSAP-parity: `once` kills on any deactivation regardless of
+        // direction (was previously gated on `direction_sign == 1`).
+        if inner.config.once && active_changed && !active {
             drop(inner);
             self.kill();
             return false;
         }
 
         // Self-reschedule signal: only Scrub::Number smoothing needs continuous
-        // rAF frames; converged triggers stop the loop.
-        matches!(inner.config.scrub, Scrub::Number(_))
+        // rAF frames; converged triggers stop the loop. Reduced-motion snaps to
+        // raw, so no continuous rAF is needed in that posture either.
+        !engine::reduced_motion_snaps_scrub()
+            && matches!(inner.config.scrub, Scrub::Number(_))
             && (inner.scrub_target.get_value() - inner.scrub_current.get_value()).abs()
                 > SCRUB_CONVERGENCE_EPS
     }
@@ -528,19 +583,25 @@ fn dispatch_phase(config: &ScrollTriggerConfig, phase: TogglePhase, event: Scrol
     }
 }
 
-fn step_scrub(inner: &ScrollTriggerInner, raw: f64, now_ms: f64) -> f64 {
+/// Advances `Scrub::Number` smoothing by one frame and returns the exposed
+/// progress plus a flag that is `true` when the trigger converged on this call
+/// (i.e. `|raw - next| < SCRUB_CONVERGENCE_EPS` after being non-converged).
+/// The caller (`engine_update`) uses the flag to fire `on_scrub_complete`.
+fn step_scrub(inner: &ScrollTriggerInner, raw: f64, now_ms: f64) -> (f64, bool) {
     match inner.config.scrub {
-        Scrub::Bool(false) => raw,
+        Scrub::Bool(false) => (raw, false),
         Scrub::Bool(true) => {
             inner.scrub_current.set_value(raw);
-            raw
+            (raw, false)
         }
         Scrub::Number(t) => {
             inner.scrub_target.set_value(raw);
             let current = inner.scrub_current.get_value();
             let last = inner.scrub_last_ms.get_value();
+            // Cap dt so a backgrounded tab (rAF paused, then resumed) doesn't
+            // produce a huge dt → alpha → 1.0 → instant snap (GSAP-parity).
             let dt = match last {
-                Some(prev) => ((now_ms - prev) / 1000.0).max(0.0),
+                Some(prev) => (((now_ms - prev) / 1000.0).max(0.0)).min(SCRUB_DT_CAP_SECS),
                 None => 0.0,
             };
             let next = if dt <= 0.0 || t <= 0.0 {
@@ -552,11 +613,15 @@ fn step_scrub(inner: &ScrollTriggerInner, raw: f64, now_ms: f64) -> f64 {
             if (raw - next).abs() < SCRUB_CONVERGENCE_EPS {
                 inner.scrub_current.set_value(raw);
                 inner.scrub_last_ms.set_value(Some(now_ms));
-                raw
+                // Fire on_scrub_complete on the false → true convergence edge.
+                let was_converged = inner.scrub_converged.get_value();
+                inner.scrub_converged.set_value(true);
+                (raw, !was_converged)
             } else {
                 inner.scrub_current.set_value(next);
                 inner.scrub_last_ms.set_value(Some(now_ms));
-                next
+                inner.scrub_converged.set_value(false);
+                (next, false)
             }
         }
     }
@@ -641,6 +706,7 @@ mod tests {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(None),
+            scrub_converged: StoredValue::new_local(true),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -648,7 +714,7 @@ mod tests {
             prev_active: StoredValue::new_local(false),
             prev_progress: StoredValue::new_local(0.0),
         };
-        assert_eq!(step_scrub(&inner, 0.7, 1000.0), 0.7);
+        assert_eq!(step_scrub(&inner, 0.7, 1000.0).0, 0.7);
     }
 
     #[test]
@@ -668,6 +734,7 @@ mod tests {
             scrub_current: StoredValue::new_local(0.0),
             scrub_target: StoredValue::new_local(0.0),
             scrub_last_ms: StoredValue::new_local(Some(1000.0)),
+            scrub_converged: StoredValue::new_local(true),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
@@ -675,9 +742,21 @@ mod tests {
             prev_active: StoredValue::new_local(false),
             prev_progress: StoredValue::new_local(0.0),
         };
-        let first = step_scrub(&inner, 1.0, 1050.0);
+        let first = step_scrub(&inner, 1.0, 1050.0).0;
         assert!(first > 0.0 && first < 1.0);
-        let second = step_scrub(&inner, 1.0, 1100.0);
+        let second = step_scrub(&inner, 1.0, 1100.0).0;
         assert!(second > first && second < 1.0);
+    }
+
+    // GSAP-parity: documents that `prefers-reduced-motion` accommodation is a
+    // wasm-only behavior. On host targets `reduced_motion_snaps_scrub()` always
+    // returns `false`, so the smoothing-skip path never fires in host tests —
+    // the real gating is exercised in browser wasm.
+    #[test]
+    fn reduced_motion_no_op_on_host() {
+        engine::set_reduced_motion(crate::config::ReducedMotion::Respect);
+        assert!(!engine::reduced_motion_snaps_scrub());
+        engine::set_reduced_motion(crate::config::ReducedMotion::Ignore);
+        assert!(!engine::reduced_motion_snaps_scrub());
     }
 }

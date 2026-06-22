@@ -102,17 +102,40 @@ impl VelocityTracker {
     /// Returns the current velocity in pixels per second, or `0.0` if fewer than
     /// two samples are available or the time delta is zero.
     pub fn velocity(&self) -> f64 {
+        self.velocity_now(self.back_time())
+    }
+
+    /// Returns the velocity at an explicit "now" timestamp, applying GSAP's
+    /// Observer idle-drop: if more than 500ms has elapsed since the newest
+    /// sample, the samples are stale (e.g. rAF was paused while the tab was
+    /// hidden) and the velocity is reported as 0.0.
+    pub fn velocity_now(&self, now_ms: f64) -> f64 {
         if self.len < 2 {
+            return 0.0;
+        }
+        let back_time = self.back_time();
+        // GSAP-parity: drop velocity to 0 after 500ms of inactivity so stale
+        // samples from a paused rAF loop don't report a phantom velocity.
+        if now_ms - back_time > 500.0 {
             return 0.0;
         }
         let (front_time, front_pos) = self.samples[self.head];
         let back_idx = (self.head + self.len - 1) % Self::CAP;
-        let (back_time, back_pos) = self.samples[back_idx];
+        let back_pos = self.samples[back_idx].1;
         let dt = back_time - front_time;
         if dt == 0.0 {
             return 0.0;
         }
         (back_pos - front_pos) / (dt / 1000.0)
+    }
+
+    /// Returns the timestamp of the newest sample, or `0.0` if empty.
+    fn back_time(&self) -> f64 {
+        if self.len == 0 {
+            return 0.0;
+        }
+        let back_idx = (self.head + self.len - 1) % Self::CAP;
+        self.samples[back_idx].0
     }
 
     /// Number of samples currently retained (exposed for tests).
@@ -179,5 +202,19 @@ mod tests {
         tracker.push(100.0, 50.0);
         tracker.push(100.0, 150.0);
         assert_eq!(tracker.velocity(), 0.0);
+    }
+
+    #[test]
+    fn velocity_zero_after_idle() {
+        // GSAP-parity: after 500ms of inactivity the velocity drops to 0 so
+        // stale samples (e.g. from a paused rAF loop) don't report motion.
+        let mut tracker = VelocityTracker::with_window(2000.0);
+        tracker.push(0.0, 0.0);
+        tracker.push(100.0, 500.0);
+        // 600ms after the newest sample (> 500ms idle threshold) → 0.0.
+        assert_eq!(tracker.velocity_now(700.0), 0.0);
+        // 400ms after the newest sample (< 500ms) → real velocity
+        // (500px over 0.1s = 5000 px/s).
+        assert_eq!(tracker.velocity_now(500.0), 5000.0);
     }
 }

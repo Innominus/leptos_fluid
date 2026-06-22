@@ -25,7 +25,7 @@ full = ["controller", "timeline", "builders", "macros", "resize-observer"]
 [dependencies]
 leptos = { workspace = true }
 js-sys = { workspace = true }
-web-sys = { workspace = true, features = ["Element", "Window", "Document", "DomRect", "EventTarget", "HtmlElement"] }
+web-sys = { workspace = true, features = ["Element", "Window", "Document", "DomRect", "EventTarget", "HtmlElement", "FontFaceSet", "MediaQueryList", "MediaQueryListEvent"] }
 leptos_fluid_web = { version = "0.1.1", path = "../web", default-features = false, optional = true }
 leptos_fluid_motion = { workspace = true, optional = true }
 

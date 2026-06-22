@@ -44,6 +44,25 @@ impl Scrub {
     }
 }
 
+/// Engine-global `prefers-reduced-motion` posture.
+///
+/// When set to `Respect`, the engine checks
+/// `window.matchMedia("(prefers-reduced-motion: reduce)")` and, if it matches,
+/// snaps `Scrub::Number` triggers to raw progress (skipping the continuous
+/// smoothing rAF loop). Phase callbacks still fire so users can hook
+/// reduced-motion-aware animations. Defaults to `Ignore` — the engine does NOT
+/// auto-respect the media query; callers opt in via
+/// `crate::engine::set_reduced_motion(ReducedMotion::Respect)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ReducedMotion {
+    /// Ignore `prefers-reduced-motion` (default; matches GSAP's posture).
+    #[default]
+    Ignore,
+    /// Respect `prefers-reduced-motion: reduce` — snap scrub to raw, keep
+    /// callbacks.
+    Respect,
+}
+
 /// Wrapper around the four-element `toggleActions` array. Defaults to the GSAP
 /// default `"play none none none"`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -98,6 +117,9 @@ pub struct ScrollTriggerConfig {
     pub on_toggle: Option<ScrollCallback>,
     pub on_update: Option<ScrollCallback>,
     pub on_refresh: Option<ScrollCallback>,
+    /// Fires the first time a `Scrub::Number` trigger converges to its target
+    /// after being non-converged. Mirrors GSAP's expo-tween settle callback.
+    pub on_scrub_complete: Option<ScrollCallback>,
 }
 
 impl std::fmt::Debug for ScrollTriggerConfig {
@@ -116,6 +138,7 @@ impl std::fmt::Debug for ScrollTriggerConfig {
             .field("on_toggle", &self.on_toggle.is_some())
             .field("on_update", &self.on_update.is_some())
             .field("on_refresh", &self.on_refresh.is_some())
+            .field("on_scrub_complete", &self.on_scrub_complete.is_some())
             .finish()
     }
 }
@@ -136,6 +159,7 @@ impl Default for ScrollTriggerConfig {
             on_toggle: None,
             on_update: None,
             on_refresh: None,
+            on_scrub_complete: None,
         }
     }
 }
@@ -207,6 +231,12 @@ impl ScrollTriggerConfig {
 
     pub fn on_refresh(mut self, f: impl Fn(ScrollTriggerEvent) + 'static) -> Self {
         self.on_refresh = Some(scroll_callback(f));
+        self
+    }
+
+    /// Sets the `onScrubComplete` callback (fires when `Scrub::Number` settles).
+    pub fn on_scrub_complete(mut self, f: impl Fn(ScrollTriggerEvent) + 'static) -> Self {
+        self.on_scrub_complete = Some(scroll_callback(f));
         self
     }
 
@@ -291,5 +321,10 @@ mod tests {
         let cfg = ScrollTriggerConfig::default();
         let (start, _end) = cfg.parse_positions(false).unwrap();
         assert_eq!(start.trigger, crate::position::ScrollPoint::Top);
+    }
+
+    #[test]
+    fn reduced_motion_default_is_ignore() {
+        assert_eq!(ReducedMotion::default(), ReducedMotion::Ignore);
     }
 }

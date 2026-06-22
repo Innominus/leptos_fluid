@@ -25,19 +25,32 @@ use crate::trigger::ScrollTrigger;
 use leptos_fluid_web::{ResizeObserverHandle, observe_resize};
 
 #[cfg(target_arch = "wasm32")]
-use web_sys::wasm_bindgen::{closure::Closure, JsCast};
+use web_sys::wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static SHARED_ENGINE: RefCell<Option<SharedScrollEngine>> = const { RefCell::new(None) };
     static ENGINE_OUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static PENDING_REGISTERS: RefCell<Vec<ScrollTrigger>> = const { RefCell::new(Vec::new()) };
+    /// Side-channel flag set by `schedule_resize` when it is called while the
+    /// engine is taken OUT of the `SHARED_ENGINE` slot (i.e. from inside
+    /// `tick`/`refresh_all`). The rAF closures drain this after restoring the
+    /// engine so the resize isn't silently dropped. GSAP-parity: a resize
+    /// during a tick must still be honored.
+    static PENDING_RESIZE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Side-channel flag set by `schedule_smoothing_tick` when it is called
     /// while the engine is taken OUT of the `SHARED_ENGINE` slot (i.e. from
     /// inside `tick`). `schedule_tick` consults this to avoid double-scheduling
     /// a rAF for the same frame. Cleared in the rAF prologue alongside
     /// `raf_scheduled`.
     static SMOOTHING_RAF_PENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // GSAP-parity: engine-global `prefers-reduced-motion` posture. `Ignore` by
+    // default; callers opt in via `set_reduced_motion(Respect)`. The cached
+    // `ACTIVE` bool mirrors the current MQ match and is updated by the
+    // `MediaQueryList` change listener (and re-checked on visibility regain).
+    static REDUCED_MOTION_MODE: std::cell::Cell<crate::config::ReducedMotion> =
+        const { std::cell::Cell::new(crate::config::ReducedMotion::Ignore) };
+    static REDUCED_MOTION_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
@@ -55,10 +68,20 @@ struct SharedScrollEngine {
     /// Handle for the `orientationchange` listener (re-measures `100vh` +
     /// refreshes on rotation).
     _orientation_handle: ScrollListenerHandle,
+    /// Handle for the `visibilitychange` listener (resets scrub clocks and
+    /// re-measures on tab regain so a backgrounded rAF loop doesn't snap).
+    _visibility_handle: ScrollListenerHandle,
     /// Handle for the 250ms `setInterval` safety-net that catches dropped
     /// scroll events (Chrome at high velocity) and programmatic `scrollTo`
     /// that doesn't fire a detectable event. Mirrors GSAP's `_syncInterval`.
     _sync_interval_handle: IntervalHandle,
+    /// Handle for the `document.fonts.ready` callback: fires a resize refresh
+    /// once web fonts load so trigger geometry re-measures after layout shift.
+    _fonts_ready_handle: FontFaceReadyHandle,
+    /// Handle for the `matchMedia("(prefers-reduced-motion: reduce)")` change
+    /// listener. Lazily installed by `set_reduced_motion(Respect)`; keeps the
+    /// change `Closure` alive so `REDUCED_MOTION_ACTIVE` tracks OS toggles.
+    _reduced_motion_mq_handle: MediaQueryListHandle,
     triggers: Vec<RegisteredTrigger>,
     next_id: u32,
     scroll_pending: bool,
@@ -88,6 +111,25 @@ struct IntervalHandle {
     id: i32,
 }
 
+/// Opaque handle to the `document.fonts.ready` promise callback. Keeps the
+/// `Closure` alive so JS can call it when web fonts finish loading. On non-wasm
+/// targets this is a no-op zero-sized placeholder.
+struct FontFaceReadyHandle {
+    #[cfg(target_arch = "wasm32")]
+    _closure: Option<Closure<dyn FnMut(JsValue)>>,
+}
+
+/// Opaque handle to a `matchMedia` listener for `prefers-reduced-motion`.
+/// Keeps the change `Closure` alive for the engine's lifetime so the cached
+/// `REDUCED_MOTION_ACTIVE` bool tracks OS/browser reduced-motion toggles. On
+/// non-wasm targets this is a no-op zero-sized placeholder.
+struct MediaQueryListHandle {
+    #[cfg(target_arch = "wasm32")]
+    _mql: Option<web_sys::MediaQueryList>,
+    #[cfg(target_arch = "wasm32")]
+    _closure: Option<Closure<dyn FnMut(JsValue)>>,
+}
+
 impl Default for IntervalHandle {
     fn default() -> Self {
         Self {
@@ -95,6 +137,26 @@ impl Default for IntervalHandle {
             closure: None,
             #[cfg(target_arch = "wasm32")]
             id: 0,
+        }
+    }
+}
+
+impl Default for FontFaceReadyHandle {
+    fn default() -> Self {
+        Self {
+            #[cfg(target_arch = "wasm32")]
+            _closure: None,
+        }
+    }
+}
+
+impl Default for MediaQueryListHandle {
+    fn default() -> Self {
+        Self {
+            #[cfg(target_arch = "wasm32")]
+            _mql: None,
+            #[cfg(target_arch = "wasm32")]
+            _closure: None,
         }
     }
 }
@@ -107,6 +169,21 @@ impl Drop for IntervalHandle {
         }
         // Closure dropped here, freeing the JS callback.
         self.closure.take();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for MediaQueryListHandle {
+    fn drop(&mut self) {
+        // Detach the JS-side `change` listener before the `Closure` drops so
+        // there's no window where both old and new listeners fire on a
+        // re-install. Mirrors `IntervalHandle::Drop`.
+        if let (Some(mql), Some(closure)) = (self._mql.take(), self._closure.take()) {
+            let _ = mql.remove_event_listener_with_callback(
+                "change",
+                closure.as_ref().unchecked_ref(),
+            );
+        }
     }
 }
 
@@ -134,6 +211,44 @@ impl SharedScrollEngine {
             schedule_resize();
         });
 
+        // visibilitychange: GSAP-parity — when the tab becomes visible again,
+        // reset scrub clocks (so the first tick back doesn't use a huge stale
+        // dt and snap) and schedule a resize if the viewport dimensions changed
+        // while hidden (e.g. devtools docked/un-docked).
+        let visibility_handle = install_window_listener("visibilitychange", || {
+            // If the engine is OUT (inside a tick), skip — the rAF closure will
+            // handle any pending work.
+            if ENGINE_OUT.with(|out| out.get()) {
+                return;
+            }
+            let visible = web_sys::window()
+                .and_then(|w| w.document())
+                .map(|d| !d.hidden())
+                .unwrap_or(false);
+            if visible {
+                let width = inner_width();
+                let height = inner_height();
+                let dims_changed = SHARED_ENGINE.with(|slot| {
+                    slot.borrow()
+                        .as_ref()
+                        .map(|engine| {
+                            (width - engine.base_width).abs() > 1.0
+                                || (height - engine.base_height).abs() > 1.0
+                        })
+                        .unwrap_or(false)
+                });
+                reset_scrub_clocks();
+                // GSAP-parity: re-check the reduced-motion MQ on visibility
+                // regain in case the OS-level setting changed while the tab
+                // was hidden (the change listener doesn't fire for a hidden
+                // tab). No-op when mode is `Ignore`.
+                refresh_reduced_motion_active();
+                if dims_changed {
+                    schedule_resize();
+                }
+            }
+        });
+
         // 250ms setInterval safety net: if the scroll position changed without
         // a `scroll` event firing (Chrome drops events at high velocity, or
         // programmatic `scrollTo` without `behavior: "smooth"`), queue a rAF
@@ -158,13 +273,35 @@ impl SharedScrollEngine {
         let base_w = inner_width();
         let base_h = inner_height();
 
+        // fonts.ready: GSAP-parity — re-measure triggers once web fonts load,
+        // since font loading can shift element geometry (line heights, widths).
+        let fonts_ready_handle = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.fonts().ready().ok())
+            .and_then(|promise| {
+                // Keep the closure alive for the promise's lifetime; it fires
+                // once when fonts settle, scheduling a resize refresh.
+                let closure = Closure::<dyn FnMut(JsValue)>::new(|_v| {
+                    schedule_resize();
+                });
+                let _ = promise.then(&closure);
+                Some(FontFaceReadyHandle { _closure: Some(closure) })
+            })
+            .unwrap_or_default();
+
         Some(Self {
             _scroll_handle: scroll_handle,
             _resize_handle: resize_handle,
             #[cfg(all(target_arch = "wasm32", feature = "resize-observer"))]
             _resize_observer_handle: resize_observer_handle,
             _orientation_handle: orientation_handle,
+            _visibility_handle: visibility_handle,
             _sync_interval_handle: sync_interval_handle,
+            _fonts_ready_handle: fonts_ready_handle,
+            // Reduced-motion MQ listener is NOT installed by default (mode is
+            // `Ignore`). `set_reduced_motion(Respect)` installs it lazily and
+            // stores the handle here.
+            _reduced_motion_mq_handle: MediaQueryListHandle::default(),
             triggers: Vec::new(),
             next_id: 1,
             scroll_pending: false,
@@ -184,7 +321,10 @@ impl SharedScrollEngine {
             _scroll_handle: ScrollListenerHandle::default(),
             _resize_handle: ScrollListenerHandle::default(),
             _orientation_handle: ScrollListenerHandle::default(),
+            _visibility_handle: ScrollListenerHandle::default(),
             _sync_interval_handle: IntervalHandle::default(),
+            _fonts_ready_handle: FontFaceReadyHandle::default(),
+            _reduced_motion_mq_handle: MediaQueryListHandle::default(),
             triggers: Vec::new(),
             next_id: 1,
             scroll_pending: false,
@@ -210,13 +350,25 @@ impl SharedScrollEngine {
         self.triggers.retain(|registered| registered.id != id);
     }
 
+    /// Resets every registered trigger's scrub clock to `None` so the next
+    /// `step_scrub` call uses `dt = 0` instead of a stale timestamp. Called on
+    /// visibility regain (tab hidden → visible) to avoid a huge first dt.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    fn reset_scrub_clocks(&mut self) {
+        for registered in &self.triggers {
+            registered.trigger.reset_scrub_clock();
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn tick(&mut self) {
         let now = now_ms();
         let scroller = Scroller::viewport();
         let scroll_pos = scroller.scroll_position();
         self.velocity_tracker.push(now, scroll_pos);
-        let velocity = self.velocity_tracker.velocity();
+        // GSAP-parity: use velocity_now(now) so a paused rAF loop (tab hidden)
+        // doesn't report a stale velocity on the first tick back.
+        let velocity = self.velocity_tracker.velocity_now(now);
 
         let triggers = std::mem::take(&mut self.triggers);
         let mut needs_more = false;
@@ -325,6 +477,11 @@ fn schedule_tick() {
             }
             ENGINE_OUT.with(|out| out.set(false));
             *slot.borrow_mut() = engine_opt;
+            // GSAP-parity: a resize queued while the engine was OUT must not be
+            // dropped. Re-enter schedule_resize now that ENGINE_OUT is false.
+            if PENDING_RESIZE.with(|p| p.replace(false)) {
+                schedule_resize();
+            }
         });
     });
 }
@@ -379,12 +536,25 @@ fn schedule_smoothing_tick() {
             }
             ENGINE_OUT.with(|out| out.set(false));
             *slot.borrow_mut() = engine_opt;
+            // GSAP-parity: a resize queued while the engine was OUT must not be
+            // dropped. Re-enter schedule_resize now that ENGINE_OUT is false.
+            if PENDING_RESIZE.with(|p| p.replace(false)) {
+                schedule_resize();
+            }
         });
     });
 }
 
 #[cfg(target_arch = "wasm32")]
 fn schedule_resize() {
+    // If the engine is taken OUT of the slot (inside tick/refresh_all), the
+    // `SHARED_ENGINE.with` borrow below would find `None` and silently drop
+    // the resize. Queue it via a side-channel; the rAF closure restores the
+    // engine and re-enters `schedule_resize` with ENGINE_OUT = false.
+    if ENGINE_OUT.with(|out| out.get()) {
+        PENDING_RESIZE.with(|p| p.set(true));
+        return;
+    }
     // Mobile address-bar suppression: on touch devices, the iOS Safari / Chrome
     // Android address bar collapses/expands during scroll, firing `resize`
     // events with a small height delta (typically 10-15% of innerHeight) and
@@ -445,6 +615,10 @@ fn schedule_resize() {
             }
             ENGINE_OUT.with(|out| out.set(false));
             *slot.borrow_mut() = engine_opt;
+            // Drain any resize queued during refresh_all (e.g. from on_refresh).
+            if PENDING_RESIZE.with(|p| p.replace(false)) {
+                schedule_resize();
+            }
         });
     });
 }
@@ -491,6 +665,15 @@ pub(crate) fn register(trigger: ScrollTrigger) -> u32 {
         SHARED_ENGINE.with(|slot| {
             if slot.borrow().is_none() {
                 *slot.borrow_mut() = SharedScrollEngine::new();
+                // F1: a pre-engine-init `set_reduced_motion(Respect)` installs
+                // the MQ listener but the handle is discarded (slot was None).
+                // Adopt the listener now that the engine exists so the change
+                // `Closure` lives for the engine's lifetime.
+                if REDUCED_MOTION_MODE.with(|m| m.get())
+                    == crate::config::ReducedMotion::Respect
+                {
+                    install_reduced_motion_listener();
+                }
             }
             slot.borrow_mut()
                 .as_mut()
@@ -520,4 +703,129 @@ pub(crate) fn unregister(id: u32) {
     {
         let _ = id;
     }
+}
+
+/// Resets all registered triggers' scrub clocks. Called by the
+/// `visibilitychange` listener on tab regain (see `SharedScrollEngine::new`).
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn reset_scrub_clocks() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // If the engine is OUT (inside a tick), skip — the rAF closure will
+        // handle it. (The visibilitychange listener already guards this, but
+        // be defensive in case this is called from elsewhere.)
+        if ENGINE_OUT.with(|out| out.get()) {
+            return;
+        }
+        SHARED_ENGINE.with(|slot| {
+            if let Some(engine) = slot.borrow_mut().as_mut() {
+                engine.reset_scrub_clocks();
+            }
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // No-op on non-wasm: there are no registered triggers in this path.
+    }
+}
+
+/// Sets the engine-global `prefers-reduced-motion` posture. When set to
+/// `Respect`, the engine installs a `matchMedia` listener and snaps
+/// `Scrub::Number` smoothing to raw progress while
+/// `(prefers-reduced-motion: reduce)` matches. When set to `Ignore` (the
+/// default), the cached active flag is cleared and smoothing runs
+/// unconditionally. The MQ listener (if previously installed) is left in place
+/// — it only updates `REDUCED_MOTION_ACTIVE`, which is only consulted when the
+/// mode is `Respect`, so it's harmless when the mode is `Ignore`.
+#[cfg(target_arch = "wasm32")]
+pub fn set_reduced_motion(mode: crate::config::ReducedMotion) {
+    REDUCED_MOTION_MODE.with(|m| m.set(mode));
+    match mode {
+        crate::config::ReducedMotion::Respect => {
+            install_reduced_motion_listener();
+        }
+        crate::config::ReducedMotion::Ignore => {
+            REDUCED_MOTION_ACTIVE.with(|a| a.set(false));
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
+pub fn set_reduced_motion(_mode: crate::config::ReducedMotion) {}
+
+/// Returns `true` when the engine should snap `Scrub::Number` to raw progress:
+/// the mode is `Respect` AND the `(prefers-reduced-motion: reduce)` media query
+/// currently matches. Called from `trigger::engine_update` to gate `step_scrub`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn reduced_motion_snaps_scrub() -> bool {
+    REDUCED_MOTION_MODE.with(|m| m.get()) == crate::config::ReducedMotion::Respect
+        && REDUCED_MOTION_ACTIVE.with(|a| a.get())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn reduced_motion_snaps_scrub() -> bool {
+    false
+}
+
+/// Re-reads `matchMedia("(prefers-reduced-motion: reduce)").matches` and
+/// updates `REDUCED_MOTION_ACTIVE`. Called on visibility regain (the change
+/// listener doesn't fire while the tab is hidden) and by
+/// `install_reduced_motion_listener` for the initial read. No-op when there's
+/// no `window` (e.g. SSR / non-browser wasm).
+#[cfg(target_arch = "wasm32")]
+fn refresh_reduced_motion_active() {
+    let active = web_sys::window()
+        .and_then(|w| w.match_media("(prefers-reduced-motion: reduce)").ok().flatten())
+        .map(|mql| mql.matches())
+        .unwrap_or(false);
+    REDUCED_MOTION_ACTIVE.with(|a| a.set(active));
+}
+
+/// Installs (or refreshes) the `MediaQueryList` change listener for
+/// `prefers-reduced-motion: reduce` and stores its handle on the engine so the
+/// `Closure` lives as long as the engine. Reads the current `matches` value
+/// once on install. Subsequent OS/browser toggles update
+/// `REDUCED_MOTION_ACTIVE` via the change callback. Idempotent: re-installing
+/// replaces the prior handle (the old `Closure` drops, detaching the prior
+/// listener).
+#[cfg(target_arch = "wasm32")]
+fn install_reduced_motion_listener() {
+    // Engine is taken out of the slot for tick/refresh_all; the listener install
+    // would silently no-op (slot is None). Defer by returning — the F1 fix in
+    // `register()` will adopt the listener on the next register, or the user can
+    // re-call `set_reduced_motion` outside a callback.
+    if ENGINE_OUT.with(|out| out.get()) {
+        return;
+    }
+    // Initial read so the active flag is correct before any change event fires.
+    refresh_reduced_motion_active();
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let mql = match window.match_media("(prefers-reduced-motion: reduce)") {
+        Ok(Some(mql)) => mql,
+        _ => return,
+    };
+    // GSAP-parity: mirror the MQ's `matches` into the cached active bool on
+    // every change so `reduced_motion_snaps_scrub()` reflects the current OS
+    // posture without re-querying `matchMedia` per tick.
+    let closure = Closure::wrap(Box::new(|event: JsValue| {
+        let active = event
+            .dyn_ref::<web_sys::MediaQueryListEvent>()
+            .map(|e| e.matches())
+            .unwrap_or(false);
+        REDUCED_MOTION_ACTIVE.with(|a| a.set(active));
+    }) as Box<dyn FnMut(JsValue)>);
+    let _ = mql.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
+    let handle = MediaQueryListHandle {
+        _mql: Some(mql),
+        _closure: Some(closure),
+    };
+    SHARED_ENGINE.with(|slot| {
+        if let Some(engine) = slot.borrow_mut().as_mut() {
+            engine._reduced_motion_mq_handle = handle;
+        }
+    });
 }
