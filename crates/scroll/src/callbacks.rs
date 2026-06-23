@@ -217,4 +217,72 @@ mod tests {
         // (500px over 0.1s = 5000 px/s).
         assert_eq!(tracker.velocity_now(500.0), 5000.0);
     }
+
+    #[test]
+    fn velocity_negative_scroll_direction() {
+        // Scrolling up should produce negative velocity
+        let mut tracker = VelocityTracker::with_window(1000.0);
+        tracker.push(0.0, 0.0);
+        tracker.push(100.0, -500.0); // -500px in 100ms = -5000 px/s
+        assert_eq!(tracker.velocity(), -5000.0);
+    }
+
+    #[test]
+    fn velocity_full_ring_buffer_overwrites_oldest() {
+        // Push 33+ samples to test ring buffer overflow (CAP=32)
+        let mut tracker = VelocityTracker::with_window(10000.0);
+        for i in 0..35 {
+            tracker.push(i as f64 * 10.0, i as f64);
+        }
+        // The oldest samples (0, 1, ...) should be evicted
+        // Velocity should use only the last 32 samples
+        assert!(tracker.velocity() > 0.0);
+        // len should never exceed CAP
+        assert_eq!(tracker.len(), 32);
+    }
+
+    #[test]
+    fn velocity_zero_after_window_expiry() {
+        // Samples older than window should be evicted
+        let mut tracker = VelocityTracker::with_window(50.0);
+        tracker.push(0.0, 0.0);
+        tracker.push(100.0, 500.0); // 100ms later, window is 50ms → first sample evicted
+        // Only 1 sample left → velocity 0
+        assert_eq!(tracker.velocity(), 0.0);
+    }
+
+    #[test]
+    fn velocity_now_after_idle_drops_to_zero() {
+        // velocity_now should return 0 when now is >500ms after last sample
+        let mut tracker = VelocityTracker::with_window(1000.0);
+        tracker.push(0.0, 0.0);
+        tracker.push(100.0, 500.0);
+        // velocity at t=100 is 5000 px/s
+        assert_eq!(tracker.velocity_now(100.0), 5000.0);
+        // velocity at t=701 (601ms after last sample) should be 0
+        assert_eq!(tracker.velocity_now(701.0), 0.0);
+        // velocity at t=600 (exactly 500ms after last sample): the guard is
+        // `now - back_time > 500.0`, so exactly 500ms is NOT dropped — the
+        // boundary is exclusive (mirrors the existing velocity_zero_after_idle
+        // test which asserts 5000 at t=600 / back_time=100).
+        assert_eq!(tracker.velocity_now(600.0), 5000.0);
+        // velocity at t=601 (501ms after last sample) should be 0
+        assert_eq!(tracker.velocity_now(601.0), 0.0);
+        // velocity at t=599 (499ms after last sample) should still be 5000
+        assert_eq!(tracker.velocity_now(599.0), 5000.0);
+    }
+
+    #[test]
+    fn velocity_concurrent_push_and_query() {
+        // Push and query in interleaved fashion
+        let mut tracker = VelocityTracker::with_window(1000.0);
+        tracker.push(0.0, 0.0);
+        assert_eq!(tracker.velocity(), 0.0); // 1 sample
+        tracker.push(50.0, 100.0);
+        assert_eq!(tracker.velocity(), 2000.0); // 100px / 0.05s
+        tracker.push(100.0, 200.0);
+        assert_eq!(tracker.velocity(), 2000.0); // 200px / 0.1s
+        tracker.push(150.0, 150.0); // direction reversal
+        assert!(tracker.velocity() < 2000.0); // velocity drops
+    }
 }

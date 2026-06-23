@@ -2173,7 +2173,7 @@ macro_rules! __fluid_scroll_apply_bindings {
         [bind_timeline $bt_state:ident $bt_value:tt]
         [bind_timeline_scrub $bts_state:ident $bts_value:tt]
     ) => {{
-        let __fluid_builder = $builder.bind_controller($controller, $style_fn);
+        let __fluid_builder = $builder.bind_controller($controller, Box::new($style_fn));
         $crate::__fluid_scroll_apply_bind_controller_with!(
             __fluid_builder,
             [bind_controller_with $bcw_state $bcw_value]
@@ -2204,7 +2204,7 @@ macro_rules! __fluid_scroll_apply_bind_controller_with {
         [bind_timeline $bt_state:ident $bt_value:tt]
         [bind_timeline_scrub $bts_state:ident $bts_value:tt]
     ) => {{
-        let __fluid_builder = $builder.bind_controller_with($controller, $transition, $style_fn);
+        let __fluid_builder = $builder.bind_controller_with($controller, $transition, Box::new($style_fn));
         $crate::__fluid_scroll_apply_bind_timeline!(
             __fluid_builder,
             [bind_timeline $bt_state $bt_value]

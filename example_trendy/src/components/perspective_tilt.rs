@@ -23,7 +23,7 @@ pub fn PerspectiveTiltSection() -> impl IntoView {
         .start("top 90%")
         .end("bottom 10%")
         .scrub(Scrub::Number(0.15))
-        .bind_controller(controller, |p| {
+        .bind_controller(controller, Box::new(|p| {
             let ry = -45.0 + p * 90.0;
             let rx = 15.0 - p * 30.0;
             let s = 0.9 + p * 0.2;
@@ -34,7 +34,7 @@ pub fn PerspectiveTiltSection() -> impl IntoView {
                     ry, rx, s
                 ),
             )
-        })
+        }))
         .install();
 
     let progress = trigger.progress();

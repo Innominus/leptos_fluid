@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,11 +14,11 @@ use leptos_fluid_web::{
 use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::{Animation, CssStyleDeclaration, Element};
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 use crate::Spring;
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 use crate::spring_solver::{SpringState, normalized_dt, step_spring};
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 use crate::timing::now_ms;
 use crate::{FluidStyle, Transition};
 
@@ -27,7 +27,7 @@ type StyleProps = Vec<(Cow<'static, str>, String)>;
 #[derive(Clone)]
 pub(crate) enum ActiveAnimation {
     Waapi(WaapiAnimation),
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     Spring(SpringAnimation),
 }
 
@@ -38,13 +38,13 @@ pub(crate) struct WaapiAnimation {
     _on_finish: Rc<Closure<dyn FnMut()>>,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone)]
 pub(crate) struct SpringAnimation {
     state: Rc<RefCell<SpringAnimationState>>,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 struct SpringAnimationState {
     element: Element,
     keys: Rc<Vec<String>>,
@@ -58,7 +58,7 @@ struct SpringAnimationState {
     is_animating: Option<RwSignal<bool>>,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug, Default)]
 struct SpringLoopState {
     delay_remaining_ms: f64,
@@ -68,7 +68,7 @@ struct SpringLoopState {
     schedule_id: u32,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug, Default)]
 struct SpringChannels {
     transform: Option<TransformSpringState>,
@@ -77,7 +77,7 @@ struct SpringChannels {
     height: Option<ScalarSpringState>,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug)]
 struct TransformSpringState {
     x: SpringState,
@@ -87,14 +87,14 @@ struct TransformSpringState {
     target: TransformValues,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug)]
 struct ScalarSpringState {
     state: SpringState,
     target: f64,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug, Default)]
 struct TransformValues {
     x: f64,
@@ -103,7 +103,7 @@ struct TransformValues {
     rotate: f64,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug, Default)]
 struct ParsedCurrentValues {
     transform: TransformValues,
@@ -112,7 +112,7 @@ struct ParsedCurrentValues {
     height: Option<f64>,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 #[derive(Clone, Copy, Debug, Default)]
 struct SpringTargets {
     transform: Option<TransformValues>,
@@ -128,7 +128,7 @@ struct TransitionRuntime {
     easing: String,
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 impl SpringAnimation {
     fn new(
         element: Element,
@@ -289,7 +289,7 @@ impl SpringAnimation {
     }
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn schedule_spring_step(animation: SpringAnimation, schedule_id: u32) {
     leptos::prelude::request_animation_frame(move || {
         let (
@@ -620,7 +620,7 @@ fn snapshot_value(snapshot: &[(String, String)], key: &str) -> Option<String> {
         .map(|(_, value)| value.clone())
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn retarget_transform_channel(
     previous: Option<TransformSpringState>,
     current: TransformValues,
@@ -646,7 +646,7 @@ fn retarget_transform_channel(
     channel
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn retarget_scalar_channel(
     previous: Option<ScalarSpringState>,
     current: f64,
@@ -663,7 +663,7 @@ fn retarget_scalar_channel(
     channel
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn cancel_spring_loop(loop_state: &mut SpringLoopState) {
     loop_state.running = false;
     loop_state.paused = false;
@@ -671,7 +671,7 @@ fn cancel_spring_loop(loop_state: &mut SpringLoopState) {
     loop_state.schedule_id = loop_state.schedule_id.wrapping_add(1);
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn pause_spring_loop(loop_state: &mut SpringLoopState) -> bool {
     if !loop_state.running || loop_state.paused {
         return false;
@@ -682,7 +682,7 @@ fn pause_spring_loop(loop_state: &mut SpringLoopState) -> bool {
     true
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn resume_spring_loop(loop_state: &mut SpringLoopState) -> Option<u32> {
     if !loop_state.running || !loop_state.paused {
         return None;
@@ -693,7 +693,7 @@ fn resume_spring_loop(loop_state: &mut SpringLoopState) -> Option<u32> {
     Some(loop_state.schedule_id)
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn step_spring_channels(channels: &mut SpringChannels, spring: Spring, dt: f64) -> bool {
     let mut finished = true;
 
@@ -716,7 +716,7 @@ fn step_spring_channels(channels: &mut SpringChannels, spring: Spring, dt: f64) 
     finished
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn spring_frame_style_from_channels(channels: SpringChannels) -> FluidStyle {
     let mut style = FluidStyle::new();
     if let Some(transform) = channels.transform {
@@ -738,7 +738,7 @@ fn spring_frame_style_from_channels(channels: SpringChannels) -> FluidStyle {
     style
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn has_spring_targets(targets: SpringTargets) -> bool {
     targets.transform.is_some()
         || targets.opacity.is_some()
@@ -746,7 +746,7 @@ fn has_spring_targets(targets: SpringTargets) -> bool {
         || targets.height.is_some()
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn read_current_values(element: &Element, snapshot: &[(String, String)]) -> ParsedCurrentValues {
     let Some(computed) = computed_style(element) else {
         return ParsedCurrentValues {
@@ -780,7 +780,7 @@ fn read_current_values(element: &Element, snapshot: &[(String, String)]) -> Pars
     }
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn parse_px_token(token: &str) -> Option<f64> {
     let token = token.trim();
     if token.is_empty() {
@@ -792,7 +792,7 @@ fn parse_px_token(token: &str) -> Option<f64> {
     parse_f64_token(token)
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn parse_transform_value(value: &str) -> Option<TransformValues> {
     let value = value.trim();
     if value.is_empty() || value == "none" {
@@ -857,7 +857,7 @@ fn parse_transform_value(value: &str) -> Option<TransformValues> {
     matched.then_some(parsed)
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn parse_function_arguments(value: &str, function_name: &str) -> Option<Vec<f64>> {
     let start = value.find(function_name)?;
     let rest = &value[start + function_name.len()..];
@@ -879,7 +879,7 @@ fn parse_function_arguments(value: &str, function_name: &str) -> Option<Vec<f64>
     Some(values)
 }
 
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 fn split_spring_animation_props(
     style: &FluidStyle,
     transition: &Transition,
@@ -982,7 +982,7 @@ pub(crate) fn cancel_active_animation(
             animation_cancel(&active.animation);
             frozen
         }
-        #[cfg(feature = "spring")]
+        #[cfg(feature = "spring-transition")]
         ActiveAnimation::Spring(active) => {
             active.cancel();
             freeze_computed_values(element, active.keys().as_ref(), true)
@@ -1001,7 +1001,7 @@ pub(crate) fn pause_active_animation(
     };
     match active {
         ActiveAnimation::Waapi(active) => animation_pause(&active.animation),
-        #[cfg(feature = "spring")]
+        #[cfg(feature = "spring-transition")]
         ActiveAnimation::Spring(active) => active.pause(),
     }
 }
@@ -1014,7 +1014,7 @@ pub(crate) fn resume_active_animation(
     };
     match active {
         ActiveAnimation::Waapi(active) => animation_play(&active.animation),
-        #[cfg(feature = "spring")]
+        #[cfg(feature = "spring-transition")]
         ActiveAnimation::Spring(active) => active.resume(),
     }
 }
@@ -1050,7 +1050,7 @@ pub(crate) fn animate_to(
     let generation = animation_generation.get_value().wrapping_add(1);
     animation_generation.set_value(generation);
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     if let Some(mut spring) = transition.spring_config() {
         let (targets, immediate_props, runtime, keys, final_props) =
             split_spring_animation_props(to, transition);
@@ -1229,7 +1229,7 @@ pub(crate) fn animate_to(
 mod tests {
     use super::*;
     use crate::FluidStyle;
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     use crate::Spring;
 
     fn has_prop(props: &StyleProps, key: &str, value: &str) -> bool {
@@ -1311,7 +1311,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn spring_retarget_preserves_existing_velocity() {
         let previous = ScalarSpringState {
@@ -1329,7 +1329,7 @@ mod tests {
         assert_eq!(next.target, -12.0);
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn spring_pause_and_resume_update_schedule_state() {
         let mut loop_state = SpringLoopState {
@@ -1356,7 +1356,7 @@ mod tests {
         assert_eq!(resume_spring_loop(&mut loop_state), None);
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn split_spring_animation_props_keeps_unsupported_values_immediate() {
         let style = FluidStyle::new()
@@ -1388,7 +1388,7 @@ mod tests {
         assert!(has_prop(&immediate, "filter", "blur(12px)"));
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn spring_channel_step_moves_width_and_height_toward_targets() {
         let mut channels = SpringChannels {

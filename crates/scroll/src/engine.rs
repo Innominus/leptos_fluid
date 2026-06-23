@@ -206,16 +206,16 @@ impl SharedScrollEngine {
 
         // orientationchange: re-measure 100vh (CSS 100vh can change on
         // rotation) and refresh all triggers.
-        let orientation_handle = install_window_listener("orientationchange", || {
+        let orientation_handle = install_window_listener("orientationchange", Box::new(|| {
             refresh_100vh();
             schedule_resize();
-        });
+        }));
 
         // visibilitychange: GSAP-parity — when the tab becomes visible again,
         // reset scrub clocks (so the first tick back doesn't use a huge stale
         // dt and snap) and schedule a resize if the viewport dimensions changed
         // while hidden (e.g. devtools docked/un-docked).
-        let visibility_handle = install_window_listener("visibilitychange", || {
+        let visibility_handle = install_window_listener("visibilitychange", Box::new(|| {
             // If the engine is OUT (inside a tick), skip — the rAF closure will
             // handle any pending work.
             if ENGINE_OUT.with(|out| out.get()) {
@@ -247,7 +247,7 @@ impl SharedScrollEngine {
                     schedule_resize();
                 }
             }
-        });
+        }));
 
         // 250ms setInterval safety net: if the scroll position changed without
         // a `scroll` event firing (Chrome drops events at high velocity, or
@@ -828,4 +828,32 @@ fn install_reduced_motion_listener() {
             engine._reduced_motion_mq_handle = handle;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // GSAP-parity: documents that `prefers-reduced-motion` accommodation is a
+    // wasm-only behavior. On host targets `reduced_motion_snaps_scrub()` always
+    // returns `false`, so the smoothing-skip path never fires in host tests —
+    // the real gating is exercised in browser wasm.
+    #[test]
+    fn reduced_motion_snaps_scrub_returns_false_on_host() {
+        // On non-wasm targets, reduced_motion_snaps_scrub() always returns false
+        // regardless of the mode set. This documents the contract.
+        set_reduced_motion(crate::config::ReducedMotion::Respect);
+        assert!(!reduced_motion_snaps_scrub());
+        set_reduced_motion(crate::config::ReducedMotion::Ignore);
+        assert!(!reduced_motion_snaps_scrub());
+    }
+
+    #[test]
+    fn reduced_motion_set_is_callable_on_host() {
+        // set_reduced_motion is a no-op on host (the thread-local only exists
+        // in wasm), but it must remain callable so library code that calls it
+        // unconditionally compiles + runs in host tests.
+        set_reduced_motion(crate::config::ReducedMotion::Respect);
+        set_reduced_motion(crate::config::ReducedMotion::Ignore);
+    }
 }

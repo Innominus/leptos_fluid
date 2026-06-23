@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-leptos_fluid_scroll = { path = "../crates/scroll", default-features = false, features = ["controller", "builders", "resize-observer"] }
+leptos_fluid_scroll = { path = "../crates/scroll", default-features = false, features = ["controller", "builders"] }
 leptos_fluid_motion = { path = "../crates/motion", default-features = false, features = ["spring", "controller", "builders"] }
 leptos = { workspace = true }
 console_error_panic_hook = { workspace = true }

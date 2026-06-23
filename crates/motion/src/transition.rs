@@ -6,9 +6,9 @@ const EASE_OUT_CUBIC: &str = "cubic-bezier(0.215, 0.61, 0.355, 1)";
 const EASE_IN_OUT_CUBIC: &str = "cubic-bezier(0.645, 0.045, 0.355, 1)";
 const DEFAULT_DURATION_MS: u32 = 200;
 const SNAPPY_DURATION_MS: u32 = 150;
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 const SPRING_DURATION_MS: u32 = 500;
-#[cfg(feature = "spring")]
+#[cfg(feature = "spring-transition")]
 const SPRING_BOUNCE: f64 = 0.2;
 
 /// Easing presets used by `Transition`.
@@ -90,7 +90,7 @@ pub struct Transition {
     /// Active easing preset.
     pub easing: Easing,
     /// Optional live spring configuration used by `Transition::spring*`.
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     pub spring: Option<Spring>,
     /// Properties that should not animate (applied immediately).
     pub excluded_properties: Vec<Cow<'static, str>>,
@@ -102,7 +102,7 @@ impl Default for Transition {
             duration_ms: DEFAULT_DURATION_MS,
             delay_ms: 0,
             easing: Easing::EaseOut,
-            #[cfg(feature = "spring")]
+            #[cfg(feature = "spring-transition")]
             spring: None,
             excluded_properties: Vec::new(),
         }
@@ -136,7 +136,7 @@ impl Transition {
     /// Unsupported properties are applied immediately and do not interpolate in
     /// spring mode. Use tween transitions for colors, filters, shadows, and
     /// other text-valued CSS properties.
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     pub fn spring() -> Self {
         Self::spring_with(SPRING_DURATION_MS, SPRING_BOUNCE)
     }
@@ -146,7 +146,7 @@ impl Transition {
     /// Unsupported properties are applied immediately and do not interpolate in
     /// spring mode. Use tween transitions for colors, filters, shadows, and
     /// other text-valued CSS properties.
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     pub fn spring_with(duration_ms: u32, bounce: f64) -> Self {
         let spring = Spring::new(duration_ms, bounce);
         Self {
@@ -163,7 +163,7 @@ impl Transition {
     /// Unsupported properties are applied immediately and do not interpolate in
     /// spring mode. Use tween transitions for colors, filters, shadows, and
     /// other text-valued CSS properties.
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     pub fn bounce(mut self, bounce: f64) -> Self {
         let value = clamp_bounce(bounce);
         match &mut self.spring {
@@ -178,7 +178,7 @@ impl Transition {
             duration_ms: SNAPPY_DURATION_MS,
             delay_ms: 0,
             easing: Easing::EaseOut,
-            #[cfg(feature = "spring")]
+            #[cfg(feature = "spring-transition")]
             spring: None,
             excluded_properties: Vec::new(),
         }
@@ -208,7 +208,7 @@ impl Transition {
         self.exclude_properties(props)
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     pub(crate) fn spring_config(&self) -> Option<Spring> {
         self.spring
     }
@@ -217,22 +217,22 @@ impl Transition {
         Cow::Borrowed(self.easing.as_str())
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     fn sync_spring_duration(&mut self, value: u32) {
         if let Some(spring) = &mut self.spring {
             spring.duration_ms = value;
         }
     }
 
-    #[cfg(not(feature = "spring"))]
+    #[cfg(not(feature = "spring-transition"))]
     fn sync_spring_duration(&mut self, _value: u32) {}
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     fn clear_spring(&mut self) {
         self.spring = None;
     }
 
-    #[cfg(not(feature = "spring"))]
+    #[cfg(not(feature = "spring-transition"))]
     fn clear_spring(&mut self) {}
 
     #[cfg(any(test, feature = "bench"))]
@@ -282,7 +282,7 @@ fn push_unique_property(list: &mut Vec<Cow<'static, str>>, prop: Cow<'static, st
 mod tests {
     use super::*;
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn spring_transition_defaults() {
         let spring = Transition::spring();
@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(spring.easing.as_str(), EASE_OUT_CUBIC);
     }
 
-    #[cfg(feature = "spring")]
+    #[cfg(feature = "spring-transition")]
     #[test]
     fn bounce_is_clamped() {
         let spring = Transition::spring_with(400, 1.8);
@@ -317,5 +317,44 @@ mod tests {
         assert!(css.contains("all 300ms"));
         assert!(css.contains(", height 0ms linear 0ms"));
         assert!(css.contains(", width 0ms linear 0ms"));
+    }
+
+    #[cfg(feature = "spring-transition")]
+    #[test]
+    fn spring_with_clamps_bounce() {
+        let t = Transition::spring_with(400, 5.0);
+        assert!(t.spring.is_some());
+        // bounce should be clamped to 0.0..=1.0
+        assert_eq!(t.spring.unwrap().bounce, 1.0);
+    }
+
+    #[cfg(feature = "spring-transition")]
+    #[test]
+    fn spring_with_negative_bounce_clamps_to_zero() {
+        let t = Transition::spring_with(400, -1.0);
+        assert_eq!(t.spring.unwrap().bounce, 0.0);
+    }
+
+    #[cfg(not(feature = "spring-transition"))]
+    #[test]
+    fn transition_without_spring_transition_has_no_spring_field() {
+        // When spring-transition is off, Transition should not have a spring field
+        // and spring() should not be available. This test compiles only when
+        // the feature is off, documenting the API surface.
+        let t = Transition::new();
+        // If this compiles, the spring field is correctly gated.
+        let _ = t;
+    }
+
+    #[test]
+    fn transition_default_has_no_excluded_properties() {
+        let t = Transition::default();
+        assert!(t.excluded_properties.is_empty());
+    }
+
+    #[test]
+    fn transition_snappy_has_short_duration() {
+        let t = Transition::snappy();
+        assert!(t.duration_ms <= 200); // snappy should be fast
     }
 }

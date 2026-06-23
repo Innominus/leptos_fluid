@@ -30,16 +30,16 @@ pub fn StickyHeroSection() -> impl IntoView {
         .start("top top")
         .end("bottom top")
         .scrub(Scrub::Number(0.15))
-        .bind_controller(title_controller, |p| {
+        .bind_controller(title_controller, Box::new(|p| {
             FluidStyle::new()
                 .opacity(1.0 - p * 0.7)
                 .scale(1.0 - p * 0.5)
                 .y(p * 50.0)
-        })
+        }))
         .install();
 
-    trigger.bind_controller(bg_one_controller, |p| FluidStyle::new().y(p * -100.0));
-    trigger.bind_controller(bg_two_controller, |p| FluidStyle::new().y(p * -200.0));
+    trigger.bind_controller(bg_one_controller, Box::new(|p| FluidStyle::new().y(p * -100.0)));
+    trigger.bind_controller(bg_two_controller, Box::new(|p| FluidStyle::new().y(p * -200.0)));
 
     view! {
         <section class="section section-hero" id="hero" node_ref=section_ref>

@@ -21,7 +21,7 @@ mod auto_size;
 mod builders;
 #[cfg(feature = "controller")]
 mod controller;
-#[cfg(feature = "controller")]
+#[cfg(feature = "interaction")]
 mod interaction;
 #[cfg(any(feature = "builders", feature = "macros"))]
 mod macro_support;
@@ -52,7 +52,7 @@ pub use builders::{AnimationControllerBuilder, ReadyAnimationControllerBuilder};
 pub use builders::{FluidTimelineBuilder, ReadyFluidTimelineBuilder};
 #[cfg(feature = "controller")]
 pub use controller::{AnimationController, ControllerTarget};
-#[cfg(feature = "controller")]
+#[cfg(feature = "interaction")]
 pub use interaction::{bind_interaction, bind_interaction_node_ref};
 pub use signal::FluidSignal;
 
@@ -84,7 +84,7 @@ pub mod prelude {
     pub use crate::{FluidTimelineBuilder, ReadyFluidTimelineBuilder};
     #[cfg(feature = "spring")]
     pub use crate::{SpringValue, use_spring};
-    #[cfg(feature = "controller")]
+    #[cfg(feature = "interaction")]
     pub use crate::{bind_interaction, bind_interaction_node_ref};
     #[cfg(feature = "macros")]
     pub use crate::{controller, when};

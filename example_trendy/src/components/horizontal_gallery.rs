@@ -51,9 +51,9 @@ pub fn HorizontalGallerySection() -> impl IntoView {
         .start("top top")
         .end("bottom bottom")
         .scrub(Scrub::Number(0.15))
-        .bind_controller(track_controller, move |p| {
+        .bind_controller(track_controller, Box::new(move |p| {
             FluidStyle::new().x(-(p * track_width.get_value()))
-        })
+        }))
         .install();
 
     let progress = trigger.progress();

@@ -759,4 +759,156 @@ mod tests {
         engine::set_reduced_motion(crate::config::ReducedMotion::Ignore);
         assert!(!engine::reduced_motion_snaps_scrub());
     }
+
+    #[test]
+    fn scrub_number_converges_to_target() {
+        // After many steps with the same target, scrub should converge
+        use crate::config::ScrollTriggerConfig;
+        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.15));
+        let inner = ScrollTriggerInner {
+            config: cfg,
+            scroller: Scroller::viewport(),
+            target_source: StoredValue::new_local(None),
+            start_pixels: StoredValue::new_local(0.0),
+            end_pixels: StoredValue::new_local(0.0),
+            progress: RwSignal::new(0.0),
+            direction: RwSignal::new(0),
+            is_active: RwSignal::new(false),
+            velocity: RwSignal::new(0.0),
+            scrub_current: StoredValue::new_local(0.0),
+            scrub_target: StoredValue::new_local(0.0),
+            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
+            scrub_converged: StoredValue::new_local(true),
+            registration_id: StoredValue::new_local(None),
+            enabled: StoredValue::new_local(true),
+            killed: StoredValue::new_local(false),
+            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
+            prev_active: StoredValue::new_local(false),
+            prev_progress: StoredValue::new_local(0.0),
+        };
+        let mut current = 0.0;
+        // Start at t=1016 so the first frame has dt=0.016s (nonzero), which
+        // eases current toward target instead of snapping dt=0 → next=raw=1.0
+        // while scrub_converged is still `true` (which would suppress the
+        // false→true convergence edge).
+        let mut time = 1016.0;
+        // Step toward target=1.0 for 120 frames at 16ms intervals
+        for _ in 0..120 {
+            let (val, converged) = step_scrub(&inner, 1.0, time);
+            current = val;
+            time += 16.0;
+            if converged {
+                // Once converged, value should be exactly the target
+                assert!(
+                    (current - 1.0).abs() < 1e-4,
+                    "should converge to target, got {}",
+                    current
+                );
+                return;
+            }
+        }
+        // After 120 frames at t=0.15, should have converged
+        panic!("did not converge after 120 frames, last value: {}", current);
+    }
+
+    #[test]
+    fn scrub_number_reverses_direction() {
+        // When target changes direction, scrub should follow without overshooting
+        use crate::config::ScrollTriggerConfig;
+        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.3));
+        let inner = ScrollTriggerInner {
+            config: cfg,
+            scroller: Scroller::viewport(),
+            target_source: StoredValue::new_local(None),
+            start_pixels: StoredValue::new_local(0.0),
+            end_pixels: StoredValue::new_local(0.0),
+            progress: RwSignal::new(0.0),
+            direction: RwSignal::new(0),
+            is_active: RwSignal::new(false),
+            velocity: RwSignal::new(0.0),
+            scrub_current: StoredValue::new_local(0.0),
+            scrub_target: StoredValue::new_local(0.0),
+            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
+            scrub_converged: StoredValue::new_local(true),
+            registration_id: StoredValue::new_local(None),
+            enabled: StoredValue::new_local(true),
+            killed: StoredValue::new_local(false),
+            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
+            prev_active: StoredValue::new_local(false),
+            prev_progress: StoredValue::new_local(0.0),
+        };
+        // Step toward 1.0
+        let (v1, _) = step_scrub(&inner, 1.0, 1050.0);
+        assert!(v1 > 0.0 && v1 < 1.0);
+        // Now step toward 0.0 (direction reversal)
+        let (v2, _) = step_scrub(&inner, 0.0, 1100.0);
+        assert!(v2 < v1, "reversal should decrease: v1={}, v2={}", v1, v2);
+        assert!(v2 >= 0.0, "should not overshoot below 0.0: v2={}", v2);
+    }
+
+    #[test]
+    fn scrub_number_dt_cap_prevents_instant_snap() {
+        // When dt is very large (tab was hidden), the cap should prevent instant snap
+        use crate::config::ScrollTriggerConfig;
+        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.15));
+        let inner = ScrollTriggerInner {
+            config: cfg,
+            scroller: Scroller::viewport(),
+            target_source: StoredValue::new_local(None),
+            start_pixels: StoredValue::new_local(0.0),
+            end_pixels: StoredValue::new_local(0.0),
+            progress: RwSignal::new(0.0),
+            direction: RwSignal::new(0),
+            is_active: RwSignal::new(false),
+            velocity: RwSignal::new(0.0),
+            scrub_current: StoredValue::new_local(0.0),
+            scrub_target: StoredValue::new_local(0.0),
+            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
+            scrub_converged: StoredValue::new_local(true),
+            registration_id: StoredValue::new_local(None),
+            enabled: StoredValue::new_local(true),
+            killed: StoredValue::new_local(false),
+            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
+            prev_active: StoredValue::new_local(false),
+            prev_progress: StoredValue::new_local(0.0),
+        };
+        // dt = 10 seconds (600 frames at 60fps — simulates tab hidden for 10s)
+        let (val, _) = step_scrub(&inner, 1.0, 11000.0);
+        // Without the cap, alpha = 1 - exp(-10/0.15) ≈ 1.0 → instant snap to 1.0
+        // With the cap (0.1s), alpha = 1 - exp(-0.1/0.15) ≈ 0.487 → partial step
+        assert!(val < 1.0, "dt cap should prevent instant snap, got {}", val);
+        assert!(val > 0.0, "should still make progress, got {}", val);
+    }
+
+    #[test]
+    fn scrub_bool_true_sets_scrub_current_to_raw() {
+        // Scrub::Bool(true) should set scrub_current = raw and return raw (1:1)
+        use crate::config::ScrollTriggerConfig;
+        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Bool(true));
+        let inner = ScrollTriggerInner {
+            config: cfg,
+            scroller: Scroller::viewport(),
+            target_source: StoredValue::new_local(None),
+            start_pixels: StoredValue::new_local(0.0),
+            end_pixels: StoredValue::new_local(0.0),
+            progress: RwSignal::new(0.0),
+            direction: RwSignal::new(0),
+            is_active: RwSignal::new(false),
+            velocity: RwSignal::new(0.0),
+            scrub_current: StoredValue::new_local(0.5),
+            scrub_target: StoredValue::new_local(0.5),
+            scrub_last_ms: StoredValue::new_local(None),
+            scrub_converged: StoredValue::new_local(true),
+            registration_id: StoredValue::new_local(None),
+            enabled: StoredValue::new_local(true),
+            killed: StoredValue::new_local(false),
+            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
+            prev_active: StoredValue::new_local(false),
+            prev_progress: StoredValue::new_local(0.0),
+        };
+        let (val, converged) = step_scrub(&inner, 0.7, 1000.0);
+        assert_eq!(val, 0.7);
+        assert!(!converged); // Bool(true) never signals convergence
+        assert_eq!(inner.scrub_current.get_value(), 0.7); // scrub_current was updated
+    }
 }

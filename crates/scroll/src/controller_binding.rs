@@ -36,10 +36,11 @@ impl ScrollTrigger {
     ///
     /// The effect's lifetime follows the current reactive owner scope, matching
     /// the lifecycle of `AnimationController::bind` in `crates/motion/src/controller.rs`.
-    pub fn bind_controller<F>(&self, controller: AnimationController, style_fn: F)
-    where
-        F: Fn(f64) -> FluidStyle + 'static,
-    {
+    pub fn bind_controller(
+        &self,
+        controller: AnimationController,
+        style_fn: Box<dyn Fn(f64) -> FluidStyle + 'static>,
+    ) {
         let progress = self.progress();
         Effect::new(move || {
             let p = progress.get();
@@ -59,14 +60,12 @@ impl ScrollTrigger {
     /// If you have no plans to call `controller.animate()` on this controller,
     /// prefer [`ScrollTrigger::bind_controller`] — there is no per-tick
     /// difference between the two methods.
-    pub fn bind_controller_with<F>(
+    pub fn bind_controller_with(
         &self,
         controller: AnimationController,
         transition: leptos_fluid_motion::Transition,
-        style_fn: F,
-    ) where
-        F: Fn(f64) -> FluidStyle + 'static,
-    {
+        style_fn: Box<dyn Fn(f64) -> FluidStyle + 'static>,
+    ) {
         controller.set_transition(transition);
         self.bind_controller(controller, style_fn);
     }
@@ -95,10 +94,10 @@ mod tests {
             let controller = AnimationController::new();
             let observed = RwSignal::new(0u32);
             let observed_handle = observed;
-            trigger.bind_controller(controller, move |p| {
+            trigger.bind_controller(controller, Box::new(move |p| {
                 observed_handle.set((p * 1000.0) as u32);
                 FluidStyle::new().opacity(p)
-            });
+            }));
             any_spawner::Executor::poll_local();
             assert_eq!(observed.get(), 0);
             progress_signal.set(0.5);
@@ -124,10 +123,10 @@ mod tests {
             let controller = AnimationController::new();
             let observed = RwSignal::new(0u32);
             let observed_handle = observed;
-            trigger.bind_controller_with(controller, Transition::default(), move |p| {
+            trigger.bind_controller_with(controller, Transition::default(), Box::new(move |p| {
                 observed_handle.set((p * 1000.0) as u32);
                 FluidStyle::new().opacity(p)
-            });
+            }));
             any_spawner::Executor::poll_local();
             assert_eq!(observed.get(), 0);
             progress_signal.set(0.25);

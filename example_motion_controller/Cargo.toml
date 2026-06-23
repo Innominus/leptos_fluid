@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-leptos_fluid_motion = { path = "../crates/motion", default-features = false, features = ["spring", "controller", "builders", "macros", "timeline", "auto-size"] }
+leptos_fluid_motion = { path = "../crates/motion", default-features = false, features = ["spring", "spring-transition", "controller", "builders", "macros", "timeline", "auto-size"] }
 leptos = { workspace = true }
 console_error_panic_hook = { workspace = true }
 web-sys = { workspace = true, features = ["Element"] }

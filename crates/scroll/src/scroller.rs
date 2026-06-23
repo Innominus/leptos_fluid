@@ -193,7 +193,7 @@ impl Scroller {
     #[cfg(target_arch = "wasm32")]
     pub fn on_scroll(&self, callback: impl Fn() + 'static) -> ScrollListenerHandle {
         match self {
-            Scroller::Viewport => install_window_listener("scroll", callback),
+            Scroller::Viewport => install_window_listener("scroll", Box::new(callback)),
         }
     }
 
@@ -207,7 +207,7 @@ impl Scroller {
     #[cfg(target_arch = "wasm32")]
     pub fn on_resize(&self, callback: impl Fn() + 'static) -> ScrollListenerHandle {
         match self {
-            Scroller::Viewport => install_window_listener("resize", callback),
+            Scroller::Viewport => install_window_listener("resize", Box::new(callback)),
         }
     }
 
@@ -218,7 +218,10 @@ impl Scroller {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn install_window_listener(event: &'static str, callback: impl Fn() + 'static) -> ScrollListenerHandle {
+pub(crate) fn install_window_listener(
+    event: &'static str,
+    callback: Box<dyn Fn() + 'static>,
+) -> ScrollListenerHandle {
     let Some(window) = web_sys::window() else {
         return ScrollListenerHandle::default();
     };

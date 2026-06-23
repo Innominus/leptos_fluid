@@ -165,4 +165,37 @@ mod tests {
         assert_eq!(ScrollDirection::from_i8(0), None);
         assert_eq!(ScrollDirection::from_i8(2), None);
     }
+
+    #[test]
+    fn action_for_on_leave_back_is_none_by_default() {
+        let actions = [Action::Play, Action::None, Action::None, Action::None];
+        assert_eq!(action_for(actions, TogglePhase::OnLeaveBack), Action::None);
+    }
+
+    #[test]
+    fn action_for_on_enter_back_is_none_by_default() {
+        let actions = [Action::Play, Action::None, Action::None, Action::None];
+        assert_eq!(action_for(actions, TogglePhase::OnEnterBack), Action::None);
+    }
+
+    #[test]
+    fn parse_toggle_with_extra_whitespace() {
+        let parsed = parse_toggle_actions("play  none  none  none").unwrap();
+        assert_eq!(parsed, [Action::Play, Action::None, Action::None, Action::None]);
+    }
+
+    #[test]
+    fn parse_toggle_with_leading_trailing_whitespace() {
+        let parsed = parse_toggle_actions("  play none none none  ").unwrap();
+        assert_eq!(parsed, [Action::Play, Action::None, Action::None, Action::None]);
+    }
+
+    #[test]
+    fn parse_toggle_lowercase_mixed_case() {
+        let parsed = parse_toggle_actions("play None NONE none").unwrap();
+        assert_eq!(parsed[0], Action::Play);
+        assert_eq!(parsed[1], Action::None);
+        assert_eq!(parsed[2], Action::None);
+        assert_eq!(parsed[3], Action::None);
+    }
 }

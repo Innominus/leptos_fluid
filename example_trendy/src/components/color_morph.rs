@@ -18,7 +18,7 @@ pub fn ColorMorphSection() -> impl IntoView {
         .start("top 80%")
         .end("bottom 20%")
         .scrub(Scrub::Number(0.15))
-        .bind_controller(controller, |p| {
+        .bind_controller(controller, Box::new(|p| {
             let r = 255.0 + (0.0 - 255.0) * p;
             let g = 45.0 + (71.0 - 45.0) * p;
             let b = 117.0 + (255.0 - 117.0) * p;
@@ -26,7 +26,7 @@ pub fn ColorMorphSection() -> impl IntoView {
                 "background-color",
                 format!("rgba({:.0}, {:.0}, {:.0}, 1.0)", r, g, b),
             )
-        })
+        }))
         .install();
 
     let progress = trigger.progress();

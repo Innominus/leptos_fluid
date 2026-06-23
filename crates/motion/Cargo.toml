@@ -16,17 +16,21 @@ categories = ["wasm", "web-programming", "gui"]
 default = []
 full = [
     "spring",
+    "spring-transition",
     "controller",
     "auto-size",
     "timeline",
     "builders",
     "macros",
+    "interaction",
 ]
 spring = []
+spring-transition = ["spring"]
 controller = ["leptos_fluid_web/style", "leptos_fluid_web/waapi", "web-sys/Element", "web-sys/EventTarget"]
 auto-size = ["controller", "leptos_fluid_web/resize-observer", "web-sys/HtmlElement", "web-sys/DomRect"]
 timeline = ["controller"]
 builders = ["controller"]
+interaction = ["controller"]
 macros = ["builders"]
 bench = []
 

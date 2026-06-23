@@ -178,14 +178,11 @@ impl<State> ScrollTriggerBuilder<State> {
     /// Binds an [`leptos_fluid_motion::AnimationController`] to the trigger,
     /// driven by scroll progress. See
     /// [`ScrollTrigger::bind_controller`](crate::ScrollTrigger::bind_controller).
-    pub fn bind_controller<F>(
+    pub fn bind_controller(
         self,
         controller: leptos_fluid_motion::AnimationController,
-        style_fn: F,
-    ) -> Self
-    where
-        F: Fn(f64) -> leptos_fluid_motion::FluidStyle + 'static,
-    {
+        style_fn: Box<dyn Fn(f64) -> leptos_fluid_motion::FluidStyle + 'static>,
+    ) -> Self {
         self.map(move |state| {
             state.controller_binding = Some(Box::new(move |trigger| {
                 trigger.bind_controller(controller, style_fn);
@@ -196,15 +193,12 @@ impl<State> ScrollTriggerBuilder<State> {
     /// Same as [`Self::bind_controller`] but uses a fixed
     /// [`leptos_fluid_motion::Transition`] override per update. See
     /// [`ScrollTrigger::bind_controller_with`](crate::ScrollTrigger::bind_controller_with).
-    pub fn bind_controller_with<F>(
+    pub fn bind_controller_with(
         self,
         controller: leptos_fluid_motion::AnimationController,
         transition: leptos_fluid_motion::Transition,
-        style_fn: F,
-    ) -> Self
-    where
-        F: Fn(f64) -> leptos_fluid_motion::FluidStyle + 'static,
-    {
+        style_fn: Box<dyn Fn(f64) -> leptos_fluid_motion::FluidStyle + 'static>,
+    ) -> Self {
         self.map(move |state| {
             state.controller_binding = Some(Box::new(move |trigger| {
                 trigger.bind_controller_with(controller, transition, style_fn);

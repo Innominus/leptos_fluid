@@ -271,8 +271,8 @@ macro_rules! when {
         let __fluid_controller = $controller;
         $(
             $crate::__private::watch_on_change(
-                move || $watch,
-                {
+                Box::new(move || $watch),
+                Box::new({
                     let __fluid_controller = __fluid_controller;
                     move |__fluid_value| match __fluid_value {
                         $(
@@ -284,7 +284,7 @@ macro_rules! when {
                             }
                         ),+
                     }
-                },
+                }),
             );
         )+
     }};
@@ -299,8 +299,8 @@ macro_rules! when {
         let __fluid_timeline = $timeline;
         $(
             $crate::__private::watch_on_change(
-                move || $watch,
-                {
+                Box::new(move || $watch),
+                Box::new({
                     let __fluid_timeline = __fluid_timeline;
                     move |__fluid_value| match __fluid_value {
                         $(
@@ -312,7 +312,7 @@ macro_rules! when {
                             }
                         ),+
                     }
-                },
+                }),
             );
         )+
     }};

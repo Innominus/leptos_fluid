@@ -17,12 +17,12 @@ pub fn ScrubCardSection() -> impl IntoView {
         .start("top center")
         .end("bottom center")
         .scrub(Scrub::Bool(true))
-        .bind_controller(controller, |p| {
+        .bind_controller(controller, Box::new(|p| {
             FluidStyle::new()
                 .opacity(p)
                 .scale(0.8 + p * 0.2)
                 .y(100.0 - p * 100.0)
-        })
+        }))
         .install();
 
     let progress = trigger.progress();

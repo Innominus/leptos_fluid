@@ -327,4 +327,16 @@ mod tests {
     fn reduced_motion_default_is_ignore() {
         assert_eq!(ReducedMotion::default(), ReducedMotion::Ignore);
     }
+
+    #[test]
+    fn reduced_motion_respect_is_not_ignore() {
+        assert_ne!(ReducedMotion::Respect, ReducedMotion::Ignore);
+    }
+
+    #[test]
+    fn reduced_motion_is_copy() {
+        let mode = ReducedMotion::Respect;
+        let copied = mode;
+        assert_eq!(mode, copied);
+    }
 }

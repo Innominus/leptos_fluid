@@ -91,7 +91,7 @@ impl AnimationController {
         OnChange: FnMut(T, AnimationController) + 'static,
     {
         let controller = *self;
-        watch_on_change(source, move |next| on_change(next, controller));
+        watch_on_change(Box::new(source), Box::new(move |next| on_change(next, controller)));
     }
 }
 
@@ -222,7 +222,7 @@ impl FluidTimeline {
         OnChange: FnMut(T, FluidTimeline) + 'static,
     {
         let timeline = *self;
-        watch_on_change(source, move |next| on_change(next, timeline));
+        watch_on_change(Box::new(source), Box::new(move |next| on_change(next, timeline)));
     }
 }
 

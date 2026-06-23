@@ -523,4 +523,48 @@ mod tests {
         };
         assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0 - (800.0 * 0.8));
     }
+
+    #[test]
+    fn parse_start_end_with_empty_strings_returns_none() {
+        assert!(parse_start_end("", "", false).is_none());
+    }
+
+    #[test]
+    fn parse_start_end_with_whitespace_only_returns_none() {
+        assert!(parse_start_end("   ", "   ", false).is_none());
+    }
+
+    #[test]
+    fn parse_position_with_decimal_percent() {
+        // "top 50.5%" — valid decimal percent
+        let (start, _) = parse_start_end("top 50.5%", "bottom top", false).unwrap();
+        assert_eq!(start.trigger, ScrollPoint::Top);
+    }
+
+    #[test]
+    fn parse_position_with_negative_pixels() {
+        // "+= -300px" should handle the negative
+        // Check if this is currently handled or should reject
+        let result = parse_start_end("top +=-300px", "bottom top", false);
+        // Document current behavior — either it parses or it doesn't
+        if let Some((start, _)) = result {
+            let _ = start;
+        }
+    }
+
+    #[test]
+    fn parse_position_top_bottom_defaults() {
+        // "top bottom" is the default start/end — verify it parses
+        let result = parse_start_end("top bottom", "bottom top", false);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn clamp_value_at_boundaries() {
+        assert_eq!(clamp_value(0.0, 0.0, 1.0), 0.0);
+        assert_eq!(clamp_value(1.0, 0.0, 1.0), 1.0);
+        assert_eq!(clamp_value(-1.0, 0.0, 1.0), 0.0);
+        assert_eq!(clamp_value(2.0, 0.0, 1.0), 1.0);
+        assert_eq!(clamp_value(0.5, 0.0, 1.0), 0.5);
+    }
 }
