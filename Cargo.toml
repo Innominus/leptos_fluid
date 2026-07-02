@@ -14,6 +14,7 @@ members = [
     "example_trendy",
     "tools/playwright_regression",
     "tools/playwright_regression_controller",
+    "tools/playwright_regression_trendy",
 ]
 resolver = "2"
 

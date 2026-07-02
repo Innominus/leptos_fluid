@@ -155,134 +155,150 @@ impl Default for VelocityTracker {
 mod tests {
     use super::*;
 
-    #[test]
-    fn clamps_progress() {
-        let ev = ScrollTriggerEvent::new(-1.0, 1, true, 10.0);
-        assert_eq!(ev.progress, 0.0);
-        let ev = ScrollTriggerEvent::new(2.0, 1, true, 10.0);
-        assert_eq!(ev.progress, 1.0);
-        let ev = ScrollTriggerEvent::new(0.5, 1, true, 10.0);
-        assert_eq!(ev.progress, 0.5);
-    }
+    mod event {
+        use super::*;
 
-    #[test]
-    fn default_matches_new() {
-        assert_eq!(VelocityTracker::default().window_ms, VelocityTracker::new().window_ms);
-    }
-
-    #[test]
-    fn velocity_with_two_samples() {
-        let mut tracker = VelocityTracker::with_window(2000.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(1000.0, 500.0);
-        assert_eq!(tracker.velocity(), 500.0);
-    }
-
-    #[test]
-    fn velocity_evicts_old_samples() {
-        let mut tracker = VelocityTracker::with_window(150.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(50.0, 100.0);
-        tracker.push(200.0, 200.0);
-        assert_eq!(tracker.len(), 2);
-        assert_eq!(tracker.velocity(), (200.0 - 100.0) / ((200.0 - 50.0) / 1000.0));
-    }
-
-    #[test]
-    fn velocity_zero_for_fewer_than_two_samples() {
-        let mut tracker = VelocityTracker::new();
-        assert_eq!(tracker.velocity(), 0.0);
-        tracker.push(100.0, 50.0);
-        assert_eq!(tracker.velocity(), 0.0);
-    }
-
-    #[test]
-    fn velocity_zero_for_zero_time_delta() {
-        let mut tracker = VelocityTracker::new();
-        tracker.push(100.0, 50.0);
-        tracker.push(100.0, 150.0);
-        assert_eq!(tracker.velocity(), 0.0);
-    }
-
-    #[test]
-    fn velocity_zero_after_idle() {
-        // GSAP-parity: after 500ms of inactivity the velocity drops to 0 so
-        // stale samples (e.g. from a paused rAF loop) don't report motion.
-        let mut tracker = VelocityTracker::with_window(2000.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(100.0, 500.0);
-        // 600ms after the newest sample (> 500ms idle threshold) → 0.0.
-        assert_eq!(tracker.velocity_now(700.0), 0.0);
-        // 400ms after the newest sample (< 500ms) → real velocity
-        // (500px over 0.1s = 5000 px/s).
-        assert_eq!(tracker.velocity_now(500.0), 5000.0);
-    }
-
-    #[test]
-    fn velocity_negative_scroll_direction() {
-        // Scrolling up should produce negative velocity
-        let mut tracker = VelocityTracker::with_window(1000.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(100.0, -500.0); // -500px in 100ms = -5000 px/s
-        assert_eq!(tracker.velocity(), -5000.0);
-    }
-
-    #[test]
-    fn velocity_full_ring_buffer_overwrites_oldest() {
-        // Push 33+ samples to test ring buffer overflow (CAP=32)
-        let mut tracker = VelocityTracker::with_window(10000.0);
-        for i in 0..35 {
-            tracker.push(i as f64 * 10.0, i as f64);
+        #[test]
+        fn clamps_progress() {
+            let ev = ScrollTriggerEvent::new(-1.0, 1, true, 10.0);
+            assert_eq!(ev.progress, 0.0);
+            let ev = ScrollTriggerEvent::new(2.0, 1, true, 10.0);
+            assert_eq!(ev.progress, 1.0);
+            let ev = ScrollTriggerEvent::new(0.5, 1, true, 10.0);
+            assert_eq!(ev.progress, 0.5);
         }
-        // The oldest samples (0, 1, ...) should be evicted
-        // Velocity should use only the last 32 samples
-        assert!(tracker.velocity() > 0.0);
-        // len should never exceed CAP
-        assert_eq!(tracker.len(), 32);
     }
 
-    #[test]
-    fn velocity_zero_after_window_expiry() {
-        // Samples older than window should be evicted
-        let mut tracker = VelocityTracker::with_window(50.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(100.0, 500.0); // 100ms later, window is 50ms → first sample evicted
-        // Only 1 sample left → velocity 0
-        assert_eq!(tracker.velocity(), 0.0);
+    mod velocity_basic {
+        use super::*;
+
+        #[test]
+        fn default_matches_new() {
+            assert_eq!(VelocityTracker::default().window_ms, VelocityTracker::new().window_ms);
+        }
+
+        #[test]
+        fn velocity_with_two_samples() {
+            let mut tracker = VelocityTracker::with_window(2000.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(1000.0, 500.0);
+            assert_eq!(tracker.velocity(), 500.0);
+        }
+
+        #[test]
+        fn velocity_zero_for_fewer_than_two_samples() {
+            let mut tracker = VelocityTracker::new();
+            assert_eq!(tracker.velocity(), 0.0);
+            tracker.push(100.0, 50.0);
+            assert_eq!(tracker.velocity(), 0.0);
+        }
+
+        #[test]
+        fn velocity_zero_for_zero_time_delta() {
+            let mut tracker = VelocityTracker::new();
+            tracker.push(100.0, 50.0);
+            tracker.push(100.0, 150.0);
+            assert_eq!(tracker.velocity(), 0.0);
+        }
     }
 
-    #[test]
-    fn velocity_now_after_idle_drops_to_zero() {
-        // velocity_now should return 0 when now is >500ms after last sample
-        let mut tracker = VelocityTracker::with_window(1000.0);
-        tracker.push(0.0, 0.0);
-        tracker.push(100.0, 500.0);
-        // velocity at t=100 is 5000 px/s
-        assert_eq!(tracker.velocity_now(100.0), 5000.0);
-        // velocity at t=701 (601ms after last sample) should be 0
-        assert_eq!(tracker.velocity_now(701.0), 0.0);
-        // velocity at t=600 (exactly 500ms after last sample): the guard is
-        // `now - back_time > 500.0`, so exactly 500ms is NOT dropped — the
-        // boundary is exclusive (mirrors the existing velocity_zero_after_idle
-        // test which asserts 5000 at t=600 / back_time=100).
-        assert_eq!(tracker.velocity_now(600.0), 5000.0);
-        // velocity at t=601 (501ms after last sample) should be 0
-        assert_eq!(tracker.velocity_now(601.0), 0.0);
-        // velocity at t=599 (499ms after last sample) should still be 5000
-        assert_eq!(tracker.velocity_now(599.0), 5000.0);
+    mod velocity_edge_cases {
+        use super::*;
+
+        #[test]
+        fn velocity_evicts_old_samples() {
+            let mut tracker = VelocityTracker::with_window(150.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(50.0, 100.0);
+            tracker.push(200.0, 200.0);
+            assert_eq!(tracker.len(), 2);
+            assert_eq!(tracker.velocity(), (200.0 - 100.0) / ((200.0 - 50.0) / 1000.0));
+        }
+
+        #[test]
+        fn velocity_negative_scroll_direction() {
+            // Scrolling up should produce negative velocity
+            let mut tracker = VelocityTracker::with_window(1000.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(100.0, -500.0); // -500px in 100ms = -5000 px/s
+            assert_eq!(tracker.velocity(), -5000.0);
+        }
+
+        #[test]
+        fn velocity_full_ring_buffer_overwrites_oldest() {
+            // Push 33+ samples to test ring buffer overflow (CAP=32)
+            let mut tracker = VelocityTracker::with_window(10000.0);
+            for i in 0..35 {
+                tracker.push(i as f64 * 10.0, i as f64);
+            }
+            // The oldest samples (0, 1, ...) should be evicted
+            // Velocity should use only the last 32 samples
+            assert!(tracker.velocity() > 0.0);
+            // len should never exceed CAP
+            assert_eq!(tracker.len(), 32);
+        }
+
+        #[test]
+        fn velocity_zero_after_window_expiry() {
+            // Samples older than window should be evicted
+            let mut tracker = VelocityTracker::with_window(50.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(100.0, 500.0); // 100ms later, window is 50ms → first sample evicted
+            // Only 1 sample left → velocity 0
+            assert_eq!(tracker.velocity(), 0.0);
+        }
+
+        #[test]
+        fn velocity_concurrent_push_and_query() {
+            // Push and query in interleaved fashion
+            let mut tracker = VelocityTracker::with_window(1000.0);
+            tracker.push(0.0, 0.0);
+            assert_eq!(tracker.velocity(), 0.0); // 1 sample
+            tracker.push(50.0, 100.0);
+            assert_eq!(tracker.velocity(), 2000.0); // 100px / 0.05s
+            tracker.push(100.0, 200.0);
+            assert_eq!(tracker.velocity(), 2000.0); // 200px / 0.1s
+            tracker.push(150.0, 150.0); // direction reversal
+            assert!(tracker.velocity() < 2000.0); // velocity drops
+        }
     }
 
-    #[test]
-    fn velocity_concurrent_push_and_query() {
-        // Push and query in interleaved fashion
-        let mut tracker = VelocityTracker::with_window(1000.0);
-        tracker.push(0.0, 0.0);
-        assert_eq!(tracker.velocity(), 0.0); // 1 sample
-        tracker.push(50.0, 100.0);
-        assert_eq!(tracker.velocity(), 2000.0); // 100px / 0.05s
-        tracker.push(100.0, 200.0);
-        assert_eq!(tracker.velocity(), 2000.0); // 200px / 0.1s
-        tracker.push(150.0, 150.0); // direction reversal
-        assert!(tracker.velocity() < 2000.0); // velocity drops
+    mod velocity_idle_drop {
+        use super::*;
+
+        #[test]
+        fn velocity_zero_after_idle() {
+            // GSAP-parity: after 500ms of inactivity the velocity drops to 0 so
+            // stale samples (e.g. from a paused rAF loop) don't report motion.
+            let mut tracker = VelocityTracker::with_window(2000.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(100.0, 500.0);
+            // 600ms after the newest sample (> 500ms idle threshold) → 0.0.
+            assert_eq!(tracker.velocity_now(700.0), 0.0);
+            // 400ms after the newest sample (< 500ms) → real velocity
+            // (500px over 0.1s = 5000 px/s).
+            assert_eq!(tracker.velocity_now(500.0), 5000.0);
+        }
+
+        #[test]
+        fn velocity_now_after_idle_drops_to_zero() {
+            // velocity_now should return 0 when now is >500ms after last sample
+            let mut tracker = VelocityTracker::with_window(1000.0);
+            tracker.push(0.0, 0.0);
+            tracker.push(100.0, 500.0);
+            // velocity at t=100 is 5000 px/s
+            assert_eq!(tracker.velocity_now(100.0), 5000.0);
+            // velocity at t=701 (601ms after last sample) should be 0
+            assert_eq!(tracker.velocity_now(701.0), 0.0);
+            // velocity at t=600 (exactly 500ms after last sample): the guard is
+            // `now - back_time > 500.0`, so exactly 500ms is NOT dropped — the
+            // boundary is exclusive (mirrors the existing velocity_zero_after_idle
+            // test which asserts 5000 at t=600 / back_time=100).
+            assert_eq!(tracker.velocity_now(600.0), 5000.0);
+            // velocity at t=601 (501ms after last sample) should be 0
+            assert_eq!(tracker.velocity_now(601.0), 0.0);
+            // velocity at t=599 (499ms after last sample) should still be 5000
+            assert_eq!(tracker.velocity_now(599.0), 5000.0);
+        }
     }
 }

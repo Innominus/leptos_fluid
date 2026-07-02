@@ -630,71 +630,24 @@ fn step_scrub(inner: &ScrollTriggerInner, raw: f64, now_ms: f64) -> (f64, bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ScrollTriggerConfig;
     use crate::position::{ScrollOffset, ScrollPosition};
+    use std::cell::Cell;
+    use std::rc::Rc;
 
-    #[test]
-    fn raw_progress_clamps_at_boundaries() {
-        assert!((raw_progress(100.0, 100.0, 200.0) - 0.0).abs() < 1e-9);
-        assert!((raw_progress(150.0, 100.0, 200.0) - 0.5).abs() < 1e-9);
-        assert!((raw_progress(250.0, 100.0, 200.0) - 1.5).abs() < 1e-9);
-    }
-
-    #[test]
-    fn raw_progress_handles_zero_range() {
-        assert_eq!(raw_progress(50.0, 100.0, 100.0), 0.0);
-        assert_eq!(raw_progress(150.0, 100.0, 100.0), 1.0);
-    }
-
-    #[test]
-    fn phase_transition_maps_correctly() {
-        assert_eq!(phase_transition(false, true, 1), TogglePhase::OnEnter);
-        assert_eq!(phase_transition(true, false, 1), TogglePhase::OnLeave);
-        assert_eq!(phase_transition(false, true, -1), TogglePhase::OnEnterBack);
-        assert_eq!(phase_transition(true, false, -1), TogglePhase::OnLeaveBack);
-    }
-
-    #[test]
-    fn resolve_end_pixels_absolute_uses_resolve_start() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let end_pos = ScrollPosition {
-            trigger: crate::position::ScrollPoint::Bottom,
-            scroller: ScrollOffset::Absolute(crate::position::ScrollPoint::Top),
-        };
-        assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1200.0);
-    }
-
-    #[test]
-    fn resolve_end_pixels_relative_pixels_adds_to_start() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let end_pos = ScrollPosition {
-            trigger: crate::position::ScrollPoint::Top,
-            scroller: ScrollOffset::Relative {
-                pixels: 300.0,
-                percent_of_scroller: false,
-            },
-        };
-        assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1300.0);
-    }
-
-    #[test]
-    fn resolve_end_pixels_relative_percent_uses_viewport() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let end_pos = ScrollPosition {
-            trigger: crate::position::ScrollPoint::Top,
-            scroller: ScrollOffset::Relative {
-                pixels: 50.0,
-                percent_of_scroller: true,
-            },
-        };
-        assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1400.0);
-    }
-
-    #[test]
-    fn scrub_bool_false_exposes_raw() {
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Bool(false));
-        let inner = ScrollTriggerInner {
-            config: cfg,
+    /// Builds a `ScrollTriggerInner` with `scrub = Scrub::Bool(false)` and the
+    /// given scrub state. Mirrors the literal used by the existing scrub tests
+    /// so each test stays self-contained without duplicating the full struct
+    /// field list.
+    fn inner_with_scrub(
+        scrub: Scrub,
+        scrub_current: f64,
+        scrub_target: f64,
+        scrub_last_ms: Option<f64>,
+        scrub_converged: bool,
+    ) -> ScrollTriggerInner {
+        ScrollTriggerInner {
+            config: ScrollTriggerConfig::default().scrub(scrub),
             scroller: Scroller::viewport(),
             target_source: StoredValue::new_local(None),
             start_pixels: StoredValue::new_local(0.0),
@@ -703,212 +656,813 @@ mod tests {
             direction: RwSignal::new(0),
             is_active: RwSignal::new(false),
             velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.0),
-            scrub_target: StoredValue::new_local(0.0),
-            scrub_last_ms: StoredValue::new_local(None),
-            scrub_converged: StoredValue::new_local(true),
+            scrub_current: StoredValue::new_local(scrub_current),
+            scrub_target: StoredValue::new_local(scrub_target),
+            scrub_last_ms: StoredValue::new_local(scrub_last_ms),
+            scrub_converged: StoredValue::new_local(scrub_converged),
             registration_id: StoredValue::new_local(None),
             enabled: StoredValue::new_local(true),
             killed: StoredValue::new_local(false),
             velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
             prev_active: StoredValue::new_local(false),
             prev_progress: StoredValue::new_local(0.0),
-        };
-        assert_eq!(step_scrub(&inner, 0.7, 1000.0).0, 0.7);
-    }
-
-    #[test]
-    fn scrub_number_eases_toward_target() {
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.3));
-        let inner = ScrollTriggerInner {
-            config: cfg,
-            scroller: Scroller::viewport(),
-            target_source: StoredValue::new_local(None),
-            start_pixels: StoredValue::new_local(0.0),
-            end_pixels: StoredValue::new_local(0.0),
-            progress: RwSignal::new(0.0),
-            direction: RwSignal::new(0),
-            is_active: RwSignal::new(false),
-            velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.0),
-            scrub_target: StoredValue::new_local(0.0),
-            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
-            scrub_converged: StoredValue::new_local(true),
-            registration_id: StoredValue::new_local(None),
-            enabled: StoredValue::new_local(true),
-            killed: StoredValue::new_local(false),
-            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
-            prev_active: StoredValue::new_local(false),
-            prev_progress: StoredValue::new_local(0.0),
-        };
-        let first = step_scrub(&inner, 1.0, 1050.0).0;
-        assert!(first > 0.0 && first < 1.0);
-        let second = step_scrub(&inner, 1.0, 1100.0).0;
-        assert!(second > first && second < 1.0);
-    }
-
-    // GSAP-parity: documents that `prefers-reduced-motion` accommodation is a
-    // wasm-only behavior. On host targets `reduced_motion_snaps_scrub()` always
-    // returns `false`, so the smoothing-skip path never fires in host tests —
-    // the real gating is exercised in browser wasm.
-    #[test]
-    fn reduced_motion_no_op_on_host() {
-        engine::set_reduced_motion(crate::config::ReducedMotion::Respect);
-        assert!(!engine::reduced_motion_snaps_scrub());
-        engine::set_reduced_motion(crate::config::ReducedMotion::Ignore);
-        assert!(!engine::reduced_motion_snaps_scrub());
-    }
-
-    #[test]
-    fn scrub_number_converges_to_target() {
-        // After many steps with the same target, scrub should converge
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.15));
-        let inner = ScrollTriggerInner {
-            config: cfg,
-            scroller: Scroller::viewport(),
-            target_source: StoredValue::new_local(None),
-            start_pixels: StoredValue::new_local(0.0),
-            end_pixels: StoredValue::new_local(0.0),
-            progress: RwSignal::new(0.0),
-            direction: RwSignal::new(0),
-            is_active: RwSignal::new(false),
-            velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.0),
-            scrub_target: StoredValue::new_local(0.0),
-            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
-            scrub_converged: StoredValue::new_local(true),
-            registration_id: StoredValue::new_local(None),
-            enabled: StoredValue::new_local(true),
-            killed: StoredValue::new_local(false),
-            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
-            prev_active: StoredValue::new_local(false),
-            prev_progress: StoredValue::new_local(0.0),
-        };
-        let mut current = 0.0;
-        // Start at t=1016 so the first frame has dt=0.016s (nonzero), which
-        // eases current toward target instead of snapping dt=0 → next=raw=1.0
-        // while scrub_converged is still `true` (which would suppress the
-        // false→true convergence edge).
-        let mut time = 1016.0;
-        // Step toward target=1.0 for 120 frames at 16ms intervals
-        for _ in 0..120 {
-            let (val, converged) = step_scrub(&inner, 1.0, time);
-            current = val;
-            time += 16.0;
-            if converged {
-                // Once converged, value should be exactly the target
-                assert!(
-                    (current - 1.0).abs() < 1e-4,
-                    "should converge to target, got {}",
-                    current
-                );
-                return;
-            }
         }
-        // After 120 frames at t=0.15, should have converged
-        panic!("did not converge after 120 frames, last value: {}", current);
     }
 
-    #[test]
-    fn scrub_number_reverses_direction() {
-        // When target changes direction, scrub should follow without overshooting
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.3));
-        let inner = ScrollTriggerInner {
-            config: cfg,
-            scroller: Scroller::viewport(),
-            target_source: StoredValue::new_local(None),
-            start_pixels: StoredValue::new_local(0.0),
-            end_pixels: StoredValue::new_local(0.0),
-            progress: RwSignal::new(0.0),
-            direction: RwSignal::new(0),
-            is_active: RwSignal::new(false),
-            velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.0),
-            scrub_target: StoredValue::new_local(0.0),
-            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
-            scrub_converged: StoredValue::new_local(true),
-            registration_id: StoredValue::new_local(None),
-            enabled: StoredValue::new_local(true),
-            killed: StoredValue::new_local(false),
-            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
-            prev_active: StoredValue::new_local(false),
-            prev_progress: StoredValue::new_local(0.0),
-        };
-        // Step toward 1.0
-        let (v1, _) = step_scrub(&inner, 1.0, 1050.0);
-        assert!(v1 > 0.0 && v1 < 1.0);
-        // Now step toward 0.0 (direction reversal)
-        let (v2, _) = step_scrub(&inner, 0.0, 1100.0);
-        assert!(v2 < v1, "reversal should decrease: v1={}, v2={}", v1, v2);
-        assert!(v2 >= 0.0, "should not overshoot below 0.0: v2={}", v2);
+    mod raw_progress {
+        use super::*;
+
+        #[test]
+        fn raw_progress_clamps_at_boundaries() {
+            assert!((raw_progress(100.0, 100.0, 200.0) - 0.0).abs() < 1e-9);
+            assert!((raw_progress(150.0, 100.0, 200.0) - 0.5).abs() < 1e-9);
+            assert!((raw_progress(250.0, 100.0, 200.0) - 1.5).abs() < 1e-9);
+        }
+
+        #[test]
+        fn raw_progress_handles_zero_range() {
+            assert_eq!(raw_progress(50.0, 100.0, 100.0), 0.0);
+            assert_eq!(raw_progress(150.0, 100.0, 100.0), 1.0);
+        }
     }
 
-    #[test]
-    fn scrub_number_dt_cap_prevents_instant_snap() {
-        // When dt is very large (tab was hidden), the cap should prevent instant snap
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Number(0.15));
-        let inner = ScrollTriggerInner {
-            config: cfg,
-            scroller: Scroller::viewport(),
-            target_source: StoredValue::new_local(None),
-            start_pixels: StoredValue::new_local(0.0),
-            end_pixels: StoredValue::new_local(0.0),
-            progress: RwSignal::new(0.0),
-            direction: RwSignal::new(0),
-            is_active: RwSignal::new(false),
-            velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.0),
-            scrub_target: StoredValue::new_local(0.0),
-            scrub_last_ms: StoredValue::new_local(Some(1000.0)),
-            scrub_converged: StoredValue::new_local(true),
-            registration_id: StoredValue::new_local(None),
-            enabled: StoredValue::new_local(true),
-            killed: StoredValue::new_local(false),
-            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
-            prev_active: StoredValue::new_local(false),
-            prev_progress: StoredValue::new_local(0.0),
-        };
-        // dt = 10 seconds (600 frames at 60fps — simulates tab hidden for 10s)
-        let (val, _) = step_scrub(&inner, 1.0, 11000.0);
-        // Without the cap, alpha = 1 - exp(-10/0.15) ≈ 1.0 → instant snap to 1.0
-        // With the cap (0.1s), alpha = 1 - exp(-0.1/0.15) ≈ 0.487 → partial step
-        assert!(val < 1.0, "dt cap should prevent instant snap, got {}", val);
-        assert!(val > 0.0, "should still make progress, got {}", val);
+    mod phase_transitions {
+        use super::*;
+
+        #[test]
+        fn phase_transition_maps_correctly() {
+            assert_eq!(phase_transition(false, true, 1), TogglePhase::OnEnter);
+            assert_eq!(phase_transition(true, false, 1), TogglePhase::OnLeave);
+            assert_eq!(phase_transition(false, true, -1), TogglePhase::OnEnterBack);
+            assert_eq!(phase_transition(true, false, -1), TogglePhase::OnLeaveBack);
+        }
     }
 
-    #[test]
-    fn scrub_bool_true_sets_scrub_current_to_raw() {
-        // Scrub::Bool(true) should set scrub_current = raw and return raw (1:1)
-        use crate::config::ScrollTriggerConfig;
-        let cfg = ScrollTriggerConfig::default().scrub(Scrub::Bool(true));
-        let inner = ScrollTriggerInner {
-            config: cfg,
-            scroller: Scroller::viewport(),
-            target_source: StoredValue::new_local(None),
-            start_pixels: StoredValue::new_local(0.0),
-            end_pixels: StoredValue::new_local(0.0),
-            progress: RwSignal::new(0.0),
-            direction: RwSignal::new(0),
-            is_active: RwSignal::new(false),
-            velocity: RwSignal::new(0.0),
-            scrub_current: StoredValue::new_local(0.5),
-            scrub_target: StoredValue::new_local(0.5),
-            scrub_last_ms: StoredValue::new_local(None),
-            scrub_converged: StoredValue::new_local(true),
-            registration_id: StoredValue::new_local(None),
-            enabled: StoredValue::new_local(true),
-            killed: StoredValue::new_local(false),
-            velocity_tracker: StoredValue::new_local(VelocityTracker::new()),
-            prev_active: StoredValue::new_local(false),
-            prev_progress: StoredValue::new_local(0.0),
-        };
-        let (val, converged) = step_scrub(&inner, 0.7, 1000.0);
-        assert_eq!(val, 0.7);
-        assert!(!converged); // Bool(true) never signals convergence
-        assert_eq!(inner.scrub_current.get_value(), 0.7); // scrub_current was updated
+    mod resolve_end_pixels {
+        use super::*;
+
+        #[test]
+        fn resolve_end_pixels_absolute_uses_resolve_start() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let end_pos = ScrollPosition {
+                trigger: crate::position::ScrollPoint::Bottom,
+                scroller: ScrollOffset::Absolute(crate::position::ScrollPoint::Top),
+            };
+            assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1200.0);
+        }
+
+        #[test]
+        fn resolve_end_pixels_relative_pixels_adds_to_start() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let end_pos = ScrollPosition {
+                trigger: crate::position::ScrollPoint::Top,
+                scroller: ScrollOffset::Relative {
+                    pixels: 300.0,
+                    percent_of_scroller: false,
+                },
+            };
+            assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1300.0);
+        }
+
+        #[test]
+        fn resolve_end_pixels_relative_percent_uses_viewport() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let end_pos = ScrollPosition {
+                trigger: crate::position::ScrollPoint::Top,
+                scroller: ScrollOffset::Relative {
+                    pixels: 50.0,
+                    percent_of_scroller: true,
+                },
+            };
+            assert_eq!(resolve_end_pixels(rect, 800.0, 1000.0, &end_pos), 1400.0);
+        }
+    }
+
+    mod scrub_smoothing {
+        use super::*;
+
+        #[test]
+        fn scrub_bool_false_exposes_raw() {
+            let inner = inner_with_scrub(Scrub::Bool(false), 0.0, 0.0, None, true);
+            assert_eq!(step_scrub(&inner, 0.7, 1000.0).0, 0.7);
+        }
+
+        #[test]
+        fn scrub_bool_true_sets_scrub_current_to_raw() {
+            // Scrub::Bool(true) should set scrub_current = raw and return raw (1:1)
+            let inner = inner_with_scrub(Scrub::Bool(true), 0.5, 0.5, None, true);
+            let (val, converged) = step_scrub(&inner, 0.7, 1000.0);
+            assert_eq!(val, 0.7);
+            assert!(!converged); // Bool(true) never signals convergence
+            assert_eq!(inner.scrub_current.get_value(), 0.7); // scrub_current was updated
+        }
+
+        #[test]
+        fn scrub_number_eases_toward_target() {
+            let inner = inner_with_scrub(Scrub::Number(0.3), 0.0, 0.0, Some(1000.0), true);
+            let first = step_scrub(&inner, 1.0, 1050.0).0;
+            assert!(first > 0.0 && first < 1.0);
+            let second = step_scrub(&inner, 1.0, 1100.0).0;
+            assert!(second > first && second < 1.0);
+        }
+
+        #[test]
+        fn scrub_number_converges_to_target() {
+            // After many steps with the same target, scrub should converge
+            let inner = inner_with_scrub(Scrub::Number(0.15), 0.0, 0.0, Some(1000.0), true);
+            let mut current = 0.0;
+            // Start at t=1016 so the first frame has dt=0.016s (nonzero), which
+            // eases current toward target instead of snapping dt=0 → next=raw=1.0
+            // while scrub_converged is still `true` (which would suppress the
+            // false→true convergence edge).
+            let mut time = 1016.0;
+            // Step toward target=1.0 for 120 frames at 16ms intervals
+            for _ in 0..120 {
+                let (val, converged) = step_scrub(&inner, 1.0, time);
+                current = val;
+                time += 16.0;
+                if converged {
+                    // Once converged, value should be exactly the target
+                    assert!(
+                        (current - 1.0).abs() < 1e-4,
+                        "should converge to target, got {}",
+                        current
+                    );
+                    return;
+                }
+            }
+            // After 120 frames at t=0.15, should have converged
+            panic!("did not converge after 120 frames, last value: {}", current);
+        }
+
+        #[test]
+        fn scrub_number_reverses_direction() {
+            // When target changes direction, scrub should follow without overshooting
+            let inner = inner_with_scrub(Scrub::Number(0.3), 0.0, 0.0, Some(1000.0), true);
+            // Step toward 1.0
+            let (v1, _) = step_scrub(&inner, 1.0, 1050.0);
+            assert!(v1 > 0.0 && v1 < 1.0);
+            // Now step toward 0.0 (direction reversal)
+            let (v2, _) = step_scrub(&inner, 0.0, 1100.0);
+            assert!(v2 < v1, "reversal should decrease: v1={}, v2={}", v1, v2);
+            assert!(v2 >= 0.0, "should not overshoot below 0.0: v2={}", v2);
+        }
+
+        #[test]
+        fn scrub_number_dt_cap_prevents_instant_snap() {
+            // When dt is very large (tab was hidden), the cap should prevent instant snap
+            let inner = inner_with_scrub(Scrub::Number(0.15), 0.0, 0.0, Some(1000.0), true);
+            // dt = 10 seconds (600 frames at 60fps — simulates tab hidden for 10s)
+            let (val, _) = step_scrub(&inner, 1.0, 11000.0);
+            // Without the cap, alpha = 1 - exp(-10/0.15) ≈ 1.0 → instant snap to 1.0
+            // With the cap (0.1s), alpha = 1 - exp(-0.1/0.15) ≈ 0.487 → partial step
+            assert!(val < 1.0, "dt cap should prevent instant snap, got {}", val);
+            assert!(val > 0.0, "should still make progress, got {}", val);
+        }
+    }
+
+    mod reduced_motion {
+        use super::*;
+
+        // GSAP-parity: documents that `prefers-reduced-motion` accommodation is a
+        // wasm-only behavior. On host targets `reduced_motion_snaps_scrub()` always
+        // returns `false`, so the smoothing-skip path never fires in host tests —
+        // the real gating is exercised in browser wasm.
+        #[test]
+        fn reduced_motion_no_op_on_host() {
+            engine::set_reduced_motion(crate::config::ReducedMotion::Respect);
+            assert!(!engine::reduced_motion_snaps_scrub());
+            engine::set_reduced_motion(crate::config::ReducedMotion::Ignore);
+            assert!(!engine::reduced_motion_snaps_scrub());
+        }
+    }
+
+    mod lifecycle {
+        use super::*;
+
+        #[test]
+        fn kill_is_idempotent() {
+            let trigger =
+                ScrollTrigger::host_test_trigger(ScrollTriggerConfig::default(), 0.0, false, 0);
+            trigger.kill();
+            assert!(trigger.is_killed());
+            // Second kill should not panic
+            trigger.kill();
+            assert!(trigger.is_killed());
+        }
+
+        #[test]
+        fn kill_sets_killed_flag() {
+            let trigger =
+                ScrollTrigger::host_test_trigger(ScrollTriggerConfig::default(), 0.0, false, 0);
+            assert!(!trigger.is_killed());
+            trigger.kill();
+            assert!(trigger.is_killed());
+        }
+
+        #[test]
+        fn disabled_trigger_engine_update_returns_false() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            trigger.disable();
+            // engine_update should return false (not needs_more_smoothing) when disabled
+            let needs_more = trigger.engine_update(100.0, 0.0, 1000.0);
+            assert!(!needs_more);
+        }
+
+        #[test]
+        fn killed_trigger_engine_update_returns_false() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            trigger.kill();
+            let needs_more = trigger.engine_update(100.0, 0.0, 1000.0);
+            assert!(!needs_more);
+        }
+
+        #[test]
+        fn enable_re_enables_trigger() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            trigger.disable();
+            // engine_update returns false when disabled
+            assert!(!trigger.engine_update(100.0, 0.0, 1000.0));
+            trigger.enable();
+            // After enable, engine_update should work (refresh re-runs, but on host
+            // with no target, start/end are 0 so progress is always 1.0 or 0.0)
+            // Just verify it doesn't panic and returns something
+            let _ = trigger.engine_update(100.0, 0.0, 1000.0);
+        }
+    }
+
+    mod engine_update {
+        use super::*;
+
+        // Helper: build a trigger with the given start/end pixels and previous
+        // active/progress state, so `engine_update` calls exercise the active range
+        // `[start_px, end_px]`.
+        fn trigger_in_range(
+            config: ScrollTriggerConfig,
+            start_px: f64,
+            end_px: f64,
+            prev_active: bool,
+            prev_progress: f64,
+        ) -> ScrollTrigger {
+            let trigger = ScrollTrigger::host_test_trigger(config, prev_progress, prev_active, 0);
+            let inner = trigger.inner.write_value();
+            inner.start_pixels.set_value(start_px);
+            inner.end_pixels.set_value(end_px);
+            inner.prev_active.set_value(prev_active);
+            inner.prev_progress.set_value(prev_progress);
+            drop(inner);
+            trigger
+        }
+
+        #[test]
+        fn on_enter_fires_on_forward_entry() {
+            let entered = Rc::new(Cell::new(false));
+            let entered_clone = entered.clone();
+            let config =
+                ScrollTriggerConfig::default().on_enter(move |_| entered_clone.set(true));
+            let trigger = trigger_in_range(config, 0.0, 100.0, false, 0.0);
+
+            // scroll_pos=50 → in range, active flips false→true, direction=1 (forward)
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(entered.get(), "on_enter should have fired");
+        }
+
+        #[test]
+        fn on_leave_fires_on_forward_exit() {
+            let left = Rc::new(Cell::new(false));
+            let left_clone = left.clone();
+            let config = ScrollTriggerConfig::default().on_leave(move |_| left_clone.set(true));
+            // prev_active=true so we start inside; scrolling past end exits forward.
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.8);
+
+            // scroll_pos=150 → past end → active false, progress clamped to 1.0 (>0.8) → dir=1
+            trigger.engine_update(150.0, 0.0, 1000.0);
+
+            assert!(left.get(), "on_leave should have fired");
+        }
+
+        #[test]
+        fn on_enter_back_fires_on_backward_entry() {
+            let entered = Rc::new(Cell::new(false));
+            let entered_clone = entered.clone();
+            let config =
+                ScrollTriggerConfig::default().on_enter_back(move |_| entered_clone.set(true));
+            // Start above the range (scroll_pos > end). prev_progress=1.0 so the
+            // first move back into range has direction=-1.
+            let trigger = trigger_in_range(config, 0.0, 100.0, false, 1.0);
+
+            // scroll_pos=50 → in range, active false→true, progress 0.5 < 1.0 → dir=-1
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(entered.get(), "on_enter_back should have fired");
+        }
+
+        #[test]
+        fn on_leave_back_fires_on_backward_exit() {
+            let left = Rc::new(Cell::new(false));
+            let left_clone = left.clone();
+            let config =
+                ScrollTriggerConfig::default().on_leave_back(move |_| left_clone.set(true));
+            // Start in range; scrolling before start exits backward.
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.5);
+
+            // scroll_pos=-50 → before start → active false, progress clamped to 0.0 (<0.5) → dir=-1
+            trigger.engine_update(-50.0, 0.0, 1000.0);
+
+            assert!(left.get(), "on_leave_back should have fired");
+        }
+
+        #[test]
+        fn on_toggle_fires_on_active_change() {
+            let toggled = Rc::new(Cell::new(false));
+            let toggled_clone = toggled.clone();
+            let config =
+                ScrollTriggerConfig::default().on_toggle(move |_| toggled_clone.set(true));
+            let trigger = trigger_in_range(config, 0.0, 100.0, false, 0.0);
+
+            // Entering range flips active false→true → on_toggle fires.
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(toggled.get(), "on_toggle should have fired");
+        }
+
+        #[test]
+        fn on_update_fires_on_progress_change() {
+            let updated = Rc::new(Cell::new(false));
+            let updated_clone = updated.clone();
+            let config =
+                ScrollTriggerConfig::default().on_update(move |_| updated_clone.set(true));
+            // prev_progress=0.0; moving to scroll_pos=50 in [0,100] → progress 0.5 (changed).
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.0);
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(updated.get(), "on_update should have fired");
+        }
+
+        #[test]
+        fn on_update_does_not_fire_on_repeat() {
+            let updated = Rc::new(Cell::new(0u32));
+            let updated_clone = updated.clone();
+            let config =
+                ScrollTriggerConfig::default().on_update(move |_| updated_clone.set(
+                    updated_clone.get() + 1,
+                ));
+            // prev_progress=0.5; same scroll_pos → same clamped progress → no fire.
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.5);
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert_eq!(
+                updated.get(),
+                0,
+                "on_update should NOT fire when progress is unchanged"
+            );
+        }
+
+        #[test]
+        fn once_kills_on_forward_leave() {
+            let config = ScrollTriggerConfig::default().once(true);
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.8);
+
+            // scroll past end → active false, direction forward → once kill.
+            trigger.engine_update(150.0, 0.0, 1000.0);
+
+            assert!(trigger.is_killed(), "once should kill on forward leave");
+        }
+
+        #[test]
+        fn once_kills_on_backward_leave() {
+            let config = ScrollTriggerConfig::default().once(true);
+            let trigger = trigger_in_range(config, 0.0, 100.0, true, 0.5);
+
+            // scroll before start → active false, direction backward → once kill
+            // (GSAP-parity: `once` kills on ANY leave regardless of direction).
+            trigger.engine_update(-50.0, 0.0, 1000.0);
+
+            assert!(trigger.is_killed(), "once should kill on backward leave");
+        }
+
+        #[test]
+        fn equality_guard_progress_prevents_signal_set() {
+            // Two identical calls should leave the progress signal unchanged —
+            // the equality guard suppresses spurious sets. We assert no panic and
+            // that the signal value is stable across both calls.
+            let trigger = trigger_in_range(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                100.0,
+                true,
+                0.5,
+            );
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+            let after_first = trigger.progress().get_untracked();
+
+            trigger.engine_update(50.0, 0.0, 1016.0);
+            let after_second = trigger.progress().get_untracked();
+
+            assert_eq!(after_first, after_second);
+            assert!((after_first - 0.5).abs() < 1e-9);
+        }
+
+        #[test]
+        fn equality_guard_is_active_prevents_signal_set() {
+            // Two identical calls within the active range leave is_active unchanged.
+            let trigger = trigger_in_range(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                100.0,
+                true,
+                0.5,
+            );
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+            let after_first = trigger.is_active().get_untracked();
+
+            trigger.engine_update(60.0, 0.0, 1016.0);
+            let after_second = trigger.is_active().get_untracked();
+
+            assert_eq!(after_first, after_second);
+            assert!(after_first);
+        }
+
+        #[test]
+        fn needs_more_smoothing_true_for_non_converged_scrub() {
+            // Scrub::Number with scrub_current != target → returns true.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Number(0.3)),
+                0.5,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(0.0);
+                inner.scrub_current.set_value(0.5);
+                inner.scrub_target.set_value(0.5);
+                inner.scrub_last_ms.set_value(Some(1000.0));
+                inner.scrub_converged.set_value(true);
+                drop(inner);
+            }
+
+            // scroll_pos=100 → raw=1.0; scrub_current=0.5 → not converged → true.
+            let needs_more = trigger.engine_update(100.0, 0.0, 1016.0);
+            assert!(
+                needs_more,
+                "non-converged Scrub::Number should request more smoothing"
+            );
+        }
+
+        #[test]
+        fn needs_more_smoothing_false_for_converged_scrub() {
+            // Scrub::Number already at target → returns false.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Number(0.3)),
+                1.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(1.0);
+                inner.scrub_current.set_value(1.0);
+                inner.scrub_target.set_value(1.0);
+                inner.scrub_last_ms.set_value(Some(1000.0));
+                inner.scrub_converged.set_value(true);
+                drop(inner);
+            }
+
+            // scroll_pos=100 → raw=1.0; scrub_current=1.0 → converged → false.
+            let needs_more = trigger.engine_update(100.0, 0.0, 1016.0);
+            assert!(
+                !needs_more,
+                "converged Scrub::Number should not request more smoothing"
+            );
+        }
+
+        #[test]
+        fn needs_more_smoothing_false_for_bool_scrub() {
+            // Scrub::Bool(true) → never requests continuous rAF.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(0.0);
+                drop(inner);
+            }
+
+            let needs_more = trigger.engine_update(50.0, 0.0, 1000.0);
+            assert!(!needs_more, "Scrub::Bool should not request more smoothing");
+        }
+
+        #[test]
+        fn needs_more_smoothing_false_for_disabled_scrub() {
+            // Scrub::Bool(false) → never requests continuous rAF.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(false)),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(0.0);
+                drop(inner);
+            }
+
+            let needs_more = trigger.engine_update(50.0, 0.0, 1000.0);
+            assert!(
+                !needs_more,
+                "Scrub::Bool(false) should not request more smoothing"
+            );
+        }
+    }
+
+    mod callbacks {
+        use super::*;
+
+        #[test]
+        fn on_scrub_complete_fires_on_convergence() {
+            // Scrub::Number, scrub_converged=false, scrub_current==raw (target
+            // already equals current). step_scrub sees |raw - next| < eps and flips
+            // scrub_converged false→true → on_scrub_complete fires.
+            let fired = Rc::new(Cell::new(false));
+            let fired_clone = fired.clone();
+            let config = ScrollTriggerConfig::default()
+                .scrub(Scrub::Number(0.3))
+                .on_scrub_complete(move |_| fired_clone.set(true));
+            let trigger = ScrollTrigger::host_test_trigger(config, 0.5, true, 1);
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(true);
+                inner.prev_progress.set_value(0.5);
+                inner.scrub_current.set_value(0.5);
+                inner.scrub_target.set_value(0.5);
+                // scrub_last_ms = Some(now) → dt=0 → next=raw → |raw - next|=0 < eps.
+                inner.scrub_last_ms.set_value(Some(1000.0));
+                // Start non-converged so the false→true edge fires the callback.
+                inner.scrub_converged.set_value(false);
+                drop(inner);
+            }
+
+            // scroll_pos=50 → raw=0.5 (matches scrub_current) → converges on this call.
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(fired.get(), "on_scrub_complete should fire on convergence");
+        }
+
+        #[test]
+        fn on_scrub_complete_does_not_fire_on_initial_frame() {
+            // scrub_converged starts true → no false→true transition → no fire,
+            // even if the scrub value lands exactly on target on the first frame.
+            let fired = Rc::new(Cell::new(false));
+            let fired_clone = fired.clone();
+            let config = ScrollTriggerConfig::default()
+                .scrub(Scrub::Number(0.3))
+                .on_scrub_complete(move |_| fired_clone.set(true));
+            let trigger = ScrollTrigger::host_test_trigger(config, 0.5, true, 1);
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(true);
+                inner.prev_progress.set_value(0.5);
+                inner.scrub_current.set_value(0.5);
+                inner.scrub_target.set_value(0.5);
+                inner.scrub_last_ms.set_value(Some(1000.0));
+                // Already converged → no edge.
+                inner.scrub_converged.set_value(true);
+                drop(inner);
+            }
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            assert!(
+                !fired.get(),
+                "on_scrub_complete should NOT fire when already converged"
+            );
+        }
+
+        #[test]
+        fn on_refresh_fires_on_refresh_call() {
+            let fired = Rc::new(Cell::new(false));
+            let fired_clone = fired.clone();
+            let config =
+                ScrollTriggerConfig::default().on_refresh(move |_| fired_clone.set(true));
+            let trigger = ScrollTrigger::host_test_trigger(config, 0.0, false, 0);
+
+            // host has no target → start/end stay 0, but on_refresh still dispatches.
+            trigger.refresh();
+
+            assert!(fired.get(), "on_refresh should fire on refresh()");
+        }
+    }
+
+    mod refresh {
+        use super::*;
+
+        #[test]
+        fn refresh_with_no_target_sets_zero_pixels() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default(),
+                0.0,
+                false,
+                0,
+            );
+
+            trigger.refresh();
+
+            // host_test_trigger has no target → Rect is zero → start/end both 0.
+            assert_eq!(trigger.start(), 0.0);
+            assert_eq!(trigger.end(), 0.0);
+        }
+
+        #[test]
+        fn refresh_equality_guards_prevent_signal_churn() {
+            // Two consecutive refresh() calls with the same geometry should not
+            // panic and should leave the signals stable.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default(),
+                0.0,
+                false,
+                0,
+            );
+
+            trigger.refresh();
+            let progress_after_first = trigger.progress().get_untracked();
+            let active_after_first = trigger.is_active().get_untracked();
+
+            trigger.refresh();
+            let progress_after_second = trigger.progress().get_untracked();
+            let active_after_second = trigger.is_active().get_untracked();
+
+            assert_eq!(progress_after_first, progress_after_second);
+            assert_eq!(active_after_first, active_after_second);
+        }
+    }
+
+    mod attach {
+        use super::*;
+
+        #[test]
+        fn attach_resolver_updates_target_source() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default(),
+                0.0,
+                false,
+                0,
+            );
+
+            // No DOM on host; the resolver simply returns None. The point of the
+            // test is that attach_resolver stores the closure so target_source
+            // becomes Some(...).
+            trigger.attach_resolver(|| None);
+
+            let inner = trigger.inner.read_value();
+            assert!(
+                inner.target_source.get_value().is_some(),
+                "attach_resolver should set target_source to Some"
+            );
+        }
+
+        #[test]
+        fn reset_scrub_clock_clears_last_ms() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default(),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.scrub_last_ms.set_value(Some(1234.0));
+                assert_eq!(inner.scrub_last_ms.get_value(), Some(1234.0));
+                drop(inner);
+            }
+
+            trigger.reset_scrub_clock();
+
+            assert_eq!(
+                trigger.inner.read_value().scrub_last_ms.get_value(),
+                None,
+                "reset_scrub_clock should clear scrub_last_ms"
+            );
+        }
+    }
+
+    mod signals {
+        use super::*;
+
+        #[test]
+        fn get_velocity_reads_per_trigger_tracker() {
+            // Pushing samples via engine_update should populate the velocity
+            // tracker; get_velocity should return a finite value after at least
+            // two samples.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(1000.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(0.0);
+                drop(inner);
+            }
+
+            // Two engine_update calls with distinct positions/times.
+            trigger.engine_update(0.0, 0.0, 1000.0);
+            trigger.engine_update(100.0, 0.0, 1100.0);
+
+            let v = trigger.get_velocity();
+            // 100px over 100ms = 1000 px/s (window is 100ms by default).
+            assert!(
+                v.is_finite(),
+                "get_velocity should return a finite value, got {}",
+                v
+            );
+        }
+
+        #[test]
+        fn progress_signal_reflects_engine_update() {
+            // After engine_update moves into the active range, the progress()
+            // signal should read the clamped value.
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default().scrub(Scrub::Bool(true)),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(0.0);
+                inner.end_pixels.set_value(100.0);
+                inner.prev_active.set_value(false);
+                inner.prev_progress.set_value(0.0);
+                drop(inner);
+            }
+
+            trigger.engine_update(50.0, 0.0, 1000.0);
+
+            let p = trigger.progress().get_untracked();
+            assert!((p - 0.5).abs() < 1e-9, "progress signal should be 0.5, got {}", p);
+        }
+
+        #[test]
+        fn start_end_return_cached_pixels() {
+            let trigger = ScrollTrigger::host_test_trigger(
+                ScrollTriggerConfig::default(),
+                0.0,
+                false,
+                0,
+            );
+            {
+                let inner = trigger.inner.write_value();
+                inner.start_pixels.set_value(42.0);
+                inner.end_pixels.set_value(117.0);
+                drop(inner);
+            }
+
+            assert_eq!(trigger.start(), 42.0);
+            assert_eq!(trigger.end(), 117.0);
+        }
     }
 }

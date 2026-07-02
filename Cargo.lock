@@ -2222,6 +2222,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "playwright_regression_trendy"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "playwright-rs",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "plotters"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -280,291 +280,303 @@ pub fn resolve_start(trigger_rect: Rect, scroller_size: f64, position: &ScrollPo
 mod tests {
     use super::*;
 
-    #[test]
-    fn parses_all_keywords() {
-        assert_eq!(parse_point("top", false), Some(ScrollPoint::Top));
-        assert_eq!(parse_point("BOTTOM", false), Some(ScrollPoint::Bottom));
-        assert_eq!(parse_point("left", false), Some(ScrollPoint::Left));
-        assert_eq!(parse_point("right", false), Some(ScrollPoint::Right));
-        assert_eq!(parse_point("Center", false), Some(ScrollPoint::Center));
-    }
+    mod parsing {
+        use super::*;
 
-    #[test]
-    fn parses_percent() {
-        assert_eq!(parse_point("80%", false), Some(ScrollPoint::Percent(0.8)));
-        assert_eq!(parse_point("0%", false), Some(ScrollPoint::Percent(0.0)));
-        assert_eq!(parse_point("100%", false), Some(ScrollPoint::Percent(1.0)));
-    }
+        #[test]
+        fn parses_absolute_offset() {
+            assert_eq!(
+                parse_offset("80%"),
+                Some(ScrollOffset::Absolute(ScrollPoint::Percent(0.8)))
+            );
+            assert_eq!(
+                parse_offset("top"),
+                Some(ScrollOffset::Absolute(ScrollPoint::Top))
+            );
+        }
 
-    #[test]
-    fn parses_pixels() {
-        assert_eq!(parse_point("100px", false), Some(ScrollPoint::Pixels(100.0)));
-        assert_eq!(parse_point("100", false), Some(ScrollPoint::Pixels(100.0)));
-        assert_eq!(
-            parse_point("-50px", false),
-            Some(ScrollPoint::Pixels(-50.0))
-        );
-    }
+        #[test]
+        fn parses_all_keywords() {
+            assert_eq!(parse_point("top", false), Some(ScrollPoint::Top));
+            assert_eq!(parse_point("BOTTOM", false), Some(ScrollPoint::Bottom));
+            assert_eq!(parse_point("left", false), Some(ScrollPoint::Left));
+            assert_eq!(parse_point("right", false), Some(ScrollPoint::Right));
+            assert_eq!(parse_point("Center", false), Some(ScrollPoint::Center));
+        }
 
-    #[test]
-    fn rejects_garbage() {
-        assert_eq!(parse_point("banana", false), None);
-        assert_eq!(parse_point("", false), None);
-        assert_eq!(parse_point("12px20", false), None);
-    }
+        #[test]
+        fn parses_percent() {
+            assert_eq!(parse_point("80%", false), Some(ScrollPoint::Percent(0.8)));
+            assert_eq!(parse_point("0%", false), Some(ScrollPoint::Percent(0.0)));
+            assert_eq!(parse_point("100%", false), Some(ScrollPoint::Percent(1.0)));
+        }
 
-    #[test]
-    fn parses_relative_pixels() {
-        assert_eq!(
-            parse_offset("+=300"),
-            Some(ScrollOffset::Relative {
-                pixels: 300.0,
-                percent_of_scroller: false
-            })
-        );
-        assert_eq!(
-            parse_offset("-=300"),
-            Some(ScrollOffset::Relative {
-                pixels: -300.0,
-                percent_of_scroller: false
-            })
-        );
-        assert_eq!(
-            parse_offset("+=300px"),
-            Some(ScrollOffset::Relative {
-                pixels: 300.0,
-                percent_of_scroller: false
-            })
-        );
-        assert_eq!(
-            parse_offset("-=300px"),
-            Some(ScrollOffset::Relative {
-                pixels: -300.0,
-                percent_of_scroller: false
-            })
-        );
-    }
+        #[test]
+        fn parses_pixels() {
+            assert_eq!(parse_point("100px", false), Some(ScrollPoint::Pixels(100.0)));
+            assert_eq!(parse_point("100", false), Some(ScrollPoint::Pixels(100.0)));
+            assert_eq!(
+                parse_point("-50px", false),
+                Some(ScrollPoint::Pixels(-50.0))
+            );
+        }
 
-    #[test]
-    fn parses_relative_percent() {
-        assert_eq!(
-            parse_offset("+=80%"),
-            Some(ScrollOffset::Relative {
-                pixels: 80.0,
-                percent_of_scroller: true
-            })
-        );
-        assert_eq!(
-            parse_offset("-=20%"),
-            Some(ScrollOffset::Relative {
-                pixels: -20.0,
-                percent_of_scroller: true
-            })
-        );
-    }
+        #[test]
+        fn parses_position_bottom_80percent() {
+            let pos = parse_position("bottom 80%", false).unwrap();
+            assert_eq!(pos.trigger, ScrollPoint::Bottom);
+            assert_eq!(
+                pos.scroller,
+                ScrollOffset::Absolute(ScrollPoint::Percent(0.8))
+            );
+        }
 
-    #[test]
-    fn parses_absolute_offset() {
-        assert_eq!(
-            parse_offset("80%"),
-            Some(ScrollOffset::Absolute(ScrollPoint::Percent(0.8)))
-        );
-        assert_eq!(
-            parse_offset("top"),
-            Some(ScrollOffset::Absolute(ScrollPoint::Top))
-        );
-    }
+        #[test]
+        fn parses_position_top_center() {
+            let pos = parse_position("top center", false).unwrap();
+            assert_eq!(pos.trigger, ScrollPoint::Top);
+            assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Center));
+        }
 
-    #[test]
-    fn strips_clamp_wrapper() {
-        assert_eq!(strip_clamp("clamp(top center)"), ("top center", true));
-        assert_eq!(strip_clamp("top center"), ("top center", false));
-        assert_eq!(strip_clamp("clamp( top center )"), ("top center", true));
-        assert_eq!(strip_clamp("not clamp("), ("not clamp(", false));
-    }
+        #[test]
+        fn parses_relative_percent() {
+            assert_eq!(
+                parse_offset("+=80%"),
+                Some(ScrollOffset::Relative {
+                    pixels: 80.0,
+                    percent_of_scroller: true
+                })
+            );
+            assert_eq!(
+                parse_offset("-=20%"),
+                Some(ScrollOffset::Relative {
+                    pixels: -20.0,
+                    percent_of_scroller: true
+                })
+            );
+        }
 
-    #[test]
-    fn parses_position_top_center() {
-        let pos = parse_position("top center", false).unwrap();
-        assert_eq!(pos.trigger, ScrollPoint::Top);
-        assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Center));
-    }
+        #[test]
+        fn parses_relative_pixels() {
+            assert_eq!(
+                parse_offset("+=300"),
+                Some(ScrollOffset::Relative {
+                    pixels: 300.0,
+                    percent_of_scroller: false
+                })
+            );
+            assert_eq!(
+                parse_offset("-=300"),
+                Some(ScrollOffset::Relative {
+                    pixels: -300.0,
+                    percent_of_scroller: false
+                })
+            );
+            assert_eq!(
+                parse_offset("+=300px"),
+                Some(ScrollOffset::Relative {
+                    pixels: 300.0,
+                    percent_of_scroller: false
+                })
+            );
+            assert_eq!(
+                parse_offset("-=300px"),
+                Some(ScrollOffset::Relative {
+                    pixels: -300.0,
+                    percent_of_scroller: false
+                })
+            );
+        }
 
-    #[test]
-    fn parses_position_bottom_80percent() {
-        let pos = parse_position("bottom 80%", false).unwrap();
-        assert_eq!(pos.trigger, ScrollPoint::Bottom);
-        assert_eq!(
-            pos.scroller,
-            ScrollOffset::Absolute(ScrollPoint::Percent(0.8))
-        );
-    }
+        #[test]
+        fn parses_single_bottom_token() {
+            let pos = parse_position("bottom", false).unwrap();
+            assert_eq!(pos.trigger, ScrollPoint::Bottom);
+            assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Bottom));
+        }
 
-    #[test]
-    fn parses_single_token_defaults_scroller_to_same() {
-        let pos = parse_position("top", false).unwrap();
-        assert_eq!(pos.trigger, ScrollPoint::Top);
-        assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Top));
-    }
+        #[test]
+        fn parses_single_token_defaults_scroller_to_same() {
+            let pos = parse_position("top", false).unwrap();
+            assert_eq!(pos.trigger, ScrollPoint::Top);
+            assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Top));
+        }
 
-    #[test]
-    fn parses_single_bottom_token() {
-        let pos = parse_position("bottom", false).unwrap();
-        assert_eq!(pos.trigger, ScrollPoint::Bottom);
-        assert_eq!(pos.scroller, ScrollOffset::Absolute(ScrollPoint::Bottom));
-    }
+        #[test]
+        fn rejects_garbage() {
+            assert_eq!(parse_point("banana", false), None);
+            assert_eq!(parse_point("", false), None);
+            assert_eq!(parse_point("12px20", false), None);
+        }
 
-    #[test]
-    fn rejects_lone_relative_for_start() {
-        assert_eq!(parse_position("+=300", false), None);
-    }
+        #[test]
+        fn rejects_lone_relative_for_start() {
+            assert_eq!(parse_position("+=300", false), None);
+        }
 
-    #[test]
-    fn parses_start_end_with_relative_end() {
-        let (start, end) = parse_start_end("top center", "+=300", false).unwrap();
-        assert_eq!(start.trigger, ScrollPoint::Top);
-        assert_eq!(start.scroller, ScrollOffset::Absolute(ScrollPoint::Center));
-        assert_eq!(
-            end.scroller,
-            ScrollOffset::Relative {
-                pixels: 300.0,
-                percent_of_scroller: false
+        #[test]
+        fn strips_clamp_wrapper() {
+            assert_eq!(strip_clamp("clamp(top center)"), ("top center", true));
+            assert_eq!(strip_clamp("top center"), ("top center", false));
+            assert_eq!(strip_clamp("clamp( top center )"), ("top center", true));
+            assert_eq!(strip_clamp("not clamp("), ("not clamp(", false));
+        }
+
+        #[test]
+        fn parse_start_end_with_empty_strings_returns_none() {
+            assert!(parse_start_end("", "", false).is_none());
+        }
+
+        #[test]
+        fn parse_start_end_with_whitespace_only_returns_none() {
+            assert!(parse_start_end("   ", "   ", false).is_none());
+        }
+
+        #[test]
+        fn parse_position_with_decimal_percent() {
+            // "top 50.5%" — valid decimal percent
+            let (start, _) = parse_start_end("top 50.5%", "bottom top", false).unwrap();
+            assert_eq!(start.trigger, ScrollPoint::Top);
+        }
+
+        #[test]
+        fn parse_position_with_negative_pixels() {
+            // "+= -300px" should handle the negative
+            // Check if this is currently handled or should reject
+            let result = parse_start_end("top +=-300px", "bottom top", false);
+            // Document current behavior — either it parses or it doesn't
+            if let Some((start, _)) = result {
+                let _ = start;
             }
-        );
-    }
+        }
 
-    #[test]
-    fn parses_start_end_with_absolute_end() {
-        let (start, end) = parse_start_end("top center", "bottom top", false).unwrap();
-        assert_eq!(start.trigger, ScrollPoint::Top);
-        assert_eq!(end.trigger, ScrollPoint::Bottom);
-        assert_eq!(end.scroller, ScrollOffset::Absolute(ScrollPoint::Top));
-    }
-
-    #[test]
-    fn clamp_value_clamps() {
-        assert_eq!(clamp_value(5.0, 0.0, 10.0), 5.0);
-        assert_eq!(clamp_value(-1.0, 0.0, 10.0), 0.0);
-        assert_eq!(clamp_value(15.0, 0.0, 10.0), 10.0);
-    }
-
-    #[test]
-    fn resolves_start_top_vs_top() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Top,
-            scroller: ScrollOffset::Absolute(ScrollPoint::Top),
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0);
-    }
-
-    #[test]
-    fn resolves_start_bottom_vs_center() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Bottom,
-            scroller: ScrollOffset::Absolute(ScrollPoint::Center),
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1200.0 - 400.0);
-    }
-
-    #[test]
-    fn resolves_start_center_vs_80percent() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Center,
-            scroller: ScrollOffset::Absolute(ScrollPoint::Percent(0.8)),
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1100.0 - 640.0);
-    }
-
-    #[test]
-    fn resolves_start_percent_trigger() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Percent(0.25),
-            scroller: ScrollOffset::Absolute(ScrollPoint::Top),
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1050.0);
-    }
-
-    #[test]
-    fn resolves_start_pixels_trigger() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Pixels(50.0),
-            scroller: ScrollOffset::Absolute(ScrollPoint::Top),
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1050.0);
-    }
-
-    #[test]
-    fn resolves_start_relative_end_pixels() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Top,
-            scroller: ScrollOffset::Relative {
-                pixels: 300.0,
-                percent_of_scroller: false,
-            },
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0 - 300.0);
-    }
-
-    #[test]
-    fn resolves_start_relative_end_percent_of_scroller() {
-        let rect = Rect { start: 1000.0, size: 200.0 };
-        let pos = ScrollPosition {
-            trigger: ScrollPoint::Top,
-            scroller: ScrollOffset::Relative {
-                pixels: 80.0,
-                percent_of_scroller: true,
-            },
-        };
-        assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0 - (800.0 * 0.8));
-    }
-
-    #[test]
-    fn parse_start_end_with_empty_strings_returns_none() {
-        assert!(parse_start_end("", "", false).is_none());
-    }
-
-    #[test]
-    fn parse_start_end_with_whitespace_only_returns_none() {
-        assert!(parse_start_end("   ", "   ", false).is_none());
-    }
-
-    #[test]
-    fn parse_position_with_decimal_percent() {
-        // "top 50.5%" — valid decimal percent
-        let (start, _) = parse_start_end("top 50.5%", "bottom top", false).unwrap();
-        assert_eq!(start.trigger, ScrollPoint::Top);
-    }
-
-    #[test]
-    fn parse_position_with_negative_pixels() {
-        // "+= -300px" should handle the negative
-        // Check if this is currently handled or should reject
-        let result = parse_start_end("top +=-300px", "bottom top", false);
-        // Document current behavior — either it parses or it doesn't
-        if let Some((start, _)) = result {
-            let _ = start;
+        #[test]
+        fn parse_position_top_bottom_defaults() {
+            // "top bottom" is the default start/end — verify it parses
+            let result = parse_start_end("top bottom", "bottom top", false);
+            assert!(result.is_some());
         }
     }
 
-    #[test]
-    fn parse_position_top_bottom_defaults() {
-        // "top bottom" is the default start/end — verify it parses
-        let result = parse_start_end("top bottom", "bottom top", false);
-        assert!(result.is_some());
+    mod resolution {
+        use super::*;
+
+        #[test]
+        fn parses_start_end_with_absolute_end() {
+            let (start, end) = parse_start_end("top center", "bottom top", false).unwrap();
+            assert_eq!(start.trigger, ScrollPoint::Top);
+            assert_eq!(end.trigger, ScrollPoint::Bottom);
+            assert_eq!(end.scroller, ScrollOffset::Absolute(ScrollPoint::Top));
+        }
+
+        #[test]
+        fn parses_start_end_with_relative_end() {
+            let (start, end) = parse_start_end("top center", "+=300", false).unwrap();
+            assert_eq!(start.trigger, ScrollPoint::Top);
+            assert_eq!(start.scroller, ScrollOffset::Absolute(ScrollPoint::Center));
+            assert_eq!(
+                end.scroller,
+                ScrollOffset::Relative {
+                    pixels: 300.0,
+                    percent_of_scroller: false
+                }
+            );
+        }
+
+        #[test]
+        fn resolves_start_bottom_vs_center() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Bottom,
+                scroller: ScrollOffset::Absolute(ScrollPoint::Center),
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1200.0 - 400.0);
+        }
+
+        #[test]
+        fn resolves_start_center_vs_80percent() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Center,
+                scroller: ScrollOffset::Absolute(ScrollPoint::Percent(0.8)),
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1100.0 - 640.0);
+        }
+
+        #[test]
+        fn resolves_start_percent_trigger() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Percent(0.25),
+                scroller: ScrollOffset::Absolute(ScrollPoint::Top),
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1050.0);
+        }
+
+        #[test]
+        fn resolves_start_pixels_trigger() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Pixels(50.0),
+                scroller: ScrollOffset::Absolute(ScrollPoint::Top),
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1050.0);
+        }
+
+        #[test]
+        fn resolves_start_relative_end_percent_of_scroller() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Top,
+                scroller: ScrollOffset::Relative {
+                    pixels: 80.0,
+                    percent_of_scroller: true,
+                },
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0 - (800.0 * 0.8));
+        }
+
+        #[test]
+        fn resolves_start_relative_end_pixels() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Top,
+                scroller: ScrollOffset::Relative {
+                    pixels: 300.0,
+                    percent_of_scroller: false,
+                },
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0 - 300.0);
+        }
+
+        #[test]
+        fn resolves_start_top_vs_top() {
+            let rect = Rect { start: 1000.0, size: 200.0 };
+            let pos = ScrollPosition {
+                trigger: ScrollPoint::Top,
+                scroller: ScrollOffset::Absolute(ScrollPoint::Top),
+            };
+            assert_eq!(resolve_start(rect, 800.0, &pos), 1000.0);
+        }
     }
 
-    #[test]
-    fn clamp_value_at_boundaries() {
-        assert_eq!(clamp_value(0.0, 0.0, 1.0), 0.0);
-        assert_eq!(clamp_value(1.0, 0.0, 1.0), 1.0);
-        assert_eq!(clamp_value(-1.0, 0.0, 1.0), 0.0);
-        assert_eq!(clamp_value(2.0, 0.0, 1.0), 1.0);
-        assert_eq!(clamp_value(0.5, 0.0, 1.0), 0.5);
+    mod clamping {
+        use super::*;
+
+        #[test]
+        fn clamp_value_clamps() {
+            assert_eq!(clamp_value(5.0, 0.0, 10.0), 5.0);
+            assert_eq!(clamp_value(-1.0, 0.0, 10.0), 0.0);
+            assert_eq!(clamp_value(15.0, 0.0, 10.0), 10.0);
+        }
+
+        #[test]
+        fn clamp_value_at_boundaries() {
+            assert_eq!(clamp_value(0.0, 0.0, 1.0), 0.0);
+            assert_eq!(clamp_value(1.0, 0.0, 1.0), 1.0);
+            assert_eq!(clamp_value(-1.0, 0.0, 1.0), 0.0);
+            assert_eq!(clamp_value(2.0, 0.0, 1.0), 1.0);
+            assert_eq!(clamp_value(0.5, 0.0, 1.0), 0.5);
+        }
     }
 }
