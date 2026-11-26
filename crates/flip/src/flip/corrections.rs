@@ -77,7 +77,7 @@ fn schedule_scale_correction_frame(
     fallback_inv_scale_x: f64,
     fallback_inv_scale_y: f64,
 ) {
-    request_animation_frame(move || {
+    let _ = request_animation_frame(move || {
         if stop_signal.get() {
             // Stopped by the parent FLIP cleanup path.
             return;
@@ -180,7 +180,7 @@ fn schedule_border_radius_correction_frame(
     fallback_inv_scale_x: f64,
     fallback_inv_scale_y: f64,
 ) {
-    request_animation_frame(move || {
+    let _ = request_animation_frame(move || {
         if stop_signal.get() {
             return;
         }

@@ -23,8 +23,9 @@ style = [
 ]
 waapi = ["style", "web-sys/Animation"]
 dom-query = ["style", "web-sys/NodeList"]
-resize-observer = ["style", "web-sys/ResizeObserver", "web-sys/ResizeObserverEntry"]
+resize-observer = ["style", "dep:generik_resize"]
 
 [dependencies]
+generik_resize = { workspace = true, optional = true }
 js-sys = { workspace = true }
 web-sys = { workspace = true }

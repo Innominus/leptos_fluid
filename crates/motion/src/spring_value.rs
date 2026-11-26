@@ -13,10 +13,14 @@ pub struct SpringValue {
     spring: StoredValue<Spring>,
     running: RwSignal<bool>,
     last_time: StoredValue<Option<f64>>,
+    frame: StoredValue<Option<AnimationFrameRequestHandle>>,
 }
 
 impl SpringValue {
     pub fn new(initial: f64, spring: Spring) -> Self {
+        let frame = StoredValue::new(None);
+        // Re-requested frames run outside any owner, so cancel the pending one with this value's owner.
+        on_cleanup(move || cancel_frame(frame));
         Self {
             value: RwSignal::new(initial),
             target: RwSignal::new(initial),
@@ -24,6 +28,7 @@ impl SpringValue {
             spring: StoredValue::new(spring),
             running: RwSignal::new(false),
             last_time: StoredValue::new(None),
+            frame,
         }
     }
 
@@ -41,6 +46,8 @@ impl SpringValue {
     }
 
     pub fn set_immediate(&self, value: f64) {
+        // Cancel the pending step so a following `set` can't start a second frame chain.
+        cancel_frame(self.frame);
         self.value.set(value);
         self.target.set(value);
         self.velocity.set(0.0);
@@ -61,7 +68,14 @@ impl SpringValue {
             self.spring,
             self.running,
             self.last_time,
+            self.frame,
         );
+    }
+}
+
+fn cancel_frame(frame: StoredValue<Option<AnimationFrameRequestHandle>>) {
+    if let Some(handle) = frame.try_update_value(Option::take).flatten() {
+        handle.cancel();
     }
 }
 
@@ -72,11 +86,13 @@ fn schedule_step(
     spring: StoredValue<Spring>,
     running: RwSignal<bool>,
     last_time: StoredValue<Option<f64>>,
+    frame: StoredValue<Option<AnimationFrameRequestHandle>>,
 ) {
-    request_animation_frame(move || {
-        if !running.get_untracked() {
+    let scheduled = request_animation_frame(move || {
+        if running.try_get_untracked() != Some(true) {
             return;
         }
+        frame.set_value(None);
 
         let now = now_ms();
         let last = last_time.get_value().unwrap_or(now);
@@ -102,8 +118,31 @@ fn schedule_step(
         value.set(state.value);
         velocity.set(state.velocity);
 
-        schedule_step(value, target, velocity, spring, running, last_time);
+        schedule_step(value, target, velocity, spring, running, last_time, frame);
     });
+    match scheduled {
+        Ok(handle) => {
+            frame.set_value(Some(handle));
+            if Owner::current().is_some() {
+                // Leptos cancels an owned frame when its owner cleans up (e.g. an effect rerun);
+                // release `running` then so the next `set` restarts instead of wedging.
+                on_cleanup(move || {
+                    if frame.try_get_value().flatten() == Some(handle) {
+                        frame.set_value(None);
+                        running.try_set(false);
+                    }
+                });
+            }
+        }
+        Err(_) => {
+            // Scheduling failed: settle at the target so `running` can't stay
+            // stuck true and swallow every later `set`.
+            value.set(target.get_untracked());
+            velocity.set(0.0);
+            running.set(false);
+            last_time.set_value(None);
+        }
+    }
 }
 
 pub fn use_spring(initial: f64, spring: Spring) -> SpringValue {

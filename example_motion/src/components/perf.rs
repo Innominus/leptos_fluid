@@ -85,7 +85,7 @@ fn PerfDot(tick: RwSignal<f64>, index: usize) -> impl IntoView {
 }
 
 fn schedule_tick(running: RwSignal<bool>, tick: RwSignal<f64>) {
-    request_animation_frame(move || {
+    let _ = request_animation_frame(move || {
         if !running.get_untracked() {
             return;
         }

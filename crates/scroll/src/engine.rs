@@ -444,18 +444,22 @@ fn schedule_tick() {
         });
         return;
     }
-    SHARED_ENGINE.with(|slot| {
+    let should_schedule = SHARED_ENGINE.with(|slot| {
         let mut borrow = slot.borrow_mut();
         let Some(engine) = borrow.as_mut() else {
-            return;
+            return false;
         };
         engine.scroll_pending = true;
         if engine.raf_scheduled {
-            return;
+            return false;
         }
         engine.raf_scheduled = true;
+        true
     });
-    request_animation_frame(move || {
+    if !should_schedule {
+        return;
+    }
+    if request_animation_frame(move || {
         SHARED_ENGINE.with(|slot| {
             // Take the engine OUT of the slot so callbacks invoked during
             // `tick` can re-enter `register`/`unregister` (which hit the slot)
@@ -483,7 +487,17 @@ fn schedule_tick() {
                 schedule_resize();
             }
         });
-    });
+    })
+    .is_err()
+    {
+        // Scheduling failed: unset the flag so a later scroll can retry
+        // instead of wedging the engine with `raf_scheduled` stuck true.
+        SHARED_ENGINE.with(|slot| {
+            if let Some(engine) = slot.borrow_mut().as_mut() {
+                engine.raf_scheduled = false;
+            }
+        });
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -502,20 +516,26 @@ fn schedule_smoothing_tick() {
     // double-scheduling a second rAF for the same frame (which would cause
     // `tick` to run twice, zeroing velocity via the `dt == 0.0` guard and
     // doubling `set_immediate` churn on subscribers).
-    SHARED_ENGINE.with(|slot| {
-        if let Some(engine) = slot.borrow_mut().as_mut() {
-            if engine.raf_scheduled {
-                return;
-            }
-            engine.raf_scheduled = true;
+    let already_scheduled = SHARED_ENGINE.with(|slot| {
+        let mut borrow = slot.borrow_mut();
+        let Some(engine) = borrow.as_mut() else {
+            return false;
+        };
+        if engine.raf_scheduled {
+            return true;
         }
+        engine.raf_scheduled = true;
+        false
     });
+    if already_scheduled {
+        return;
+    }
     // Engine is OUT of the slot during `tick` (the common caller). Set the
     // flag via a side channel so `schedule_tick`'s dedup sees it even when
     // the slot is `None`. `SMOOTHING_RAF_PENDING` is cleared in the rAF
     // prologue alongside `raf_scheduled`.
     SMOOTHING_RAF_PENDING.with(|p| p.set(true));
-    request_animation_frame(move || {
+    if request_animation_frame(move || {
         SHARED_ENGINE.with(|slot| {
             // Take the engine OUT of the slot so callbacks invoked during
             // `tick` can re-enter `register`/`unregister` (which hit the slot)
@@ -542,7 +562,17 @@ fn schedule_smoothing_tick() {
                 schedule_resize();
             }
         });
-    });
+    })
+    .is_err()
+    {
+        // Scheduling failed: unset the flags so a later scroll can retry.
+        SMOOTHING_RAF_PENDING.with(|p| p.set(false));
+        SHARED_ENGINE.with(|slot| {
+            if let Some(engine) = slot.borrow_mut().as_mut() {
+                engine.raf_scheduled = false;
+            }
+        });
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -581,7 +611,7 @@ fn schedule_resize() {
         // 200ms of quiet. This is a trailing-edge debounce — each event within
         // 200ms of the last resets the timer.
         if engine.last_resize_ms != 0.0 && now - engine.last_resize_ms < 200.0 {
-            request_animation_frame(move || {
+            let _ = request_animation_frame(move || {
                 schedule_resize();
             });
             return;
@@ -601,7 +631,7 @@ fn schedule_resize() {
         }
         engine.last_resize_ms = now;
     });
-    request_animation_frame(move || {
+    let _ = request_animation_frame(move || {
         SHARED_ENGINE.with(|slot| {
             let mut engine_opt = slot.borrow_mut().take();
             ENGINE_OUT.with(|out| out.set(true));

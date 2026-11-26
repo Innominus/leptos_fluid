@@ -3,7 +3,7 @@ use std::rc::Rc;
 use leptos::html::ElementType;
 use leptos::prelude::{
     Effect, GetUntracked, GetValue, LocalStorage, NodeRef, ReadValue, RwSignal, Set, SetValue,
-    Signal, StoredValue, WriteValue,
+    Signal, StoredValue, WriteValue, on_cleanup,
 };
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -151,6 +151,19 @@ impl AnimationControllerInner {
         self.target_source.set_value(target);
     }
 
+    /// Stops on the cached `resolved_target`, the element any active animation
+    /// runs on, without invoking a user resolver.
+    fn stop_on_resolved_target(&self) {
+        self.clear_queued_command();
+        if let Some(element) = self.resolved_target.get_value() {
+            cancel_active_animation(&element, self.active_animation);
+        } else {
+            self.active_animation.set_value(None);
+        }
+        self.bump_generation();
+        self.is_animating.set(false);
+    }
+
     fn resolve_target(&self) -> Option<Element> {
         let target = self.target_source.get_value()?;
         let Some(element) = target.resolve() else {
@@ -236,9 +249,25 @@ impl AnimationController {
             is_animating: RwSignal::new(false),
         };
 
-        Self {
+        let controller = Self {
             inner: StoredValue::new(inner),
-        }
+        };
+
+        // Mirror `ScrollTrigger::with_config`: when the owner scope dies
+        // (component unmount) cancel any in-flight WAAPI animation. Otherwise
+        // the animation keeps running on the detached element and its
+        // `onfinish` `Closure` — freed with the scope's arena — is invoked
+        // after it was dropped ("closure invoked recursively or after being
+        // dropped"). Cancelling clears `onfinish` before `cancel()`, so nothing
+        // fires afterwards. Uses the cached target so unmount never runs the
+        // user resolver. No-op outside a reactive scope (host tests).
+        on_cleanup(move || {
+            if let Some(inner) = controller.inner.try_get_value() {
+                inner.stop_on_resolved_target();
+            }
+        });
+
+        controller
     }
 
     /// Replaces the controller's default transition.
@@ -369,19 +398,9 @@ impl AnimationController {
     /// bumps internal generation counters so stale callbacks are ignored.
     pub fn stop(&self) {
         let inner = self.inner.get_value();
-        inner.clear_queued_command();
-
-        if let Some(element) = inner
-            .resolve_target()
-            .or_else(|| inner.resolved_target.get_value())
-        {
-            cancel_active_animation(&element, inner.active_animation);
-        } else {
-            inner.active_animation.set_value(None);
-        }
-
-        inner.bump_generation();
-        inner.is_animating.set(false);
+        // Re-resolving syncs `resolved_target`, cancelling on a swapped-out element.
+        let _ = inner.resolve_target();
+        inner.stop_on_resolved_target();
     }
 
     /// Pauses the active WAAPI animation if one is currently attached.

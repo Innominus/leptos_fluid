@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail, ensure};
 use playwright_rs::api::LaunchOptions;
 use playwright_rs::{Browser, PLAYWRIGHT_VERSION, Page, Playwright};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
@@ -16,17 +16,107 @@ const DEFAULT_DIST_DIR: &str = "example_motion/dist";
 const DEFAULT_PORT: u16 = 4173;
 const REQUEST_BUFFER_LEN: usize = 16 * 1024;
 
-const MOTION_MID_WAIT: Duration = Duration::from_millis(180);
-const MOTION_SETTLE_WAIT: Duration = Duration::from_millis(1400);
+// Sample offsets in ms after the click, measured in-page (see CLICK_AND_SAMPLE_JS)
+// so CDP round-trips can't push the mid sample past the end of a short animation.
+// `HeroSection`: 260ms controller transition.
+const MOTION_SAMPLE_DELAYS_MS: [u32; 2] = [90, 800];
+// `FlipCardSection`: one rAF to measure, then a 260ms FLIP.
+const FLIP_SAMPLE_DELAYS_MS: [u32; 2] = [90, 800];
+// `FlipBoardSection`: 240ms FLIP plus 20ms stagger across 6 tiles (~340ms).
+const FLIP_GROUP_SAMPLE_DELAYS_MS: [u32; 2] = [90, 900];
 
-const FLIP_MID_WAIT: Duration = Duration::from_millis(260);
-const FLIP_SETTLE_WAIT: Duration = Duration::from_millis(1500);
+/// Clicks the unique button whose trimmed text is `button`, then samples every
+/// element matching `selector` once before the click and once per `delays`
+/// entry (ms since the click).
+///
+/// Mid-animation samples run in a rAF scheduled from a task, so they land after
+/// the library's own per-frame rAF work (FLIP border-radius / scale correction)
+/// for that frame and read the same animation time it used.
+const CLICK_AND_SAMPLE_JS: &str = r#"async ({ button, selector, delays }) => {
+    const parseScale = (transform) => {
+        if (!transform || transform === "none") {
+            return [1, 1];
+        }
+        const values = transform
+            .slice(transform.indexOf("(") + 1, -1)
+            .split(",")
+            .map((value) => Number.parseFloat(value));
+        return transform.startsWith("matrix3d(") ? [values[0], values[5]] : [values[0], values[3]];
+    };
+    const sample = () => {
+        const elements = [...document.querySelectorAll(selector)];
+        if (elements.length === 0) {
+            throw new Error(`Missing element: ${selector}`);
+        }
+        return elements.map((element) => {
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const radii = (style.borderTopLeftRadius || "0px")
+                .trim()
+                .split(/\s+/)
+                .map((value) => Number.parseFloat(value));
+            const [scaleX, scaleY] = parseScale(style.transform);
+            return {
+                id: element.id || "",
+                transform: style.transform,
+                opacity: Number.parseFloat(style.opacity || "1"),
+                left: rect.left,
+                width: rect.width,
+                order: Number.parseInt(style.order, 10) || 0,
+                radius_x: radii[0],
+                radius_y: radii.length > 1 ? radii[1] : radii[0],
+                scale_x: scaleX,
+                scale_y: scaleY
+            };
+        });
+    };
+    const nextFrameAfterTask = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    };
 
-const FLIP_HERO_MID_WAIT: Duration = Duration::from_millis(160);
-const FLIP_HERO_SETTLE_WAIT: Duration = Duration::from_millis(1200);
+    const matches = [...document.querySelectorAll("button")].filter(
+        (element) => element.textContent.trim() === button
+    );
+    if (matches.length !== 1) {
+        throw new Error(`Expected one button labelled "${button}", found ${matches.length}`);
+    }
 
-const FLIP_GROUP_MID_WAIT: Duration = Duration::from_millis(180);
-const FLIP_GROUP_SETTLE_WAIT: Duration = Duration::from_millis(1100);
+    const frames = [sample()];
+    matches[0].click();
+    const clickedAt = performance.now();
+    for (const delay of delays) {
+        do {
+            await nextFrameAfterTask();
+        } while (performance.now() - clickedAt < delay);
+        frames.push(sample());
+    }
+    return frames;
+}"#;
+
+/// Resolves once `selector` has settled at `opacity` with no running animation,
+/// polling per frame until `timeoutMs`.
+const WAIT_FOR_OPACITY_JS: &str = r#"async ({ selector, opacity, timeoutMs }) => {
+    const deadline = performance.now() + timeoutMs;
+    let current = NaN;
+    for (;;) {
+        const element = document.querySelector(selector);
+        if (element) {
+            current = Number.parseFloat(window.getComputedStyle(element).opacity || "1");
+            const running = element.getAnimations().some((animation) => animation.playState === "running");
+            if (!running && Math.abs(current - opacity) < 0.002) {
+                return true;
+            }
+        }
+        if (performance.now() > deadline) {
+            throw new Error(`${selector} did not settle at opacity ${opacity} (last ${current})`);
+        }
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+}"#;
+
+// `hero_card_style(false)` opacity; the mount animation settles here.
+const HERO_BASELINE_OPACITY: f64 = 0.86;
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -267,14 +357,32 @@ fn write_response(
 }
 
 #[derive(Debug, Deserialize)]
-struct StyleSnapshot {
+struct Sample {
+    id: String,
     transform: String,
     opacity: f64,
+    left: f64,
+    width: f64,
+    order: i32,
+    radius_x: f64,
+    radius_y: f64,
+    scale_x: f64,
+    scale_y: f64,
 }
 
-#[derive(Debug, Deserialize)]
-struct RectSnapshot {
-    left: f64,
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WaitForOpacity<'a> {
+    selector: &'a str,
+    opacity: f64,
+    timeout_ms: u32,
+}
+
+#[derive(Serialize)]
+struct ClickAndSample<'a> {
+    button: &'a str,
+    selector: &'a str,
+    delays: &'a [u32],
 }
 
 #[tokio::main]
@@ -311,7 +419,7 @@ async fn main() -> Result<()> {
 async fn run_regression_suite(browser: &Browser, base_url: &str) -> Result<()> {
     run_motion_state_transition_check(browser, base_url).await?;
     run_single_flip_check(browser, base_url).await?;
-    run_flip_hero_border_radius_check(browser, base_url).await?;
+    run_flip_border_radius_correction_check(browser, base_url).await?;
     run_flip_group_check(browser, base_url).await?;
     Ok(())
 }
@@ -330,13 +438,7 @@ async fn open_demo_page(browser: &Browser, base_url: &str) -> Result<Page> {
         response.status()
     );
 
-    if let Err(error) = wait_for_visible(
-        &page,
-        "[data-testid='hero-toggle']",
-        Duration::from_secs(12),
-    )
-    .await
-    {
+    if let Err(error) = wait_for_visible(&page, ".hero-showcase", Duration::from_secs(12)).await {
         let has_wasm_bindings = page
             .evaluate::<(), bool>("() => Boolean(window.wasmBindings)", None::<&()>)
             .await
@@ -380,31 +482,46 @@ async fn run_motion_state_transition_check(browser: &Browser, base_url: &str) ->
     println!("[playwright_regression] Running motion transition check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let selector = "[data-testid='hero-section'] .glass";
-    let start = read_style(&page, selector).await?;
+    page.evaluate::<_, bool>(
+        WAIT_FOR_OPACITY_JS,
+        Some(&WaitForOpacity {
+            selector: ".hero-showcase",
+            opacity: HERO_BASELINE_OPACITY,
+            timeout_ms: 3000,
+        }),
+    )
+    .await
+    .context("Hero showcase never settled at its baseline")?;
 
-    page.locator("[data-testid='hero-toggle']")
-        .await
-        .click(None)
-        .await?;
-
-    tokio::time::sleep(MOTION_MID_WAIT).await;
-    let mid = read_style(&page, selector).await?;
-
-    tokio::time::sleep(MOTION_SETTLE_WAIT).await;
-    let end = read_style(&page, selector).await?;
+    let samples = click_and_sample_one(
+        &page,
+        "Energize showcase",
+        ".hero-showcase",
+        &MOTION_SAMPLE_DELAYS_MS,
+    )
+    .await?;
+    let [start, mid, end] = samples.as_slice() else {
+        bail!("Expected 3 hero samples, got {}", samples.len());
+    };
 
     ensure!(
-        style_delta(&start, &end) > 0.01,
+        style_delta(start, end) > 0.01,
         "Hero motion target did not change after toggle"
     );
     ensure!(
-        style_delta(&start, &mid) > 0.01,
+        style_delta(start, mid) > 0.01,
         "Hero motion never moved away from start state"
     );
     ensure!(
-        style_delta(&mid, &end) > 0.01,
+        style_delta(mid, end) > 0.01,
         "Hero motion jumped directly to end state (no observable interpolation)"
+    );
+    ensure!(
+        start.opacity + 0.005 < mid.opacity && mid.opacity < end.opacity - 0.005,
+        "Hero motion opacity did not pass through an intermediate value: start={:.3}, mid={:.3}, end={:.3}",
+        start.opacity,
+        mid.opacity,
+        end.opacity
     );
 
     page.close().await?;
@@ -415,33 +532,36 @@ async fn run_single_flip_check(browser: &Browser, base_url: &str) -> Result<()> 
     println!("[playwright_regression] Running single FLIP transition check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let start_rect = read_rect(&page, "#flip-pill").await?;
+    let samples = click_and_sample_one(
+        &page,
+        "Dock right",
+        ".flip-workbench-card",
+        &FLIP_SAMPLE_DELAYS_MS,
+    )
+    .await?;
+    let [start, mid, end] = samples.as_slice() else {
+        bail!("Expected 3 FLIP samples, got {}", samples.len());
+    };
 
-    page.locator("[data-testid='flip-move-right']")
-        .await
-        .click(None)
-        .await?;
-
-    tokio::time::sleep(FLIP_MID_WAIT).await;
-    let mid_style = read_style(&page, "#flip-pill").await?;
     ensure!(
-        !is_identity_transform(&mid_style.transform),
+        !is_identity_transform(&mid.transform),
         "FLIP single-element animation never entered an in-flight transform state"
     );
-
-    tokio::time::sleep(FLIP_SETTLE_WAIT).await;
-    let end_rect = read_rect(&page, "#flip-pill").await?;
-    let end_style = read_style(&page, "#flip-pill").await?;
-
     ensure!(
-        end_rect.left > start_rect.left + 60.0,
+        end.left > start.left + 60.0,
         "FLIP single-element layout position did not move far enough: start_left={:.2}, end_left={:.2}",
-        start_rect.left,
-        end_rect.left
+        start.left,
+        end.left
     );
-
     ensure!(
-        is_identity_transform(&end_style.transform),
+        start.left < mid.left && mid.left < end.left,
+        "FLIP single-element did not pass through an intermediate visual position: start_left={:.2}, mid_left={:.2}, end_left={:.2}",
+        start.left,
+        mid.left,
+        end.left
+    );
+    ensure!(
+        is_identity_transform(&end.transform),
         "FLIP single-element transform did not settle back to identity after animation"
     );
 
@@ -449,31 +569,59 @@ async fn run_single_flip_check(browser: &Browser, base_url: &str) -> Result<()> 
     Ok(())
 }
 
-async fn run_flip_hero_border_radius_check(browser: &Browser, base_url: &str) -> Result<()> {
-    println!("[playwright_regression] Running FLIP hero border-radius check");
+async fn run_flip_border_radius_correction_check(browser: &Browser, base_url: &str) -> Result<()> {
+    println!("[playwright_regression] Running FLIP border-radius correction check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let start_radius = read_visual_border_radius(&page, "#flip-hero-image").await?;
-
-    page.locator("#flip-hero-image").await.click(None).await?;
-
-    tokio::time::sleep(FLIP_HERO_MID_WAIT).await;
-    let mid_radius = read_visual_border_radius(&page, "#flip-hero-image").await?;
-
-    tokio::time::sleep(FLIP_HERO_SETTLE_WAIT).await;
-    let end_radius = read_visual_border_radius(&page, "#flip-hero-image").await?;
+    // Standard -> Panorama resizes the card, so the FLIP plays a non-unit scale
+    // and the library must counter-scale border-radius to keep corners round.
+    let samples = click_and_sample_one(
+        &page,
+        "Panorama",
+        ".flip-workbench-card",
+        &FLIP_SAMPLE_DELAYS_MS,
+    )
+    .await?;
+    let [start, mid, end] = samples.as_slice() else {
+        bail!("Expected 3 FLIP resize samples, got {}", samples.len());
+    };
 
     ensure!(
-        end_radius > start_radius + 1.0,
-        "Hero FLIP border radius did not move toward open-state value: start={start_radius:.2}, end={end_radius:.2}"
+        end.width > start.width + 40.0,
+        "FLIP card did not resize to the panorama layout: start_width={:.2}, end_width={:.2}",
+        start.width,
+        end.width
     );
     ensure!(
-        mid_radius > start_radius + 0.05,
-        "Hero FLIP border radius did not progress after animation started: start={start_radius:.2}, mid={mid_radius:.2}"
+        (mid.scale_x - 1.0).abs() > 0.02 && (mid.scale_y - 1.0).abs() > 0.02,
+        "FLIP resize was not scaling when sampled (scale_x={:.3}, scale_y={:.3}); border-radius correction was not exercised",
+        mid.scale_x,
+        mid.scale_y
     );
     ensure!(
-        end_radius - mid_radius > 0.2,
-        "Hero FLIP border radius appears to jump too quickly to final value: mid={mid_radius:.2}, end={end_radius:.2}"
+        (mid.radius_x - start.radius_x).abs() > 0.5,
+        "FLIP border radius was not counter-scaled during the resize: rest={:.2}px, mid={:.2}px (scale_x={:.3})",
+        start.radius_x,
+        mid.radius_x,
+        mid.scale_x
+    );
+    let visual_x = mid.radius_x * mid.scale_x;
+    let visual_y = mid.radius_y * mid.scale_y;
+    ensure!(
+        (visual_x - start.radius_x).abs() < 0.5 && (visual_y - start.radius_y).abs() < 0.5,
+        "FLIP border radius was visually distorted during the resize: rest={:.2}px x {:.2}px, visual={visual_x:.2}px x {visual_y:.2}px",
+        start.radius_x,
+        start.radius_y
+    );
+    ensure!(
+        is_identity_transform(&end.transform)
+            && (end.radius_x - start.radius_x).abs() < 0.01
+            && (end.radius_y - start.radius_y).abs() < 0.01,
+        "FLIP border radius correction did not restore the resting radius after settle: rest={:.2}px, end={:.2}px x {:.2}px, end_transform={}",
+        start.radius_x,
+        end.radius_x,
+        end.radius_y,
+        end.transform
     );
 
     page.close().await?;
@@ -484,37 +632,44 @@ async fn run_flip_group_check(browser: &Browser, base_url: &str) -> Result<()> {
     println!("[playwright_regression] Running FLIP group reorder check");
     let page = open_demo_page(browser, base_url).await?;
 
-    let start_order = read_css_order(&page, "#mix-a").await?;
+    let frames = click_and_sample(
+        &page,
+        "Rotate",
+        ".flip-board-tile",
+        &FLIP_GROUP_SAMPLE_DELAYS_MS,
+    )
+    .await?;
+    let [start, mid, end] = frames.as_slice() else {
+        bail!("Expected 3 FLIP group samples, got {}", frames.len());
+    };
 
-    page.locator("[data-testid='flip-group-rotate']")
-        .await
-        .click(None)
-        .await?;
-
-    tokio::time::sleep(FLIP_GROUP_MID_WAIT).await;
-
-    let status_text = page
-        .locator("[data-testid='flip-group-status']")
-        .await
-        .inner_text()
-        .await?;
+    let in_flight = mid
+        .iter()
+        .filter(|tile| !is_identity_transform(&tile.transform))
+        .count();
     ensure!(
-        status_text.contains("Animating group"),
-        "FLIP group status did not report active animation"
+        in_flight >= 2,
+        "FLIP group animation did not move multiple tiles in flight: {in_flight} of {} tiles had a non-identity transform",
+        mid.len()
+    );
+    ensure!(
+        end.iter()
+            .all(|tile| is_identity_transform(&tile.transform)),
+        "FLIP group tiles did not settle back to identity transforms after animation"
     );
 
-    let mid_style = read_style(&page, "#mix-a").await?;
-    ensure!(
-        !is_identity_transform(&mid_style.transform),
-        "FLIP group animation did not produce an in-flight transform"
-    );
-
-    tokio::time::sleep(FLIP_GROUP_SETTLE_WAIT).await;
-    let end_order = read_css_order(&page, "#mix-a").await?;
-
+    let order_of = |tiles: &[Sample]| {
+        tiles
+            .iter()
+            .find(|tile| tile.id == "suite-a")
+            .map(|tile| tile.order)
+    };
+    let (Some(start_order), Some(end_order)) = (order_of(start), order_of(end)) else {
+        bail!("FLIP group board is missing tile #suite-a");
+    };
     ensure!(
         end_order != start_order,
-        "FLIP group reorder did not change CSS order for #mix-a ({} -> {})",
+        "FLIP group reorder did not change CSS order for #suite-a ({} -> {})",
         start_order,
         end_order
     );
@@ -523,94 +678,47 @@ async fn run_flip_group_check(browser: &Browser, base_url: &str) -> Result<()> {
     Ok(())
 }
 
-async fn read_style(page: &Page, selector: &str) -> Result<StyleSnapshot> {
-    let selector = selector.to_string();
+/// Runs [`CLICK_AND_SAMPLE_JS`]; frame 0 is the pre-click baseline.
+async fn click_and_sample(
+    page: &Page,
+    button: &str,
+    selector: &str,
+    delays: &[u32],
+) -> Result<Vec<Vec<Sample>>> {
     page.evaluate(
-        r#"(selector) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const style = window.getComputedStyle(element);
-            return {
-                transform: style.transform,
-                opacity: Number.parseFloat(style.opacity || "1")
-            };
-        }"#,
-        Some(&selector),
+        CLICK_AND_SAMPLE_JS,
+        Some(&ClickAndSample {
+            button,
+            selector,
+            delays,
+        }),
     )
     .await
-    .with_context(|| format!("Failed to read style for selector `{selector}`"))
+    .with_context(|| format!("Failed to click `{button}` and sample `{selector}`"))
 }
 
-async fn read_rect(page: &Page, selector: &str) -> Result<RectSnapshot> {
-    let selector = selector.to_string();
-    page.evaluate(
-        r#"(selector) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const rect = element.getBoundingClientRect();
-            return {
-                left: rect.left
-            };
-        }"#,
-        Some(&selector),
-    )
-    .await
-    .with_context(|| format!("Failed to read rect for selector `{selector}`"))
+/// [`click_and_sample`] for a selector that must match exactly one element.
+async fn click_and_sample_one(
+    page: &Page,
+    button: &str,
+    selector: &str,
+    delays: &[u32],
+) -> Result<Vec<Sample>> {
+    click_and_sample(page, button, selector, delays)
+        .await?
+        .into_iter()
+        .map(|mut frame| {
+            ensure!(
+                frame.len() == 1,
+                "Expected exactly one element for `{selector}`, found {}",
+                frame.len()
+            );
+            Ok(frame.remove(0))
+        })
+        .collect()
 }
 
-async fn read_css_order(page: &Page, selector: &str) -> Result<i32> {
-    let selector = selector.to_string();
-    page.evaluate(
-        r#"(selector) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const orderValue = window.getComputedStyle(element).order;
-            return Number.parseInt(orderValue, 10);
-        }"#,
-        Some(&selector),
-    )
-    .await
-    .with_context(|| format!("Failed to read CSS order for selector `{selector}`"))
-}
-
-async fn read_visual_border_radius(page: &Page, selector: &str) -> Result<f64> {
-    let selector = selector.to_string();
-    page.evaluate(
-        r#"(selector) => {
-            const element = document.querySelector(selector);
-            if (!element) {
-                throw new Error(`Missing element: ${selector}`);
-            }
-            const style = window.getComputedStyle(element);
-            const radius = Number.parseFloat(style.borderTopLeftRadius || "0");
-
-            const transform = style.transform || "none";
-            let scaleX = 1.0;
-            if (transform !== "none") {
-                if (transform.startsWith("matrix3d(")) {
-                    const raw = transform.slice("matrix3d(".length, -1).split(",");
-                    scaleX = Number.parseFloat(raw[0] || "1");
-                } else if (transform.startsWith("matrix(")) {
-                    const raw = transform.slice("matrix(".length, -1).split(",");
-                    scaleX = Number.parseFloat(raw[0] || "1");
-                }
-            }
-
-            return radius * Math.abs(scaleX || 1.0);
-        }"#,
-        Some(&selector),
-    )
-    .await
-    .with_context(|| format!("Failed to read visual border radius for selector `{selector}`"))
-}
-
-fn style_delta(a: &StyleSnapshot, b: &StyleSnapshot) -> f64 {
+fn style_delta(a: &Sample, b: &Sample) -> f64 {
     let transform_changed = normalize_transform(&a.transform) != normalize_transform(&b.transform);
     let transform_score = if transform_changed { 1.0 } else { 0.0 };
     transform_score + (a.opacity - b.opacity).abs()

@@ -15,6 +15,8 @@ playwright-regression = "run -p playwright_regression -- --dist-dir example_moti
 # fractional Element scroll positions. This also helps rust-analyzer/intellisense
 # see the same API surface as project builds.
 rustflags = ["--cfg=web_sys_unstable_apis", "--check-cfg=cfg(web_sys_unstable_apis)"]
+# Doctests compile through rustdoc, which does not read `rustflags`.
+rustdocflags = ["--cfg=web_sys_unstable_apis"]
 # Keep build flags minimal for smaller generated bindings and simpler builds.
 # rustflags = ["-Z", "threads=4"]
 

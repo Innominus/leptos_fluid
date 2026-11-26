@@ -6,15 +6,17 @@ This crate runs end-to-end browser checks against the built `example_motion` dem
 
 - state transitions must visibly interpolate (not jump)
 - FLIP single-element transitions must show in-flight transform and settle cleanly
+- FLIP resizes must keep border radius visually constant while scaling
 - FLIP group reorders must animate and apply the new order
 
 ## What it tests
 
 Current checks:
 
-1. Motion transition progression (`HeroSection`)
-2. FLIP single-element move (`FlipSection`)
-3. FLIP group reorder (`FlipGroupSection`)
+1. Motion transition progression (`HeroSection`, "Energize showcase")
+2. FLIP single-element move (`FlipCardSection`, "Dock right")
+3. FLIP border-radius correction during a resize (`FlipCardSection`, "Panorama")
+4. FLIP group reorder (`FlipBoardSection`, "Rotate")
 
 These checks validate both intermediate animation frames and final settled states.
 
@@ -31,7 +33,7 @@ cd ..
 2. Install Playwright Chromium browser matching the bundled Playwright version
 
 ```bash
-npx playwright@1.56.1 install chromium
+npx playwright@1.59.1 install chromium
 ```
 
 ## Run

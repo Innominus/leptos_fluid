@@ -2,12 +2,15 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use leptos::prelude::*;
+use web_sys::Element;
 
 use super::{
-    FlipAnimation, FlipGroupBuilder, FlipItem, FlipOptions, FlipValues, find_inline_by_key,
-    find_values_by_key, has_flip_delta_with_size, query_elements, run_flip_animation,
-    snapshot_elements, stop_group_animations,
+    FlipAnimation, FlipGroupBuilder, FlipItem, FlipOptions, FlipValues, InlineStyles,
+    find_inline_by_key, find_values_by_key, has_flip_delta_with_size, query_elements,
+    run_flip_animation, snapshot_elements, stop_group_animations,
 };
+
+type CarriedInline = Vec<(String, InlineStyles)>;
 
 /// Multi-element FLIP animator identified by a CSS selector.
 #[derive(Clone, Copy)]
@@ -16,6 +19,7 @@ pub struct FlipGroup {
     is_animating: RwSignal<bool>,
     options: StoredValue<FlipOptions>,
     animations: StoredValue<Vec<FlipAnimation>, LocalStorage>,
+    pending_frame: StoredValue<Option<(AnimationFrameRequestHandle, CarriedInline)>, LocalStorage>,
 }
 
 impl FlipGroup {
@@ -24,12 +28,16 @@ impl FlipGroup {
     }
 
     pub(crate) fn from_selector(selector: String, options: FlipOptions) -> Self {
-        Self {
+        let group = Self {
             selector: StoredValue::new(selector),
             is_animating: RwSignal::new(false),
             options: StoredValue::new(options),
             animations: StoredValue::new_local(Vec::new()),
-        }
+            pending_frame: StoredValue::new_local(None),
+        };
+        // Owner disposal: no frame or WAAPI callback may outlive these stores.
+        on_cleanup(move || group.stop_animations());
+        group
     }
 
     pub fn new(selector: String) -> Self {
@@ -75,13 +83,40 @@ impl FlipGroup {
     }
 
     pub fn stop(&self) {
-        stop_group_animations(self.animations);
+        self.stop_animations();
         self.is_animating.set(false);
     }
 
+    /// Cancels the pending frame and freezes active animations, without touching signals.
+    fn stop_animations(&self) {
+        if self.animations.is_disposed() {
+            return;
+        }
+        self.take_pending_frame();
+        stop_group_animations(self.animations);
+    }
+
+    /// Cancels a measurement frame that has not run yet and returns the inline
+    /// styles it would have restored, so a stale run cannot start after stop/replay.
+    fn take_pending_frame(&self) -> CarriedInline {
+        let Some((handle, carried_inline)) =
+            self.pending_frame.try_update_value(Option::take).flatten()
+        else {
+            return Vec::new();
+        };
+        handle.cancel();
+        carried_inline
+    }
+
     fn run_dyn(&self, mut animator_fn: Box<dyn FnMut() + 'static>) {
+        if self.animations.is_disposed() {
+            animator_fn();
+            return;
+        }
         let is_animating = self.is_animating;
-        let carried_inline = stop_group_animations(self.animations);
+        // A replayed pending frame never ran, so its carried styles still need restoring.
+        let mut carried_inline = self.take_pending_frame();
+        carried_inline.extend(stop_group_animations(self.animations));
         let from_values = self.snapshot_values();
 
         animator_fn();
@@ -90,19 +125,22 @@ impl FlipGroup {
         let selector = self.selector;
         let options = self.options();
         let animations_store = self.animations;
+        let pending_frame = self.pending_frame;
 
-        request_animation_frame(move || {
+        match request_animation_frame(move || {
+            // The carried styles live in the pending slot until the frame runs; take them back here.
+            let carried_inline = pending_frame
+                .try_update_value(Option::take)
+                .flatten()
+                .map(|(_, carried_inline)| carried_inline)
+                .unwrap_or_default();
             let elements = selector.with_value(|value| query_elements(value));
-            for element in &elements {
-                if let Some(key) = super::element_key(element)
-                    && let Some(inline) = find_inline_by_key(&carried_inline, &key)
-                {
-                    super::restore_inline_styles(element, inline);
-                }
-            }
+            restore_carried_inline(&elements, &carried_inline);
 
             let to_items = snapshot_elements(elements);
-            let remaining = Rc::new(Cell::new(0usize));
+            // Starts at 1 as a loop guard so a synchronous completion (refused fallback frame)
+            // can't reach zero and clear `is_animating` before later items start.
+            let remaining = Rc::new(Cell::new(1usize));
             let mut new_animations = Vec::new();
 
             for (index, to_item) in to_items.into_iter().enumerate() {
@@ -138,12 +176,38 @@ impl FlipGroup {
                 new_animations.push(animation);
             }
 
-            if remaining.get() == 0 {
+            let left = remaining.get() - 1;
+            remaining.set(left);
+            if left == 0 {
                 is_animating.set(false);
             }
 
             animations_store.set_value(new_animations);
-        });
+        }) {
+            Ok(handle) => {
+                pending_frame.set_value(Some((handle, carried_inline)));
+                if Owner::current().is_some() {
+                    // Leptos cancels an owned frame when its owner cleans up (e.g. an effect
+                    // rerun); settle then so `is_animating` and frozen styles can't wedge.
+                    on_cleanup(move || {
+                        let abandoned = pending_frame
+                            .try_update_value(|slot| {
+                                if slot.as_ref().is_some_and(|(pending, _)| *pending == handle) {
+                                    slot.take()
+                                } else {
+                                    None
+                                }
+                            })
+                            .flatten();
+                        if let Some((_, carried_inline)) = abandoned {
+                            abandon_frame(selector, &carried_inline, is_animating);
+                        }
+                    });
+                }
+            }
+            // Scheduling failed: don't report the animation as forever in-flight.
+            Err(_) => abandon_frame(selector, &carried_inline, is_animating),
+        }
     }
 
     fn snapshot_values(&self) -> Vec<(String, FlipValues)> {
@@ -152,5 +216,28 @@ impl FlipGroup {
             .into_iter()
             .map(|FlipItem { key, values, .. }| (key, values))
             .collect()
+    }
+}
+
+/// The measurement frame never ran: drop frozen transforms carried from the
+/// stopped animations and clear in-flight state.
+fn abandon_frame(
+    selector: StoredValue<String>,
+    carried_inline: &[(String, InlineStyles)],
+    is_animating: RwSignal<bool>,
+) {
+    if let Some(elements) = selector.try_with_value(|value| query_elements(value)) {
+        restore_carried_inline(&elements, carried_inline);
+    }
+    is_animating.try_set(false);
+}
+
+fn restore_carried_inline(elements: &[Element], carried_inline: &[(String, InlineStyles)]) {
+    for element in elements {
+        if let Some(key) = super::element_key(element)
+            && let Some(inline) = find_inline_by_key(carried_inline, &key)
+        {
+            super::restore_inline_styles(element, inline);
+        }
     }
 }

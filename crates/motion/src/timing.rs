@@ -58,7 +58,7 @@ pub(crate) fn schedule_after(
             start_ms: f64,
             on_complete: Callback<()>,
         ) {
-            request_animation_frame(move || {
+            let _ = request_animation_frame(move || {
                 if generation_store.get_value() != generation {
                     return;
                 }

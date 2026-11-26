@@ -2,7 +2,7 @@
 name = "leptos_fluid_motion"
 version = "0.1.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 description = "Reactive motion primitives for Leptos components with spring and timeline support."
 readme = "README.md"

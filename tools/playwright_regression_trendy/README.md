@@ -41,7 +41,7 @@ cd ..
 2. Install Playwright Chromium browser matching the bundled Playwright version
 
 ```bash
-npx playwright@1.56.1 install chromium
+npx playwright@1.59.1 install chromium
 ```
 
 ## Run

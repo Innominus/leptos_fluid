@@ -291,7 +291,18 @@ impl SpringAnimation {
 
 #[cfg(feature = "spring-transition")]
 fn schedule_spring_step(animation: SpringAnimation, schedule_id: u32) {
-    leptos::prelude::request_animation_frame(move || {
+    use leptos::prelude::{Owner, on_cleanup, request_animation_frame};
+
+    // Leptos cancels a frame requested under an owner when that owner cleans up
+    // (e.g. an effect rerun); `Some` here means this step has not ticked yet.
+    let pending = Owner::current()
+        .is_some()
+        .then(|| StoredValue::new_local(Some(animation.clone())));
+    let refused = animation.clone();
+    if request_animation_frame(move || {
+        if let Some(pending) = pending {
+            pending.try_set_value(None);
+        }
         let (
             element,
             frame_style,
@@ -322,21 +333,7 @@ fn schedule_spring_step(animation: SpringAnimation, schedule_id: u32) {
             if state.loop_state.delay_remaining_ms > 0.0 {
                 state.loop_state.delay_remaining_ms =
                     (state.loop_state.delay_remaining_ms - dt * 1000.0).max(0.0);
-                let generation = state.generation;
-                let animation_generation = state.animation_generation;
-                let active_animation = state.active_animation;
-                let is_animating = state.is_animating;
-                let element = state.element.clone();
-                let final_props = state.final_props.clone();
                 drop(state);
-                let _ = (
-                    element,
-                    final_props,
-                    generation,
-                    animation_generation,
-                    active_animation,
-                    is_animating,
-                );
                 schedule_spring_step(animation.clone(), schedule_id);
                 return;
             }
@@ -382,7 +379,54 @@ fn schedule_spring_step(animation: SpringAnimation, schedule_id: u32) {
         }
 
         schedule_spring_step(animation.clone(), schedule_id);
-    });
+    })
+    .is_err()
+    {
+        settle_refused_spring_step(&refused, schedule_id);
+        return;
+    }
+    if let Some(pending) = pending {
+        on_cleanup(move || {
+            if let Some(animation) = pending.try_get_value().flatten() {
+                settle_refused_spring_step(&animation, schedule_id);
+            }
+        });
+    }
+}
+
+/// Frame refused or cancelled by its owner: snap to the final props so
+/// `running`, `active_animation`, and `is_animating` can't stay stuck on a loop
+/// that will never tick. No-op if the step was paused or replaced, its
+/// generation is stale, or the controller stores are disposed.
+#[cfg(feature = "spring-transition")]
+fn settle_refused_spring_step(animation: &SpringAnimation, schedule_id: u32) {
+    let (element, final_props, generation, animation_generation, active_animation, is_animating) = {
+        // Every caller releases its borrow before scheduling, so this cannot re-enter.
+        let mut state = animation.state.borrow_mut();
+        if !state.loop_state.running
+            || state.loop_state.paused
+            || state.loop_state.schedule_id != schedule_id
+        {
+            return;
+        }
+        cancel_spring_loop(&mut state.loop_state);
+        (
+            state.element.clone(),
+            state.final_props.clone(),
+            state.generation,
+            state.animation_generation,
+            state.active_animation,
+            state.is_animating,
+        )
+    };
+    if animation_generation.try_get_value() != Some(generation) {
+        return;
+    }
+    apply_owned_props(&element, final_props.as_ref());
+    active_animation.try_set_value(None);
+    if let Some(signal) = is_animating {
+        signal.try_set(false);
+    }
 }
 
 pub(crate) fn apply_style(element: &Element, style: &FluidStyle) {

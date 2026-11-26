@@ -51,55 +51,70 @@ This keeps onboarding friction low for local and CI runs.
 
 ### 1) Motion transition progression
 
-Targets hero card animation.
+Targets `.hero-showcase` after "Energize showcase".
 
 Assertions:
 
 - start and end styles differ after toggle
-- mid-sample differs from start
-- mid-sample differs from end
+- mid-sample differs from start and from end
+- mid-sample opacity lies strictly between start and end
 
 This catches regressions where transitions stop interpolating and snap instantly.
 
 ### 2) FLIP single-element transition
 
-Targets `#flip-pill` move-right flow.
+Targets `.flip-workbench-card` after "Dock right" (position-only move).
 
 Assertions:
 
 - in-flight transform is non-identity during animation
+- mid-sample visual left lies between start and end
 - final layout position moved as expected
 - final transform settles back to identity
 
 This catches broken inversion/playback and cleanup failures.
 
-### 3) FLIP group reorder transition
+### 3) FLIP border-radius correction
 
-Targets rotate flow in group FLIP demo.
+Targets `.flip-workbench-card` after "Panorama" (Standard -> Panorama resize, so the FLIP plays a non-unit scale).
 
 Assertions:
 
-- status reports active animation
-- sampled tile has non-identity transform mid-flight
-- CSS order for `#mix-a` changes after settle
+- the card actually grew
+- mid-sample transform is scaling
+- mid-sample computed radius is counter-scaled away from the resting radius
+- computed radius x transform scale stays within 0.5px of the resting radius on both axes
+- after settle the transform is identity and the resting radius is restored
+
+This catches regressions where corners visibly stretch during a scaled FLIP, or correction styles leak after cleanup. The demo's card has the same radius in both layouts, so from -> to radius interpolation is not covered here.
+
+### 4) FLIP group reorder transition
+
+Targets all `.flip-board-tile` elements after "Rotate".
+
+Assertions:
+
+- at least two tiles have non-identity transforms mid-flight
+- every tile settles back to identity
+- CSS order for `#suite-a` changes after settle
 
 This catches regressions in keyed matching, group animation execution, and final ordering.
 
 ## Sampling strategy
 
-Each check samples at three points:
+Each check clicks and samples in one `page.evaluate` (`CLICK_AND_SAMPLE_JS`):
 
 1. pre-action baseline
 2. short mid-animation delay
 3. post-settle delay
 
-This gives stronger signal than only asserting final state.
+Delays are measured in-page from the click, so Playwright/CDP round-trips cannot push the mid sample past the end of a 240-260ms animation. Each sample runs in a rAF scheduled from a task, so it lands after the library's own per-frame rAF corrections and reads the same animation time they used.
 
 ## Selector stability
 
-The tool relies on explicit `data-testid` hooks added in `example_motion` for critical controls/status values (`hero-toggle`, `flip-move-right`, `flip-group-rotate`, `flip-group-status`).
+`example_motion` has no `data-testid` hooks. The tool clicks buttons by exact visible label ("Energize showcase", "Dock right", "Panorama", "Rotate"; each must match exactly one button) and samples by demo classes/ids (`.hero-showcase`, `.flip-workbench-card`, `.flip-board-tile`, `#suite-a`).
 
-These selectors are part of the test contract and should be preserved when refactoring demo markup.
+These labels and selectors are part of the test contract; update the tool when demo copy or markup changes.
 
 ## Contributor workflow
 

@@ -113,7 +113,9 @@ fn step_marquee(
     cancelled: StoredValue<bool, LocalStorage>,
     is_active: Signal<bool>,
 ) {
-    let new_handle = request_animation_frame_with_handle(move || {
+    let new_handle = request_animation_frame(move || {
+        // This frame is no longer outstanding; `step_marquee` below stores the next one.
+        handle.set_value(None);
         if cancelled.get_value() {
             return;
         }
@@ -155,7 +157,5 @@ fn step_marquee(
         step_marquee(track_controller, offset, velocity, direction, item_width, handle, cancelled, is_active);
     });
 
-    if let Ok(h) = new_handle {
-        handle.set_value(Some(h));
-    }
+    handle.set_value(new_handle.ok());
 }

@@ -21,8 +21,38 @@ const BUILDER_CARD_SETTLE_WAIT: Duration = Duration::from_millis(1300);
 
 const MACRO_STATE_SETTLE_WAIT: Duration = Duration::from_millis(1400);
 
-const RESOLVER_MID_WAIT: Duration = Duration::from_millis(220);
+// Retarget ~100ms into the 240ms pulse, measured in-page (see PULSE_THEN_RETARGET_JS).
+const RESOLVER_RETARGET_DELAY_MS: u32 = 100;
 const RESOLVER_SETTLE_WAIT: Duration = Duration::from_millis(1800);
+
+/// Pulses the active resolver card, then moves focus while the pulse is still
+/// in flight. Timing runs on rAF in-page so CDP round-trips can't push the
+/// retarget past the end of the transition. Returns card 0's opacity before
+/// the pulse and at the moment focus moved.
+const PULSE_THEN_RETARGET_JS: &str = r#"async (delayMs) => {
+    const byTestId = (id) => {
+        const element = document.querySelector(`[data-testid='${id}']`);
+        if (!element) {
+            throw new Error(`Missing element: ${id}`);
+        }
+        return element;
+    };
+    const opacity = (element) => Number.parseFloat(window.getComputedStyle(element).opacity || "1");
+    const first = byTestId("resolver-card-0");
+    const start = opacity(first);
+
+    byTestId("resolver-pulse").click();
+    const pulsedAt = performance.now();
+    while (performance.now() - pulsedAt < delayMs) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Read and retarget in one task so both see the same animation time.
+    const atRetarget = opacity(first);
+    byTestId("resolver-next").click();
+    return [start, atRetarget];
+}"#;
 
 const TIMELINE_MID_WAIT: Duration = Duration::from_millis(260);
 const TIMELINE_PAUSE_WAIT: Duration = Duration::from_millis(560);
@@ -440,33 +470,36 @@ async fn run_resolver_deck_check(browser: &Browser, base_url: &str) -> Result<()
     let first_selector = "[data-testid='resolver-card-0']";
     let second_selector = "[data-testid='resolver-card-1']";
 
-    let first_start = read_style(&page, first_selector).await?;
     let second_start = read_style(&page, second_selector).await?;
 
-    page.locator("[data-testid='resolver-pulse']")
+    let (first_start, first_at_retarget): (f64, f64) = page
+        .evaluate(PULSE_THEN_RETARGET_JS, Some(&RESOLVER_RETARGET_DELAY_MS))
         .await
-        .click(None)
-        .await?;
-    tokio::time::sleep(RESOLVER_MID_WAIT).await;
-    let first_mid = read_style(&page, first_selector).await?;
+        .context("Failed to pulse and retarget the resolver deck")?;
 
     ensure!(
-        style_delta(&first_start, &first_mid) > 0.08,
-        "Active resolver card never moved away from its starting state"
+        first_at_retarget > first_start + 0.03 && first_at_retarget < 0.97,
+        "Resolver pulse was not mid-flight when focus moved (card 0 opacity: start={first_start:.3}, at retarget={first_at_retarget:.3}); the in-flight retarget path was not exercised"
     );
 
-    page.locator("[data-testid='resolver-next']")
-        .await
-        .click(None)
-        .await?;
     tokio::time::sleep(RESOLVER_SETTLE_WAIT).await;
 
     let first_end = read_style(&page, first_selector).await?;
     let second_end = read_style(&page, second_selector).await?;
 
     ensure!(
+        (first_end.opacity - first_at_retarget).abs() < 0.03,
+        "Previous resolver target was not frozen where the retarget interrupted it (expected cancel + commit, not revert or completion): at retarget={first_at_retarget:.3}, settled={:.3}",
+        first_end.opacity
+    );
+    ensure!(
         style_delta(&second_start, &second_end) > 0.12,
         "Replacement resolver card never animated after retargeting"
+    );
+    ensure!(
+        second_end.opacity > 0.99,
+        "Replacement resolver card did not inherit the energized intent: opacity={:.3}",
+        second_end.opacity
     );
     ensure!(
         second_end.opacity > first_end.opacity + 0.04,

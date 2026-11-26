@@ -3,7 +3,9 @@ use leptos::prelude::*;
 #[component]
 pub fn PageShell(#[prop(optional)] class: &'static str, children: Children) -> impl IntoView {
     let delayed_class = RwSignal::new("");
-    Effect::new(move || request_animation_frame(move || delayed_class.set(class)));
+    Effect::new(move || {
+        let _ = request_animation_frame(move || delayed_class.set(class));
+    });
     view! {
         <section
             data-scrollable

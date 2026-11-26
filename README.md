@@ -34,14 +34,16 @@ The crate is intentionally modular. You enable only what you need.
 | --- | --- | --- |
 | `view-transitions` | `leptos_fluid::view_transitions::*` | Nested route outlet transitions using intro/outro CSS animation classes |
 | `flip` | `leptos_fluid::flip::*` | FLIP capture/invert/play for layout changes |
-| `motion` | `leptos_fluid::motion::*` | Common motion surface (`AnimationController`, builders, hover/tap helpers) |
+| `motion` | `leptos_fluid::motion::*` | Common motion surface (`AnimationController` + builders) |
 | `motion-core` | `leptos_fluid::motion::*` | Core motion types like `FluidStyle`, `Transition`, and `style!` |
-| `motion-controller` | `leptos_fluid::motion::*` | `AnimationController`, `bind_interaction`, `bind_interaction_node_ref` |
+| `motion-controller` | `leptos_fluid::motion::*` | `AnimationController` |
 | `motion-auto-size` | `leptos_fluid::motion::*` | ResizeObserver-backed height/width helpers |
 | `motion-timeline` | `leptos_fluid::motion::*` | `FluidTimeline` and `FluidStep` |
-| `motion-builders` | `leptos_fluid::motion::*` | typed builder APIs |
+| `motion-builders` | `leptos_fluid::motion::*` | Typed builder APIs |
+| `motion-interaction` | `leptos_fluid::motion::*` | `bind_interaction` and `bind_interaction_node_ref` |
 | `motion-macros` | `leptos_fluid::motion::*` | `controller!`, `when!`, `timeline!` |
-| `motion-spring` | `leptos_fluid::motion::*` | `use_spring`, `SpringValue` |
+| `motion-spring` | `leptos_fluid::motion::*` | `Spring`, `SpringValue`, and `use_spring` |
+| `motion-spring-transition` | `leptos_fluid::motion::*` | Spring-backed `Transition` constructors |
 | `motion-full` | `leptos_fluid::motion::*` | Full motion surface without flip/view-transitions |
 | `scroll` | `leptos_fluid::scroll::*` | Scroll-triggered animations (GSAP ScrollTrigger clone) |
 | `scroll-controller` | `leptos_fluid::scroll::*` | Bind scroll triggers to `AnimationController`s |
@@ -59,6 +61,8 @@ This repository also includes internal helper crates:
 
 ## Installation
 
+Requires Leptos `=0.9.0-rc1` (exact pin). Consume this revision from Git or a local path, not crates.io: `motion-auto-size` and `leptos_fluid_scroll/resize-observer` pull `generik_resize` from Git (`https://github.com/Innominus/generik.git`, rev `c5eb525`).
+
 ### Umbrella crate (recommended)
 
 ```toml
@@ -69,7 +73,8 @@ leptos_fluid = { path = "../leptos_fluid", features = ["motion"] }
 
 # narrower motion builds via the umbrella crate:
 # features = ["motion-core", "motion-controller", "motion-macros"]
-# features = ["motion-core", "motion-controller", "motion-auto-size", "motion-timeline", "motion-builders"]
+# features = ["motion", "motion-auto-size", "motion-interaction"]
+# features = ["motion", "motion-spring-transition"]
 # features = ["motion-full"]
 
 # narrower scroll builds via the umbrella crate:
@@ -423,14 +428,16 @@ FlipOptions {
 `motion` exports:
 
 - with any motion feature that enables `motion-core`: `FluidStyle`, `FluidValue`, `Transform`, `Transition`, `Easing`, `FluidSignal<T>`, `style!`
-- `motion-controller`: `AnimationController`, `bind_interaction`, `bind_interaction_node_ref`
+- `motion-controller`: `AnimationController`
 - `motion-builders`: `AnimationController::builder()`, `FluidTimeline::builder(...)`
+- `motion-interaction`: `bind_interaction`, `bind_interaction_node_ref`
 - `motion-macros`: `controller!`, `when!`, `timeline!`
 - `motion-timeline`: `FluidTimeline`, `FluidStep`
 - `motion-spring`: `Spring`, `SpringValue`, `use_spring`
+- `motion-spring-transition`: spring-backed `Transition` constructors
 - convenience: `motion::prelude::*`
 
-The umbrella `motion` feature enables the common controller + builders surface. Add the narrower forwarded `motion-*` features when you also need springs, timelines, macros, or auto-size helpers.
+The umbrella `motion` feature enables the common controller + builders surface. Add the narrower forwarded `motion-*` features when you also need springs, spring transitions, interactions, timelines, macros, or auto-size helpers.
 
 ### Motion controllers and hover/tap
 

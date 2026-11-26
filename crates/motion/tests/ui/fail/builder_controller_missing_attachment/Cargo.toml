@@ -1,3 +1,5 @@
+cargo-features = ["panic-immediate-abort"]
+
 [package]
 name = "motion_builder_ui_fail_missing_attachment"
 version = "0.0.0"

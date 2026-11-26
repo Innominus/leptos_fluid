@@ -77,7 +77,9 @@ fn run_count_animation(count: RwSignal<i64>) {
         handle: StoredValue<Option<AnimationFrameRequestHandle>, LocalStorage>,
         start: StoredValue<Option<f64>, LocalStorage>,
     ) {
-        let new_handle = request_animation_frame_with_handle(move || {
+        let new_handle = request_animation_frame(move || {
+            // This frame is no longer outstanding; `step` below stores the next one.
+            handle.set_value(None);
             if cancelled.get_value() {
                 return;
             }
@@ -99,9 +101,7 @@ fn run_count_animation(count: RwSignal<i64>) {
                 step(count, cancelled, handle, start);
             }
         });
-        if let Ok(h) = new_handle {
-            handle.set_value(Some(h));
-        }
+        handle.set_value(new_handle.ok());
     }
 
     step(count, cancelled, handle, start);

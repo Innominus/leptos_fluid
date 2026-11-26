@@ -55,6 +55,10 @@ pub(crate) struct FlipAnimation {
     inline_styles: InlineStyles,
     scale_corrections: Rc<Vec<ScaleCorrectionAnimation>>,
     border_radius_correction: Option<BorderRadiusCorrectionAnimation>,
+    /// No-WAAPI completion frame; cancelled on stop so a stale completion cannot fire.
+    completion_frame: Option<AnimationFrameRequestHandle>,
+    /// Keeps the WAAPI `onfinish` callback alive; detached on stop before it is dropped.
+    _on_finish: Option<Rc<Closure<dyn FnMut()>>>,
 }
 
 #[derive(Clone)]
@@ -278,7 +282,11 @@ pub(crate) fn stop_group_animations(
 pub(crate) fn stop_flip_animation_state(animation: &FlipAnimation) {
     apply_computed_transform(&animation.element);
     if let Some(active) = animation.animation.as_ref() {
+        animation_set_onfinish(active, None);
         animation_cancel(active);
+    }
+    if let Some(frame) = animation.completion_frame {
+        frame.cancel();
     }
     if let Some(correction) = animation.border_radius_correction.as_ref() {
         correction.stop_signal.set(true);
@@ -409,12 +417,19 @@ pub(crate) fn run_flip_animation(
         restore_inline_styles(&inner_element, &inner_inline_styles);
         on_finish();
     });
+    let mut completion_frame = None;
+    let mut on_finish_closure = None;
     if let Some(animation) = animation.as_ref() {
         let on_complete = Closure::wrap(Box::new(move || on_complete()) as Box<dyn FnMut()>);
         animation_set_onfinish(animation, Some(on_complete.as_ref()));
-        on_complete.forget();
+        on_finish_closure = Some(Rc::new(on_complete));
     } else {
-        request_animation_frame(move || on_complete());
+        let frame_complete = on_complete.clone();
+        match request_animation_frame(move || frame_complete()) {
+            Ok(handle) => completion_frame = Some(handle),
+            // No frame available: complete now so the FLIP inline styles aren't stranded.
+            Err(_) => on_complete(),
+        }
     }
 
     FlipAnimation {
@@ -423,6 +438,8 @@ pub(crate) fn run_flip_animation(
         inline_styles,
         scale_corrections,
         border_radius_correction,
+        completion_frame,
+        _on_finish: on_finish_closure,
     }
 }
 

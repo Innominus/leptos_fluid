@@ -287,7 +287,12 @@ fn schedule_resize_flush(binding: Rc<RefCell<AutoSizeBinding>>) {
         binding_ref.raf_scheduled = true;
     }
 
-    request_animation_frame(move || process_resize(binding));
+    let error_binding = Rc::clone(&binding);
+    if request_animation_frame(move || process_resize(binding)).is_err() {
+        // Scheduling failed: unset the flag so a later resize can retry
+        // instead of wedging auto-size with `raf_scheduled` stuck true.
+        error_binding.borrow_mut().raf_scheduled = false;
+    }
 }
 
 fn process_resize(binding: Rc<RefCell<AutoSizeBinding>>) {

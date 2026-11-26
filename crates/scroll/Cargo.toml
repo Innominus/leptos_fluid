@@ -2,7 +2,7 @@
 name = "leptos_fluid_scroll"
 version = "0.1.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 description = "Scroll-triggered animations for Leptos: a focused GSAP ScrollTrigger clone that integrates with leptos_fluid_motion."
 readme = "README.md"
@@ -14,7 +14,7 @@ categories = ["wasm", "web-programming", "gui"]
 
 [features]
 default = []
-resize-observer = ["dep:leptos_fluid_web", "leptos_fluid_web/resize-observer", "web-sys/ResizeObserver", "web-sys/ResizeObserverEntry"]
+resize-observer = ["dep:leptos_fluid_web", "leptos_fluid_web/resize-observer"]
 # Pure callback mode is always available with default-features = false.
 controller = ["dep:leptos_fluid_motion", "leptos_fluid_motion/controller"]
 timeline = ["dep:leptos_fluid_motion", "leptos_fluid_motion/timeline", "leptos_fluid_motion/controller"]

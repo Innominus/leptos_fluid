@@ -8,10 +8,12 @@ This crate runs end-to-end browser checks against the built `example_motion_cont
 
 Current checks:
 
-1. Declarative `bind` transition progression (start -> mid -> settled)
-2. Tab underline retargeting across selected tabs (including rapid re-selection)
-3. App-managed pointer interaction states (base -> hover -> press -> release)
-4. Queue-latest replay while target is detached
+1. Builder card transition progression (start -> mid -> settled)
+2. `when!` macro state transitions settling on the latest mode
+3. `resolver:` retargeting mid-flight: the previous card freezes where it was interrupted, the new card inherits the energized intent
+4. Timeline builder pause / resume
+5. Timeline macro pause / resume / stop-and-reset
+6. Auto height and auto width growth
 
 ## Prerequisites
 
@@ -26,7 +28,7 @@ cd ..
 2. Install Playwright Chromium browser matching the bundled Playwright version
 
 ```bash
-npx playwright@1.56.1 install chromium
+npx playwright@1.59.1 install chromium
 ```
 
 ## Run
@@ -41,10 +43,7 @@ Optional flags:
 - `--port <PORT>`: local test server port (default `4174`)
 - `--headed`: run Chromium with UI
 
-You can point `--dist-dir` at the React parity builds as well:
-
-- `example_motion_controller_react/dist` (`motion/react-m` + `LazyMotion`)
-- `example_motion_controller_react/dist-mini` (`useAnimate` from `motion/react-mini`)
+The React parity builds (`example_motion_controller_react/dist`, `dist-mini`) still expose the older `controller-*` test ids, so the current checks do not run against them.
 
 Example:
 
